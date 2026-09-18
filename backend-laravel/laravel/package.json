@@ -1,0 +1,30 @@
+{
+    "quotation_number": "AQ-26090002",
+    "date": "2026-09-04",
+    "admin_sales": "Diah Ayu Komala",
+    "customer_name": "PT SANY PERKASA",
+    "customer_address": "Jl. Angkasa 1-3 Gunung Sahari Utara Sawah Besar- Jakarta Pusat",
+    "attention_person": "Bapak Yanuar",
+    "model_unit": "SY215H",
+    "subject": "FABRICATION",
+    "sub_total": 46500000,
+    "tax_amount": 5115000,
+    "grand_total": 51615000,
+    "items": [{
+            "part_number": "19-RFB-001",
+            "description": "REINFORCE MODIFICATION FLAT BUCKET",
+            "qty": 1,
+            "unit": "SET",
+            "unit_price": 18500000,
+            "amount": 18500000
+        },
+        {
+            "part_number": "19-BLD-010",
+            "description": "ADDITIONAL BLADE FOR EXCAVATOR",
+            "qty": 1,
+            "unit": "SET",
+            "unit_price": 28000000,
+            "amount": 28000000
+        }
+    ]
+}

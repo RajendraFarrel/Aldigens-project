@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
-import ManagementPO from './pages/ManagementPO';
+import Quotation from './pages/Quotation';
+import SalesOrder from './pages/SalesOrder'; // Mengimpor halaman Sales Order
 import RadarRepeatOrder from './pages/RadarRepeatOrder';
-import Login from './pages/Login'; // Import Halaman Login Baru
-import { Menu } from 'lucide-react';
 import UserManagement from './pages/UserManagement';
+import Login from './pages/Login';
+import { Menu } from 'lucide-react';
+import axios from 'axios';
 
 export default function App() {
-  // State baru untuk mengecek apakah user sudah login atau belum
+  useEffect(() => {
+    axios.get('http://127.0.0.1:8000/api/ping')
+      .then(response => console.log(response.data))
+      .catch(error => console.error(error));
+  }, []);
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -18,25 +24,25 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard': return 'Dashboard Utama';
       case 'management': return 'Manajemen PO & BAST';
+      case 'quotation': return 'Manajemen Penawaran (Quotation)';
+      case 'sales-order': return 'Manajemen Sales Order';
       case 'radar': return 'Radar Repeat Order';
       case 'users': return 'Pengaturan Sistem';
       default: return 'Sistem Terintegrasi';
     }
   };
 
-  // Jika belum login, render halaman Login saja (menutupi seluruh layar)
   if (!isAuthenticated) {
     return <Login onLogin={() => setIsAuthenticated(true)} />;
   }
 
-  // Jika sudah login, render layout aplikasi lengkap dengan sidebar
   return (
     <div className="flex h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
       <Sidebar 
         isOpen={isSidebarOpen} 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        onLogout={() => setIsAuthenticated(false)} // Opsional: fungsi untuk logout nanti
+        onLogout={() => setIsAuthenticated(false)} 
       />
 
       <main className="flex-1 flex flex-col overflow-y-auto">
@@ -57,8 +63,11 @@ export default function App() {
           </div>
         </header>
 
+        {/* Kondisi Render Halaman Berdasarkan Menu yang Dipilih */}
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'management' && <ManagementPO />}
+        {activeTab === 'quotation' && <Quotation />}
+        {activeTab === 'sales-order' && <SalesOrder />}
         {activeTab === 'radar' && <RadarRepeatOrder />}
         {activeTab === 'users' && <UserManagement />}
       </main> 

@@ -10,7 +10,8 @@
     "sub_total": 46500000,
     "tax_amount": 5115000,
     "grand_total": 51615000,
-    "items": [{
+    "items": [
+        {
             "part_number": "19-RFB-001",
             "description": "REINFORCE MODIFICATION FLAT BUCKET",
             "qty": 1,
@@ -26,5 +27,8 @@
             "unit_price": 28000000,
             "amount": 28000000
         }
-    ]
+    ],
+    "dependencies": {
+        "axios": "^1.20.0"
+    }
 }

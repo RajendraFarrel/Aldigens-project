@@ -9,7 +9,6 @@ import {
   Trash2,
   Plus
 } from 'lucide-react';
-import QuotationPreview from './QuotationPreview';
 
 export default function Dashboard() {
   const [poList, setPoList] = useState([]);

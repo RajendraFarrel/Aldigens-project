@@ -1,11 +1,13 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Radar, Users, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, Radar, Users, LogOut, ShoppingCart } from 'lucide-react';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 
 export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard },
     { id: 'management', label: 'Manajemen PO & BAST', icon: FileText },
+    { id: 'quotation', label: 'Penawaran (Quotation)', icon: FileText }, // <--- Menu Penawaran baru ditambahkan di sini
+    { id: 'sales-order', label: 'Sales Order (SO)', icon: ShoppingCart }, 
     { id: 'radar', label: 'Radar Repeat Order', icon: Radar },
     { id: 'users', label: 'Pengaturan Sistem', icon: Users },
   ];
@@ -16,7 +18,6 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout }) {
         isOpen ? 'w-64' : 'w-20'
       }`}
     >
-      {/* Header Sidebar: Logo & Nama Perusahaan berubah dinamis */}
       <div className="p-4 border-b border-slate-800 flex items-center space-x-3 overflow-hidden">
         <img 
           src={logoPerusahaan} 
@@ -31,7 +32,6 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout }) {
         </div>
       </div>
 
-      {/* Daftar Menu Navigasi */}
       <nav className="flex-1 p-3 space-y-1.5">
         {menuItems.map((item) => {
           const Icon = item.icon;
@@ -40,7 +40,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout }) {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              title={!isOpen ? item.label : ''} // Tooltip saat mode mini
+              title={!isOpen ? item.label : ''}
               className={`w-full flex items-center space-x-3 px-3 py-3 rounded-xl text-sm font-medium transition cursor-pointer ${
                 isActive 
                   ? 'bg-blue-600 text-white shadow-md' 
@@ -56,7 +56,6 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout }) {
         })}
       </nav>
 
-      {/* Tombol Keluar / Logout */}
       <div className="p-3 border-t border-slate-800">
         <button
           onClick={onLogout}

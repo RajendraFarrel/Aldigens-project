@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Quotation from './pages/Quotation';
-import SalesOrder from './pages/SalesOrder'; // Mengimpor halaman Sales Order
-import RadarRepeatOrder from './pages/RadarRepeatOrder';
+import POList from './pages/POList';
+import SalesOrder from './pages/SalesOrder';
+import Inventory from './pages/Inventory'; // Mengimpor halaman Sales Order
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 import { Menu } from 'lucide-react';
@@ -11,7 +12,7 @@ import axios from 'axios';
 
 export default function App() {
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/ping')
+    axios.get('http://192.168.2.207:8000/api/ping')
       .then(response => console.log(response.data))
       .catch(error => console.error(error));
   }, []);
@@ -23,10 +24,9 @@ export default function App() {
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'dashboard': return 'Dashboard Utama';
-      case 'management': return 'Manajemen PO & BAST';
       case 'quotation': return 'Manajemen Penawaran (Quotation)';
       case 'sales-order': return 'Manajemen Sales Order';
-      case 'radar': return 'Radar Repeat Order';
+      case 'inventory': return 'Manajemen Inventaris & Barcode';
       case 'users': return 'Pengaturan Sistem';
       default: return 'Sistem Terintegrasi';
     }
@@ -67,7 +67,9 @@ export default function App() {
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'management' && <ManagementPO />}
         {activeTab === 'quotation' && <Quotation />}
+        {activeTab === 'purchase-order' && <POList />}
         {activeTab === 'sales-order' && <SalesOrder />}
+        {activeTab === 'inventory' && <Inventory />}
         {activeTab === 'radar' && <RadarRepeatOrder />}
         {activeTab === 'users' && <UserManagement />}
       </main> 

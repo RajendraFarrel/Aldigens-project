@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Trash2, ArrowLeft, Save, ShoppingCart, Calendar, User, Package, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, ShoppingCart, Calendar, CheckCircle2, Package } from 'lucide-react';
 
 export default function SalesOrder() {
   const [salesOrders, setSalesOrders] = useState([]);
@@ -27,10 +27,12 @@ export default function SalesOrder() {
   const fetchSalesOrders = async () => {
     try {
       const response = await api.get('/sales-orders');
-      setSalesOrders(response.data.data || response.data);
-      setLoading(false);
+      const rawData = response.data.data || response.data;
+      setSalesOrders(Array.isArray(rawData) ? rawData : []);
     } catch (error) {
       console.error('Gagal memuat data Sales Order:', error);
+      setSalesOrders([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -94,6 +96,7 @@ export default function SalesOrder() {
       await api.post('/sales-orders', payload);
       alert('Sales Order berhasil disimpan ke database!');
       setIsCreating(false);
+      
       setFormData({
         quotation_id: '',
         so_number: `SO-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -105,6 +108,7 @@ export default function SalesOrder() {
         status: 'Pending',
         items: [{ product_id: '', description: '-', qty: 1, unit_price: 0 }]
       });
+      
       fetchSalesOrders();
     } catch (error) {
       console.error('Gagal menyimpan SO:', error.response?.data || error.message);
@@ -119,7 +123,6 @@ export default function SalesOrder() {
   return (
     <div className="p-4 md:p-8 w-full max-w-full space-y-6">
       
-      {/* Header Utama (Hanya Tampil Jika Tidak Sedang Membuka Form/Detail) */}
       {!isCreating && !selectedSO && (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <div>
@@ -136,10 +139,7 @@ export default function SalesOrder() {
         </div>
       )}
 
-      {/* RENDER KONDISIONAL: FORM, DETAIL, ATAU TABEL */}
       {isCreating ? (
-        
-        /* ---------------- TAMPILAN FORM (FULL VIEW) ---------------- */
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 animate-fadeIn w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
             <div className="flex items-center gap-4">
@@ -252,7 +252,6 @@ export default function SalesOrder() {
 
       ) : selectedSO ? (
 
-        /* ---------------- TAMPILAN DETAIL (DETAIL VIEW) ---------------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 animate-fadeIn w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
             <div className="flex items-center gap-4">
@@ -302,7 +301,7 @@ export default function SalesOrder() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] uppercase tracking-wider">
-                    <th className="p-4 font-bold w-32">ID Produk</th>
+                    <th className="p-4 font-bold w-32">ID Produk / Part Number</th>
                     <th className="p-4 font-bold">Deskripsi Barang</th>
                     <th className="p-4 font-bold text-center w-24">QTY</th>
                     <th className="p-4 font-bold text-right w-40">Harga Satuan</th>
@@ -313,7 +312,7 @@ export default function SalesOrder() {
                   {selectedSO.items && selectedSO.items.length > 0 ? (
                     selectedSO.items.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition">
-                        <td className="p-4 text-sm font-semibold text-slate-700">{item.product_id || '-'}</td>
+                        <td className="p-4 text-sm font-semibold text-slate-700">{item.part_number || item.product_id || '-'}</td>
                         <td className="p-4 text-sm font-medium text-slate-600">{item.description || '-'}</td>
                         <td className="p-4 text-sm text-center font-bold text-slate-800">{item.qty || item.quantity}</td>
                         <td className="p-4 text-sm text-right font-medium text-slate-600">{formatRupiah(item.unit_price)}</td>
@@ -333,7 +332,6 @@ export default function SalesOrder() {
               </table>
             </div>
             
-            {/* Box Total Terpisah di Kanan Bawah */}
             <div className="flex justify-end mt-6">
               <div className="w-full md:w-96 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
@@ -355,7 +353,6 @@ export default function SalesOrder() {
 
       ) : (
 
-        /* ---------------- TAMPILAN TABEL LIST SO UTAMA ---------------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden w-full">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">

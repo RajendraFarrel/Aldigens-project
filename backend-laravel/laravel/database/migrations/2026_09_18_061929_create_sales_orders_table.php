@@ -13,18 +13,17 @@ return new class extends Migration
     {
         Schema::create('sales_orders', function (Blueprint $table) {
     $table->id();
-    // Relasi ke tabel quotations (karena SO berasal dari Quotation yang disetujui)
+    $table->foreignId('purchase_order_id')->nullable()->constrained()->cascadeOnDelete(); // Tambahkan ini agar nyambung ke PO
     $table->unsignedBigInteger('quotation_id')->nullable();
 
-    $table->string('so_number')->unique();         // Nomor Sales Order (Contoh: SO-26090001)
-    $table->string('client_po_number');            // Nomor PO / SPK dari Klien
-    $table->date('so_date');                       // Tanggal SO dibuat
-    $table->string('customer_name');               // Nama Customer (PT Sany Perkasa, dll)
-    $table->text('customer_address')->nullable();  // Alamat customer
-    $table->string('model_unit')->nullable();      // Model Unit (Contoh: SY215H)
+    $table->string('so_number')->unique();         
+    $table->string('client_po_number');            
+    $table->date('so_date');                         
+    $table->string('customer_name');               
+    $table->text('customer_address')->nullable();  
+    $table->string('model_unit')->nullable();      
 
-    // Status alur kerja SO
-    $table->string('status')->default('Pending');  // Pending, Process, Completed, Cancelled
+    $table->string('status')->default('Pending');  
 
     $table->decimal('sub_total', 15, 2)->default(0);
     $table->decimal('tax_amount', 15, 2)->default(0);

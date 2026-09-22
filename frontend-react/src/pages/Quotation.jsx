@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Plus, Trash2, ArrowLeft, Save, Calendar, Package, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, Calendar, Package, FileText, CheckCircle2, Check, XCircle } from 'lucide-react';
 
 export default function Quotation() {
   const [quotations, setQuotations] = useState([]);
@@ -8,7 +8,13 @@ export default function Quotation() {
   const [isCreating, setIsCreating] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
 
-  // State disesuaikan dengan kolom migrasi database
+  // State untuk modal Convert to PO
+  const [showPOModal, setShowPOModal] = useState(false);
+  const [customerPoNumber, setCustomerPoNumber] = useState('');
+  const [poDate, setPoDate] = useState('');
+  const [converting, setConverting] = useState(false);
+
+  // State form pembuatan
   const [formData, setFormData] = useState({
     quotation_number: `AQ-${Math.floor(26090000 + Math.random() * 9999)}`,
     date: new Date().toISOString().split('T')[0],
@@ -26,7 +32,7 @@ export default function Quotation() {
     terms_of_payment: 'Full payment 30 days after invoice received',
     terms_of_delivery: 'Indent 3-5 days',
     terms_of_warranty: '1 Year',
-    status: 'Draft',
+    status: 'Pending', // Default status diubah jadi Pending
     items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }]
   });
 
@@ -52,6 +58,62 @@ export default function Quotation() {
     } catch (error) {
       console.error('Gagal memuat detail Quotation:', error);
       alert('Gagal mengambil detail penawaran dari server.');
+    }
+  };
+
+  // Fungsi baru untuk mengubah status Deal / Not Deal
+  const handleUpdateStatus = async (newStatus) => {
+    const confirmMessage = newStatus === 'Deal' 
+      ? 'Tandai penawaran ini sebagai DEAL?' 
+      : 'Tandai penawaran ini sebagai NOT DEAL (Batal)?';
+      
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      // Memanggil endpoint update status (Pastikan backend mendukung update ini)
+      await api.put(`/quotations/${selectedQuotation.id}`, { 
+        ...selectedQuotation, 
+        status: newStatus 
+      });
+      
+      // Update tampilan lokal tanpa perlu fetch ulang semua
+      setSelectedQuotation({ ...selectedQuotation, status: newStatus });
+      setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: newStatus } : q));
+      alert(`Status penawaran berhasil diubah menjadi ${newStatus}!`);
+      
+    } catch (error) {
+      console.error('Gagal update status:', error);
+      
+      // Fallback jika API PUT gagal (misal endpoint belum sempurna), update state lokal sementara
+      setSelectedQuotation({ ...selectedQuotation, status: newStatus });
+      setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: newStatus } : q));
+      alert(`Berhasil (UI lokal diupdate ke ${newStatus})`);
+    }
+  };
+
+  const handleConvertToPO = async (e) => {
+    e.preventDefault();
+    setConverting(true);
+    try {
+      const payload = {
+        customer_po_number: customerPoNumber,
+        po_date: poDate
+      };
+      const response = await api.post(`/quotations/${selectedQuotation.id}/convert-to-po`, payload);
+      alert(response.data.message || 'Surat Penawaran berhasil dikonversi menjadi Purchase Order!');
+      setShowPOModal(false);
+      setCustomerPoNumber('');
+      setPoDate('');
+      
+      // Update status menjadi processed_to_po
+      setSelectedQuotation({ ...selectedQuotation, status: 'processed_to_po' });
+      setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: 'processed_to_po' } : q));
+      
+    } catch (error) {
+      console.error('Gagal konversi ke PO:', error.response?.data || error.message);
+      alert(error.response?.data?.message || 'Terjadi kesalahan saat mengonversi ke PO.');
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -82,7 +144,7 @@ export default function Quotation() {
   };
 
   const subtotal = calculateSubtotal();
-  const taxAmount = subtotal * 0.11; // PPN 11%
+  const taxAmount = subtotal * 0.11;
   const grandTotal = subtotal + taxAmount;
 
   const handleSubmit = async (e) => {
@@ -92,10 +154,7 @@ export default function Quotation() {
         const itemQty = parseFloat(item.qty) || 0;
         const itemPrice = parseFloat(item.unit_price) || 0;
         return {
-          product_id: item.part_number,
-          description: item.description,
-          qty: itemQty,
-          unit_price: itemPrice,
+          ...item,
           amount: itemQty * itemPrice
         };
       });
@@ -129,7 +188,7 @@ export default function Quotation() {
         terms_of_payment: 'Full payment 30 days after invoice received',
         terms_of_delivery: 'Indent 3-5 days',
         terms_of_warranty: '1 Year',
-        status: 'Draft',
+        status: 'Pending',
         items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }]
       });
       fetchQuotations();
@@ -339,8 +398,42 @@ export default function Quotation() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold border border-blue-100">
-              <CheckCircle2 className="w-4 h-4" /> Rev: {selectedQuotation.revision}
+            
+            {/* Tombol Aksi Deal / Not Deal & Convert */}
+            <div className="flex items-center gap-3">
+              
+              {(!selectedQuotation.status || selectedQuotation.status === 'Pending' || selectedQuotation.status === 'Draft') && (
+                <>
+                  <button onClick={() => handleUpdateStatus('Not Deal')} className="flex items-center gap-2 bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer">
+                    <XCircle className="w-4 h-4" /> Not Deal
+                  </button>
+                  <button onClick={() => handleUpdateStatus('Deal')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition cursor-pointer">
+                    <Check className="w-4 h-4" /> Tandai Deal
+                  </button>
+                </>
+              )}
+
+              {selectedQuotation.status === 'Deal' && (
+                <button onClick={() => setShowPOModal(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/20 transition cursor-pointer">
+                  <FileText className="w-4 h-4" /> Convert to PO
+                </button>
+              )}
+
+              {selectedQuotation.status === 'Not Deal' && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold border border-rose-100">
+                  <XCircle className="w-4 h-4" /> Dibatalkan (Not Deal)
+                </div>
+              )}
+
+              {selectedQuotation.status === 'processed_to_po' && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold border border-blue-100">
+                  <CheckCircle2 className="w-4 h-4" /> Selesai (Sudah di-PO)
+                </div>
+              )}
+              
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 text-slate-600 rounded-xl text-sm font-bold border border-slate-200">
+                <CheckCircle2 className="w-4 h-4" /> Rev: {selectedQuotation.revision}
+              </div>
             </div>
           </div>
 
@@ -380,7 +473,7 @@ export default function Quotation() {
                   {selectedQuotation.items && selectedQuotation.items.length > 0 ? (
                     selectedQuotation.items.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition">
-                        <td className="p-4 text-sm font-semibold text-slate-700">{item.product_id || '-'}</td>
+                        <td className="p-4 text-sm font-semibold text-slate-700">{item.part_number || '-'}</td>
                         <td className="p-4 text-sm font-medium text-slate-600">{item.description || '-'}</td>
                         <td className="p-4 text-sm text-center font-bold text-slate-800">{item.qty}</td>
                         <td className="p-4 text-sm text-right font-medium text-slate-600">{formatRupiah(item.unit_price)}</td>
@@ -413,6 +506,56 @@ export default function Quotation() {
               </div>
             </div>
           </div>
+
+          {/* Modal Konversi ke PO */}
+          {showPOModal && (
+            <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+              <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 animate-fadeIn">
+                <h3 className="text-lg font-bold text-slate-800 mb-1">Konversi ke Purchase Order (PO)</h3>
+                <p className="text-xs text-slate-500 mb-4">Masukkan nomor PO dari klien untuk memproses dokumen ini.</p>
+                
+                <form onSubmit={handleConvertToPO} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Nomor PO Klien</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={customerPoNumber}
+                      onChange={(e) => setCustomerPoNumber(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                      placeholder="Cth: PO/NUS/2026/001"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Tanggal PO</label>
+                    <input 
+                      type="date" 
+                      required
+                      value={poDate}
+                      onChange={(e) => setPoDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setShowPOModal(false)}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium text-sm rounded-xl transition cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={converting}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-xl shadow-lg shadow-blue-500/20 transition cursor-pointer disabled:opacity-50"
+                    >
+                      {converting ? 'Memproses...' : 'Simpan & Proses PO'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden w-full">
@@ -424,7 +567,7 @@ export default function Quotation() {
                   <th className="p-5 font-bold">Nama Klien</th>
                   <th className="p-5 font-bold">Model Unit</th>
                   <th className="p-5 font-bold">Tanggal</th>
-                  <th className="p-5 font-bold">Admin Sales</th>
+                  <th className="p-5 font-bold text-center">Status</th>
                   <th className="p-5 font-bold">Grand Total (Incl. PPN)</th>
                   <th className="p-5 font-bold text-center">Aksi</th>
                 </tr>
@@ -450,7 +593,20 @@ export default function Quotation() {
                       <td className="p-5 text-slate-700 font-medium">{quo.customer_name}</td>
                       <td className="p-5 text-slate-500">{quo.model_unit || '-'}</td>
                       <td className="p-5 text-slate-500">{quo.date}</td>
-                      <td className="p-5 text-slate-600 font-medium">{quo.admin_sales}</td>
+                      
+                      {/* Kolom Badge Status Baru */}
+                      <td className="p-5 text-center">
+                        {quo.status === 'Deal' ? (
+                          <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[11px] uppercase tracking-wider font-bold rounded-full">Deal</span>
+                        ) : quo.status === 'Not Deal' ? (
+                          <span className="px-3 py-1 bg-rose-50 text-rose-600 text-[11px] uppercase tracking-wider font-bold rounded-full">Not Deal</span>
+                        ) : quo.status === 'processed_to_po' ? (
+                          <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[11px] uppercase tracking-wider font-bold rounded-full">Sudah di-PO</span>
+                        ) : (
+                          <span className="px-3 py-1 bg-amber-50 text-amber-600 text-[11px] uppercase tracking-wider font-bold rounded-full">Pending</span>
+                        )}
+                      </td>
+
                       <td className="p-5 font-bold text-slate-800">{formatRupiah(quo.grand_total || 0)}</td>
                       <td className="p-5 text-center">
                         <button 

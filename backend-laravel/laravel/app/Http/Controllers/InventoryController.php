@@ -71,4 +71,42 @@ class InventoryController extends Controller
             'data' => $inventory
         ], 200);
     }
+
+    // 4. Update stok otomatis saat scan barcode (Barang Masuk / Keluar)
+    public function updateStock(Request $request, $part_number)
+    {
+        $request->validate([
+            'type' => 'required|in:in,out', // 'in' untuk masuk, 'out' untuk keluar
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $inventory = Inventory::where('part_number', $part_number)->first();
+
+        if (!$inventory) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Barang dengan part number tersebut tidak ditemukan.'
+            ], 404);
+        }
+
+        if ($request->type === 'out') {
+            if ($inventory->stock_quantity < $request->quantity) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Stok tidak mencukupi untuk pengeluaran barang!'
+                ], 400);
+            }
+            $inventory->stock_quantity -= $request->quantity;
+        } else {
+            $inventory->stock_quantity += $request->quantity;
+        }
+
+        $inventory->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Stok berhasil diperbarui!',
+            'data' => $inventory
+        ], 200);
+    }
 }

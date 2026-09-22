@@ -5,10 +5,10 @@ import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout }) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard },
-    { id: 'management', label: 'Manajemen PO & BAST', icon: FileText },
-    { id: 'quotation', label: 'Penawaran (Quotation)', icon: FileText }, // <--- Menu Penawaran baru ditambahkan di sini
-    { id: 'sales-order', label: 'Sales Order (SO)', icon: ShoppingCart }, 
-    { id: 'radar', label: 'Radar Repeat Order', icon: Radar },
+    { id: 'quotation', label: 'Penawaran (Quotation)', icon: FileText },
+    { id: 'purchase-order', label: 'Purchase Order (PO)', icon: FileText }, // <--- Menu Penawaran baru ditambahkan di sini
+    { id: 'sales-order', label: 'Sales Order (SO)', icon: ShoppingCart },
+    { id: 'inventory', label: 'Manajemen Inventaris', icon: ShoppingCart }, 
     { id: 'users', label: 'Pengaturan Sistem', icon: Users },
   ];
 

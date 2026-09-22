@@ -9,6 +9,7 @@ import {
   Trash2,
   Plus
 } from 'lucide-react';
+import api from '../services/api';
 
 export default function Dashboard() {
   const [poList, setPoList] = useState([]);
@@ -32,30 +33,27 @@ export default function Dashboard() {
   });
 
   const fetchQuotations = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:8000/api/quotations');
-      const result = await response.json();
-      
-      if (result.status === 'success' && result.data) {
-        const formattedData = result.data.map((item) => ({
-          id: item.id,
-          quotation_number: item.quotation_number,
-          date: item.date,
-          admin_sales: item.admin_sales,
-          customer_name: item.customer_name,
-          customer_address: item.customer_address,
-          subject: item.subject,
-          items: item.items,
-          sub_total: item.sub_total,
-          tax_amount: item.tax_amount,
-          grand_total: item.grand_total,
-          poNumber: item.quotation_number,
-          client: item.customer_name,
-          item: item.items && item.items.length > 0 ? `${item.items.length} Item Barang` : item.subject,
-          installDate: item.date,
-          status: 'Completed',
-          radarStatus: 'Safe (Aman)'
-        }));
+  try {
+    const response = await api.get('/quotations'); // Menggunakan instance api
+    const result = response.data; // Axios otomatis memparsing JSON ke response.data
+
+    if (result.status === 'success' && result.data) {
+      const formattedData = result.data.map((item) => ({
+        id: item.id,
+        quotation_number: item.quotation_number,
+        date: item.date,
+        admin_sales: item.admin_sales,
+        customer_name: item.customer_name,
+        customer_address: item.customer_address,
+        subject: item.subject,
+        items: item.items,
+        sub_total: item.sub_total,
+        tax_amount: item.tax_amount,
+        grand_total: item.grand_total,
+        poNumber: item.quotation_number,
+        client: item.customer_name,
+        item: item.items && item.items.length > 0 ? `${item.items.length} Item Barang` : item.subject,
+      }));
         setPoList(formattedData);
       }
     } catch (error) {

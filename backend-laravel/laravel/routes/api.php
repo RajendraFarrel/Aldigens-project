@@ -7,6 +7,7 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\DeliveryOrderController;
+use App\Http\Controllers\Api\PurchaseOrderController;
 
 
 
@@ -40,3 +41,10 @@ Route::get('/inventories/scan/{part_number}', [InventoryController::class, 'show
 Route::get('/delivery-orders', [DeliveryOrderController::class, 'index']);
 Route::post('/delivery-orders', [DeliveryOrderController::class, 'store']);
 Route::get('/sales-orders/{id}', [SalesOrderController::class, 'show']);
+Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, 'storeFromQuotation']);
+Route::post('/purchase-orders/{id}/convert-to-so', [SalesOrderController::class, 'storeFromPO']);
+Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
+Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, 'storeFromQuotation']);
+Route::put('/quotations/{id}', [\App\Http\Controllers\Api\QuotationController::class, 'update']);
+Route::get('/inventories/scan/{part_number}', [InventoryController::class, 'showByPartNumber']);
+Route::post('/inventories/scan/{part_number}/update-stock', [InventoryController::class, 'updateStock']);

@@ -47,7 +47,8 @@ class QuotationController extends Controller
                 foreach ($request->items as $item) {
                     QuotationItem::create([
                         'quotation_id' => $quotation->id,
-                        'part_number' => $item['part_number'] ?? null, // Sesuai migrasi Anda
+                        // Menangkap part_number dari berbagai kemungkinan nama input frontend
+                        'part_number' => $item['part_number'] ?? $item['product_id'] ?? $item['code'] ?? '-',
                         'description' => $item['description'] ?? '-',
                         'qty' => $item['qty'] ?? 1,
                         'unit' => $item['unit'] ?? 'SET',
@@ -86,5 +87,36 @@ class QuotationController extends Controller
             'status' => 'success',
             'data' => $quotation
         ]);
+    }
+
+    public function update(Request $request, $id)
+    {
+        try {
+            $quotation = \App\Models\Quotation::findOrFail($id);
+            
+            // HANYA ambil data yang benar-benar ada kolomnya di tabel quotations
+            $dataToUpdate = $request->only([
+                'quotation_number', 'date', 'revision', 'admin_sales',
+                'customer_name', 'customer_address', 'attention_person',
+                'customer_phone', 'customer_email', 'model_unit',
+                'subject', 'currency', 'place_of_delivery',
+                'terms_of_payment', 'terms_of_delivery', 'terms_of_warranty',
+                'status', 'sub_total', 'tax_percentage', 'tax_amount', 'grand_total'
+            ]);
+            
+            // Lakukan update dengan data yang sudah bersih
+            $quotation->update($dataToUpdate);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Data Quotation berhasil diperbarui',
+                'data' => $quotation
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal mengupdate data: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

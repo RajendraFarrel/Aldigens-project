@@ -11,7 +11,8 @@ import axios from 'axios';
 
 export default function App() {
   useEffect(() => {
-    axios.get('http://192.168.2.207:8000/api/ping')
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+    axios.get(`${apiUrl}/ping`)
       .then(response => console.log(response.data))
       .catch(error => console.error(error));
   }, []);

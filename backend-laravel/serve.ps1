@@ -18,7 +18,7 @@
 # =====================================================================
 
 param(
-    [string]$PhpPath = "C:\laragon\bin\php\php-8.1.10-Win32-vs16-x64\php.exe",
+    [string]$PhpPath = "C:\xampp1\php\php.exe",
     [string]$Host_   = "127.0.0.1",
     [int]$Port       = 8000
 )
@@ -34,10 +34,15 @@ function Write-Warn($msg) { Write-Host "    $msg" -ForegroundColor Yellow }
 if (-not (Test-Path $PhpPath)) {
     Write-Warn "PHP tidak ditemukan di: $PhpPath"
     Write-Warn "Cari php.exe di sistem..."
-    $candidates = Get-ChildItem "C:\laragon\bin\php" -Filter "php.exe" -Recurse -ErrorAction SilentlyContinue |
-                  Select-Object -First 1 -ExpandProperty FullName
+    $candidates = @("C:\xampp1\php\php.exe", "C:\xampp\php\php.exe", "C:\laragon\bin\php\*\php.exe") |
+                  Resolve-Path -ErrorAction SilentlyContinue |
+                  Select-Object -First 1 -ExpandProperty Path
     if (-not $candidates) {
-        Write-Host "ERROR: php.exe tidak ditemukan. Install Laragon atau ubah -PhpPath." -ForegroundColor Red
+        $cmdPhp = Get-Command php -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+        if ($cmdPhp) { $candidates = $cmdPhp }
+    }
+    if (-not $candidates) {
+        Write-Host "ERROR: php.exe tidak ditemukan. Pastikan XAMPP atau PHP terinstall." -ForegroundColor Red
         exit 1
     }
     $PhpPath = $candidates

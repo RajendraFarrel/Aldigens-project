@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('quotation_id')->constrained('quotations')->onDelete('cascade');
             
             $table->string('part_number')->nullable();
+            $table->string('internal_code')->nullable();
             $table->foreignId('product_id')->nullable()->constrained()->nullOnDelete();
             $table->string('description');
             $table->integer('qty');

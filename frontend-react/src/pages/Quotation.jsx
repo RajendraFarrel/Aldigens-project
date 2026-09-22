@@ -32,8 +32,8 @@ export default function Quotation() {
     terms_of_payment: 'Full payment 30 days after invoice received',
     terms_of_delivery: 'Indent 3-5 days',
     terms_of_warranty: '1 Year',
-    status: 'Pending', // Default status diubah jadi Pending
-    items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }]
+    status: 'Pending',
+    items: [{ part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
   });
 
   useEffect(() => {
@@ -61,7 +61,6 @@ export default function Quotation() {
     }
   };
 
-  // Fungsi baru untuk mengubah status Deal / Not Deal
   const handleUpdateStatus = async (newStatus) => {
     const confirmMessage = newStatus === 'Deal' 
       ? 'Tandai penawaran ini sebagai DEAL?' 
@@ -70,21 +69,17 @@ export default function Quotation() {
     if (!window.confirm(confirmMessage)) return;
 
     try {
-      // Memanggil endpoint update status (Pastikan backend mendukung update ini)
       await api.put(`/quotations/${selectedQuotation.id}`, { 
         ...selectedQuotation, 
         status: newStatus 
       });
       
-      // Update tampilan lokal tanpa perlu fetch ulang semua
       setSelectedQuotation({ ...selectedQuotation, status: newStatus });
       setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: newStatus } : q));
       alert(`Status penawaran berhasil diubah menjadi ${newStatus}!`);
       
     } catch (error) {
       console.error('Gagal update status:', error);
-      
-      // Fallback jika API PUT gagal (misal endpoint belum sempurna), update state lokal sementara
       setSelectedQuotation({ ...selectedQuotation, status: newStatus });
       setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: newStatus } : q));
       alert(`Berhasil (UI lokal diupdate ke ${newStatus})`);
@@ -105,7 +100,6 @@ export default function Quotation() {
       setCustomerPoNumber('');
       setPoDate('');
       
-      // Update status menjadi processed_to_po
       setSelectedQuotation({ ...selectedQuotation, status: 'processed_to_po' });
       setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: 'processed_to_po' } : q));
       
@@ -120,7 +114,7 @@ export default function Quotation() {
   const handleAddItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { part_number: '', description: '', qty: 1, unit_price: 0 }]
+      items: [...formData.items, { part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
     });
   };
 
@@ -189,7 +183,7 @@ export default function Quotation() {
         terms_of_delivery: 'Indent 3-5 days',
         terms_of_warranty: '1 Year',
         status: 'Pending',
-        items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }]
+        items: [{ part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
       });
       fetchQuotations();
     } catch (error) {
@@ -331,11 +325,15 @@ export default function Quotation() {
                 const subtotalItem = (parseFloat(item.qty) || 0) * (parseFloat(item.unit_price) || 0);
                 return (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 items-center">
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-2">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER</label>
                       <input type="text" required placeholder="Cth: 19-RFB-001" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium" value={item.part_number} onChange={(e) => handleItemChange(index, 'part_number', e.target.value)} />
                     </div>
-                    <div className="md:col-span-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">INTERNAL KODE</label>
+                      <input type="text" placeholder="Cth: INT-001" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium" value={item.internal_code} onChange={(e) => handleItemChange(index, 'internal_code', e.target.value)} />
+                    </div>
+                    <div className="md:col-span-3">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">DESKRIPSI BARANG</label>
                       <input type="text" required placeholder="Deskripsi detail barang" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
                     </div>
@@ -399,9 +397,7 @@ export default function Quotation() {
               </div>
             </div>
             
-            {/* Tombol Aksi Deal / Not Deal & Convert */}
             <div className="flex items-center gap-3">
-              
               {(!selectedQuotation.status || selectedQuotation.status === 'Pending' || selectedQuotation.status === 'Draft') && (
                 <>
                   <button onClick={() => handleUpdateStatus('Not Deal')} className="flex items-center gap-2 bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2.5 rounded-xl text-sm font-bold transition cursor-pointer">
@@ -462,11 +458,12 @@ export default function Quotation() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] uppercase tracking-wider">
-                    <th className="p-4 font-bold w-40">Part Number</th>
+                    <th className="p-4 font-bold w-36">Part Number</th>
+                    <th className="p-4 font-bold w-36">Internal Kode</th>
                     <th className="p-4 font-bold">Deskripsi Barang</th>
-                    <th className="p-4 font-bold text-center w-24">QTY</th>
-                    <th className="p-4 font-bold text-right w-40">Harga Satuan</th>
-                    <th className="p-4 font-bold text-right w-48">Subtotal</th>
+                    <th className="p-4 font-bold text-center w-20">QTY</th>
+                    <th className="p-4 font-bold text-right w-36">Harga Satuan</th>
+                    <th className="p-4 font-bold text-right w-40">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -474,6 +471,7 @@ export default function Quotation() {
                     selectedQuotation.items.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition">
                         <td className="p-4 text-sm font-semibold text-slate-700">{item.part_number || '-'}</td>
+                        <td className="p-4 text-sm font-semibold text-slate-600">{item.internal_code || '-'}</td>
                         <td className="p-4 text-sm font-medium text-slate-600">{item.description || '-'}</td>
                         <td className="p-4 text-sm text-center font-bold text-slate-800">{item.qty}</td>
                         <td className="p-4 text-sm text-right font-medium text-slate-600">{formatRupiah(item.unit_price)}</td>
@@ -482,7 +480,7 @@ export default function Quotation() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" className="p-12 text-center text-sm font-medium text-slate-400">Tidak ada item.</td>
+                      <td colSpan="6" className="p-12 text-center text-sm font-medium text-slate-400">Tidak ada item.</td>
                     </tr>
                   )}
                 </tbody>
@@ -507,7 +505,6 @@ export default function Quotation() {
             </div>
           </div>
 
-          {/* Modal Konversi ke PO */}
           {showPOModal && (
             <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
               <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl border border-slate-100 animate-fadeIn">
@@ -594,7 +591,6 @@ export default function Quotation() {
                       <td className="p-5 text-slate-500">{quo.model_unit || '-'}</td>
                       <td className="p-5 text-slate-500">{quo.date}</td>
                       
-                      {/* Kolom Badge Status Baru */}
                       <td className="p-5 text-center">
                         {quo.status === 'Deal' ? (
                           <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[11px] uppercase tracking-wider font-bold rounded-full">Deal</span>

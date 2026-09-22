@@ -49,6 +49,7 @@ class QuotationController extends Controller
                         'quotation_id' => $quotation->id,
                         // Menangkap part_number dari berbagai kemungkinan nama input frontend
                         'part_number' => $item['part_number'] ?? $item['product_id'] ?? $item['code'] ?? '-',
+                        'internal_code' => $item['internal_code'] ?? null,
                         'description' => $item['description'] ?? '-',
                         'qty' => $item['qty'] ?? 1,
                         'unit' => $item['unit'] ?? 'SET',

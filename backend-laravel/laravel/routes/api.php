@@ -45,6 +45,6 @@ Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, '
 Route::post('/purchase-orders/{id}/convert-to-so', [SalesOrderController::class, 'storeFromPO']);
 Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
 Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, 'storeFromQuotation']);
-Route::put('/quotations/{id}', [\App\Http\Controllers\Api\QuotationController::class, 'update']);
+Route::put('/quotations/{id}', [QuotationController::class, 'update']);
 Route::get('/inventories/scan/{part_number}', [InventoryController::class, 'showByPartNumber']);
 Route::post('/inventories/scan/{part_number}/update-stock', [InventoryController::class, 'updateStock']);

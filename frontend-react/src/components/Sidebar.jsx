@@ -7,8 +7,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout }) {
     { id: 'dashboard', label: 'Dashboard Utama', icon: LayoutDashboard },
     { id: 'quotation', label: 'Penawaran (Quotation)', icon: FileText },
     { id: 'purchase-order', label: 'Purchase Order (PO)', icon: FileText }, // <--- Menu Penawaran baru ditambahkan di sini
-    { id: 'sales-order', label: 'Sales Order (SO)', icon: ShoppingCart },
-    { id: 'inventory', label: 'Manajemen Inventaris', icon: ShoppingCart }, 
+    { id: 'sales-order', label: 'Sales Order (SO)', icon: ShoppingCart }, 
     { id: 'users', label: 'Pengaturan Sistem', icon: Users },
   ];
 

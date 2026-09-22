@@ -3,8 +3,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Quotation from './pages/Quotation';
 import POList from './pages/POList';
-import SalesOrder from './pages/SalesOrder';
-import Inventory from './pages/Inventory'; // Mengimpor halaman Sales Order
+import SalesOrder from './pages/SalesOrder'; // Mengimpor halaman Sales Order
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 import { Menu } from 'lucide-react';
@@ -26,7 +25,6 @@ export default function App() {
       case 'dashboard': return 'Dashboard Utama';
       case 'quotation': return 'Manajemen Penawaran (Quotation)';
       case 'sales-order': return 'Manajemen Sales Order';
-      case 'inventory': return 'Manajemen Inventaris & Barcode';
       case 'users': return 'Pengaturan Sistem';
       default: return 'Sistem Terintegrasi';
     }
@@ -69,7 +67,6 @@ export default function App() {
         {activeTab === 'quotation' && <Quotation />}
         {activeTab === 'purchase-order' && <POList />}
         {activeTab === 'sales-order' && <SalesOrder />}
-        {activeTab === 'inventory' && <Inventory />}
         {activeTab === 'radar' && <RadarRepeatOrder />}
         {activeTab === 'users' && <UserManagement />}
       </main> 

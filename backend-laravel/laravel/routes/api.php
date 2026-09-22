@@ -35,9 +35,6 @@ Route::get('/ping', function () {
 });
 Route::get('/sales-orders', [SalesOrderController::class, 'index']);
 Route::post('/sales-orders', [SalesOrderController::class, 'store']);
-Route::get('/inventories', [InventoryController::class, 'index']);
-Route::post('/inventories', [InventoryController::class, 'store']);
-Route::get('/inventories/scan/{part_number}', [InventoryController::class, 'showByPartNumber']);
 Route::get('/delivery-orders', [DeliveryOrderController::class, 'index']);
 Route::post('/delivery-orders', [DeliveryOrderController::class, 'store']);
 Route::get('/sales-orders/{id}', [SalesOrderController::class, 'show']);
@@ -46,5 +43,3 @@ Route::post('/purchase-orders/{id}/convert-to-so', [SalesOrderController::class,
 Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
 Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, 'storeFromQuotation']);
 Route::put('/quotations/{id}', [QuotationController::class, 'update']);
-Route::get('/inventories/scan/{part_number}', [InventoryController::class, 'showByPartNumber']);
-Route::post('/inventories/scan/{part_number}/update-stock', [InventoryController::class, 'updateStock']);

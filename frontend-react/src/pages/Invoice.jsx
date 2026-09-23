@@ -8,6 +8,7 @@ import {
   getSalesOrders, getDeliveryOrders
 } from '../services/api';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
+import { swalError } from '../utils/swal';
 
 export default function Invoice() {
   const [invoices, setInvoices] = useState([]);
@@ -112,7 +113,7 @@ export default function Invoice() {
       const res = await getInvoice(id);
       setSelectedInv(res.data.data || res.data);
     } catch (e) {
-      alert('Gagal mengambil detail Invoice.');
+      swalError('Gagal Memuat', 'Gagal mengambil detail Invoice.');
     }
   };
 
@@ -124,7 +125,7 @@ export default function Invoice() {
       setSuccessMsg('Status Invoice diperbarui.');
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (e) {
-      alert('Gagal memperbarui status Invoice.');
+      swalError('Gagal Memperbarui', 'Gagal memperbarui status Invoice.');
     }
   };
 
@@ -145,7 +146,7 @@ export default function Invoice() {
     if (!inv) return;
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) {
-      alert('Popup diblokir. Izinkan popup untuk mencetak Invoice.');
+      swalError('Popup Diblokir', 'Izinkan popup untuk mencetak Invoice.');
       return;
     }
     const rows = (inv.items || []).map((it, i) => `

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Plus, Trash2, ArrowLeft, Save, Calendar, Package, FileText, CheckCircle2, Check, XCircle } from 'lucide-react';
+import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 
 export default function Quotation() {
   const [quotations, setQuotations] = useState([]);
@@ -57,32 +58,38 @@ export default function Quotation() {
       setSelectedQuotation(response.data.data || response.data);
     } catch (error) {
       console.error('Gagal memuat detail Quotation:', error);
-      alert('Gagal mengambil detail penawaran dari server.');
+      swalError('Gagal Memuat', 'Gagal mengambil detail penawaran dari server.');
     }
   };
 
   const handleUpdateStatus = async (newStatus) => {
-    const confirmMessage = newStatus === 'Deal' 
-      ? 'Tandai penawaran ini sebagai DEAL?' 
+    const confirmMessage = newStatus === 'Deal'
+      ? 'Tandai penawaran ini sebagai DEAL?'
       : 'Tandai penawaran ini sebagai NOT DEAL (Batal)?';
-      
-    if (!window.confirm(confirmMessage)) return;
+
+    if (!(await swalConfirm({
+      title: 'Ubah Status Penawaran?',
+      text: confirmMessage,
+      confirmText: 'Ya, Lanjutkan',
+      cancelText: 'Batal',
+      icon: 'question',
+    }))) return;
 
     try {
-      await api.put(`/quotations/${selectedQuotation.id}`, { 
-        ...selectedQuotation, 
-        status: newStatus 
+      await api.put(`/quotations/${selectedQuotation.id}`, {
+        ...selectedQuotation,
+        status: newStatus
       });
-      
+
       setSelectedQuotation({ ...selectedQuotation, status: newStatus });
       setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: newStatus } : q));
-      alert(`Status penawaran berhasil diubah menjadi ${newStatus}!`);
-      
+      swalSuccess('Berhasil', `Status penawaran berhasil diubah menjadi ${newStatus}!`);
+
     } catch (error) {
       console.error('Gagal update status:', error);
       setSelectedQuotation({ ...selectedQuotation, status: newStatus });
       setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: newStatus } : q));
-      alert(`Berhasil (UI lokal diupdate ke ${newStatus})`);
+      swalSuccess('Berhasil', `Status diupdate ke ${newStatus} (UI lokal).`);
     }
   };
 
@@ -95,17 +102,17 @@ export default function Quotation() {
         po_date: poDate
       };
       const response = await api.post(`/quotations/${selectedQuotation.id}/convert-to-po`, payload);
-      alert(response.data.message || 'Surat Penawaran berhasil dikonversi menjadi Purchase Order!');
+      swalSuccess('Berhasil', response.data.message || 'Surat Penawaran berhasil dikonversi menjadi Purchase Order!');
       setShowPOModal(false);
       setCustomerPoNumber('');
       setPoDate('');
-      
+
       setSelectedQuotation({ ...selectedQuotation, status: 'processed_to_po' });
       setQuotations(quotations.map(q => q.id === selectedQuotation.id ? { ...q, status: 'processed_to_po' } : q));
-      
+
     } catch (error) {
       console.error('Gagal konversi ke PO:', error.response?.data || error.message);
-      alert(error.response?.data?.message || 'Terjadi kesalahan saat mengonversi ke PO.');
+      swalError('Gagal Konversi', error.response?.data?.message || 'Terjadi kesalahan saat mengonversi ke PO.');
     } finally {
       setConverting(false);
     }
@@ -163,7 +170,7 @@ export default function Quotation() {
       };
 
       await api.post('/quotations', payload);
-      alert('Surat Penawaran (Quotation) berhasil disimpan!');
+      swalSuccess('Berhasil', 'Surat Penawaran (Quotation) berhasil disimpan!');
       setIsCreating(false);
       setFormData({
         quotation_number: `AQ-${Math.floor(26090000 + Math.random() * 9999)}`,
@@ -188,7 +195,7 @@ export default function Quotation() {
       fetchQuotations();
     } catch (error) {
       console.error('Gagal menyimpan Quotation:', error.response?.data || error.message);
-      alert('Terjadi kesalahan saat menyimpan data ke backend.');
+      swalError('Gagal Menyimpan', 'Terjadi kesalahan saat menyimpan data ke backend.');
     }
   };
 

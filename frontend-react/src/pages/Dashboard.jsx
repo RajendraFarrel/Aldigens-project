@@ -10,6 +10,7 @@ import {
   Plus
 } from 'lucide-react';
 import api from '../services/api';
+import { swalSuccess, swalError } from '../utils/swal';
 
 export default function Dashboard() {
   const [poList, setPoList] = useState([]);
@@ -136,7 +137,7 @@ export default function Dashboard() {
       // Kirim lewat instance api agar token Sanctum otomatis ikut terkirim
       await api.post('/quotations', payload);
 
-      alert('Berhasil menambahkan PO baru ke database dengan banyak item!');
+      swalSuccess('Berhasil', 'PO baru berhasil ditambahkan ke database dengan banyak item!');
       setIsModalOpen(false);
       setFormData({
         quotation_number: '',
@@ -158,14 +159,14 @@ export default function Dashboard() {
       const validationErrors = error.response?.data?.errors;
 
       if (error.response?.status === 401) {
-        alert('Sesi login Anda sudah berakhir. Silakan login ulang.');
+        swalError('Sesi Berakhir', 'Sesi login Anda sudah berakhir. Silakan login ulang.');
       } else if (validationErrors) {
         const detail = Object.values(validationErrors).flat().join('\n');
-        alert('Data ditolak oleh server:\n' + detail);
+        swalError('Data Ditolak', 'Data ditolak oleh server:\n' + detail);
       } else if (serverMessage) {
-        alert('Gagal menyimpan data: ' + serverMessage);
+        swalError('Gagal Menyimpan', 'Gagal menyimpan data: ' + serverMessage);
       } else {
-        alert('Gagal menyimpan data, periksa kembali inputan Anda.');
+        swalError('Gagal Menyimpan', 'Gagal menyimpan data, periksa kembali inputan Anda.');
       }
     }
   };

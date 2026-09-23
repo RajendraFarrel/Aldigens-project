@@ -7,6 +7,7 @@ import {
   getDeliveryOrders, getDeliveryOrder, createDeliveryOrder, getSalesOrders, getSalesOrder
 } from '../services/api';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
+import { swalError } from '../utils/swal';
 
 export default function DeliveryOrder() {
   const [deliveryOrders, setDeliveryOrders] = useState([]);
@@ -151,7 +152,7 @@ export default function DeliveryOrder() {
       const res = await getDeliveryOrder(id);
       setSelectedDO(res.data.data || res.data);
     } catch (e) {
-      alert('Gagal mengambil detail Delivery Order.');
+      swalError('Gagal Memuat', 'Gagal mengambil detail Delivery Order.');
     }
   };
 
@@ -172,7 +173,7 @@ export default function DeliveryOrder() {
     if (!doData) return;
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) {
-      alert('Popup diblokir. Izinkan popup untuk mencetak Surat Jalan.');
+      swalError('Popup Diblokir', 'Izinkan popup untuk mencetak Surat Jalan.');
       return;
     }
     const rows = (doData.items || []).map((it, i) => `

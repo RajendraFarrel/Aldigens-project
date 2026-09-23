@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Plus, Trash2, ArrowLeft, Save, ShoppingCart, Calendar, CheckCircle2, Package } from 'lucide-react';
+import { swalSuccess, swalError } from '../utils/swal';
 
 export default function SalesOrder() {
   const [salesOrders, setSalesOrders] = useState([]);
@@ -43,7 +44,7 @@ export default function SalesOrder() {
       setSelectedSO(response.data.data || response.data);
     } catch (error) {
       console.error('Gagal memuat detail SO:', error);
-      alert('Gagal mengambil detail pesanan dari server.');
+      swalError('Gagal Memuat', 'Gagal mengambil detail pesanan dari server.');
     }
   };
 
@@ -94,9 +95,9 @@ export default function SalesOrder() {
       };
 
       await api.post('/sales-orders', payload);
-      alert('Sales Order berhasil disimpan ke database!');
+      swalSuccess('Berhasil', 'Sales Order berhasil disimpan ke database!');
       setIsCreating(false);
-      
+
       setFormData({
         quotation_id: '',
         so_number: `SO-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -108,11 +109,11 @@ export default function SalesOrder() {
         status: 'Pending',
         items: [{ product_id: '', description: '-', qty: 1, unit_price: 0 }]
       });
-      
+
       fetchSalesOrders();
     } catch (error) {
       console.error('Gagal menyimpan SO:', error.response?.data || error.message);
-      alert('Terjadi kesalahan saat menyimpan data ke backend.');
+      swalError('Gagal Menyimpan', 'Terjadi kesalahan saat menyimpan data ke backend.');
     }
   };
 

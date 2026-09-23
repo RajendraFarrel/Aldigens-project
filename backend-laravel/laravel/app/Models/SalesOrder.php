@@ -23,4 +23,16 @@ class SalesOrder extends Model
     {
         return $this->hasMany(SalesOrderItem::class, 'sales_order_id');
     }
+
+    // Relasi ke Delivery Order (Surat Jalan) yang lahir dari SO ini
+    public function deliveryOrders()
+    {
+        return $this->hasMany(DeliveryOrder::class, 'sales_order_id');
+    }
+
+    // Relasi ke Invoice yang menerbitkan tagihan dari SO ini
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class, 'sales_order_id');
+    }
 }

@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
 class DatabaseSeeder extends Seeder
 {
@@ -12,11 +14,25 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // \App\Models\User::factory(10)->create();
+        // Akun default untuk login pertama kali
+        User::updateOrCreate(
+            ['email' => 'admin@aldigens.co.id'],
+            [
+                'name'      => 'admin',
+                'full_name' => 'Administrator Sistem',
+                'password'  => Hash::make('password'),
+                'role'      => 'Administrator',
+            ]
+        );
 
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        User::updateOrCreate(
+            ['email' => 'gudang@aldigens.co.id'],
+            [
+                'name'      => 'gudang',
+                'full_name' => 'Staff Gudang',
+                'password'  => Hash::make('password'),
+                'role'      => 'Staff Gudang',
+            ]
+        );
     }
 }

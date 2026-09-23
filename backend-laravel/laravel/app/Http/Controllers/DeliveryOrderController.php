@@ -21,7 +21,25 @@ class DeliveryOrderController extends Controller
         ], 200);
     }
 
-    // 2. Menyimpan Delivery Order baru dan otomatis memotong stok inventaris gudang
+    // 2. Menampilkan detail satu Delivery Order (untuk cetak Surat Jalan & generate Invoice)
+    public function show($id)
+    {
+        $deliveryOrder = DeliveryOrder::with(['salesOrder.items', 'items'])->find($id);
+
+        if (!$deliveryOrder) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Delivery Order tidak ditemukan.',
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $deliveryOrder,
+        ], 200);
+    }
+
+    // 3. Menyimpan Delivery Order baru dan otomatis memotong stok inventaris gudang
     public function store(Request $request)
     {
         DB::beginTransaction();

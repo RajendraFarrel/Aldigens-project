@@ -23,4 +23,10 @@ class DeliveryOrder extends Model
     {
         return $this->hasMany(DeliveryOrderItem::class, 'delivery_order_id');
     }
+
+    // Relasi ke Invoice yang menerbitkan tagihan dari DO ini
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class, 'delivery_order_id');
+    }
 }

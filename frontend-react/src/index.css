@@ -1,1 +1,137 @@
 @import "tailwindcss";
+
+/* Aktifkan dark mode berbasis class (.dark pada <html>) – Tailwind v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Transisi halus saat berpindah tema */
+html.theme-transition,
+html.theme-transition * {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+body {
+  margin: 0;
+}
+
+/* =====================================================================
+   DARK MODE – Override global terkurasi
+   Aplikasi ini memakai skala netral (slate/gray/white) untuk sebagian
+   besar permukaan & teks. Ketika <html class="dark">, kelas terang
+   tersebut dipetakan ke padanan gelapnya sehingga seluruh halaman
+   otomatis ikut bertema tanpa mengubah tiap className.
+   ===================================================================== */
+
+/* --- Permukaan (background) --- */
+.dark .bg-white          { background-color: #1e293b; } /* slate-800 */
+.dark .bg-slate-50,
+.dark .bg-gray-50        { background-color: #0f172a; } /* slate-900 */
+.dark .bg-slate-100      { background-color: #334155; } /* slate-700 */
+.dark .bg-slate-200      { background-color: #475569; } /* slate-600 */
+.dark .bg-slate-50\/30,
+.dark .bg-slate-50\/50,
+.dark .bg-slate-50\/80   { background-color: rgba(15, 23, 42, 0.5); }
+.dark .bg-slate-100\/50  { background-color: rgba(51, 65, 85, 0.5); }
+
+/* --- Teks --- */
+.dark .text-slate-900,
+.dark .text-gray-900     { color: #f1f5f9; } /* slate-100 */
+.dark .text-slate-800    { color: #e2e8f0; } /* slate-200 */
+.dark .text-slate-700    { color: #cbd5e1; } /* slate-300 */
+.dark .text-slate-600    { color: #cbd5e1; } /* slate-300 */
+.dark .text-slate-500,
+.dark .text-gray-500     { color: #94a3b8; } /* slate-400 */
+.dark .text-slate-400,
+.dark .text-gray-400     { color: #94a3b8; } /* slate-400 */
+.dark .text-slate-300    { color: #cbd5e1; }
+.dark .text-slate-200    { color: #e2e8f0; }
+
+/* --- Border & pemisah --- */
+.dark .border-slate-100  { border-color: #334155; }
+.dark .border-slate-200,
+.dark .border-gray-200   { border-color: #334155; } /* slate-700 */
+.dark .border-slate-300  { border-color: #475569; } /* slate-600 */
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155;
+}
+
+/* --- Hover permukaan --- */
+.dark .hover\:bg-white:hover    { background-color: #334155; }
+.dark .hover\:bg-slate-50:hover  { background-color: #334155; }
+.dark .hover\:bg-slate-100:hover { background-color: #334155; }
+.dark .hover\:bg-slate-200:hover { background-color: #475569; }
+.dark .hover\:bg-slate-50\/50:hover { background-color: rgba(51, 65, 85, 0.4); }
+.dark .hover\:bg-slate-50\/80:hover { background-color: rgba(51, 65, 85, 0.4); }
+
+/* --- Badge & alert berwarna (versi gelap lembut) --- */
+.dark .bg-blue-50, .dark .bg-blue-50\/50       { background-color: rgba(37, 99, 235, 0.18); }
+.dark .bg-indigo-50    { background-color: rgba(99, 102, 241, 0.18); }
+.dark .bg-emerald-50   { background-color: rgba(16, 185, 129, 0.16); }
+.dark .bg-emerald-100  { background-color: rgba(16, 185, 129, 0.22); }
+.dark .bg-green-100    { background-color: rgba(22, 163, 74, 0.22); }
+.dark .bg-red-50       { background-color: rgba(220, 38, 38, 0.16); }
+.dark .bg-rose-50      { background-color: rgba(244, 63, 94, 0.16); }
+.dark .bg-rose-100     { background-color: rgba(244, 63, 94, 0.22); }
+.dark .bg-amber-50     { background-color: rgba(245, 158, 11, 0.16); }
+.dark .bg-orange-50    { background-color: rgba(249, 115, 22, 0.16); }
+.dark .bg-teal-50, .dark .bg-teal-50\/60 { background-color: rgba(20, 184, 166, 0.16); }
+.dark .bg-yellow-100   { background-color: rgba(234, 179, 8, 0.22); }
+
+.dark .border-blue-100, .dark .border-blue-100\/60 { border-color: rgba(37, 99, 235, 0.35); }
+.dark .border-blue-200 { border-color: rgba(37, 99, 235, 0.4); }
+.dark .border-indigo-200 { border-color: rgba(99, 102, 241, 0.4); }
+.dark .border-emerald-100, .dark .border-emerald-200 { border-color: rgba(16, 185, 129, 0.4); }
+.dark .border-red-200  { border-color: rgba(220, 38, 38, 0.4); }
+.dark .border-rose-100, .dark .border-rose-200 { border-color: rgba(244, 63, 94, 0.4); }
+.dark .border-amber-200 { border-color: rgba(245, 158, 11, 0.4); }
+.dark .border-teal-100 { border-color: rgba(20, 184, 166, 0.4); }
+
+.dark .text-blue-700, .dark .text-blue-900 { color: #93c5fd; }
+.dark .text-indigo-700 { color: #a5b4fc; }
+.dark .text-emerald-700 { color: #6ee7b7; }
+.dark .text-green-800  { color: #86efac; }
+.dark .text-red-600, .dark .text-red-500 { color: #fca5a5; }
+.dark .text-rose-600, .dark .text-rose-700 { color: #fda4af; }
+.dark .text-amber-600, .dark .text-amber-700 { color: #fcd34d; }
+.dark .text-orange-600 { color: #fdba74; }
+.dark .text-teal-600, .dark .text-teal-800 { color: #5eead4; }
+.dark .text-yellow-800 { color: #fde047; }
+
+/* --- Form controls --- */
+.dark input:not([type='checkbox']):not([type='radio']),
+.dark select,
+.dark textarea {
+  color: #e2e8f0;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: #64748b; }
+.dark input[type='date']::-webkit-calendar-picker-indicator { filter: invert(0.8); }
+
+/* Sembunyikan ring bawaan browser pada scrollbar gelap (opsional) */
+.dark ::selection { background-color: #4f46e5; color: #ffffff; }
+
+/* --- SweetAlert2 bertema --- */
+.aldigens-swal-popup {
+  border-radius: 1rem !important;
+  border: 1px solid #e2e8f0;
+}
+.dark .aldigens-swal-popup {
+  border-color: #334155;
+}
+.aldigens-swal-title {
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+}
+.aldigens-swal-html,
+.aldigens-swal-popup .swal2-html-container {
+  font-size: 0.9rem !important;
+}
+.aldigens-swal-confirm,
+.aldigens-swal-cancel {
+  border-radius: 0.75rem !important;
+  font-weight: 600 !important;
+}
+.dark .aldigens-swal-cancel {
+  color: #cbd5e1 !important;
+}

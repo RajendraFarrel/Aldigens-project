@@ -33,27 +33,27 @@ export default function Dashboard() {
   });
 
   const fetchQuotations = async () => {
-  try {
-    const response = await api.get('/quotations'); // Menggunakan instance api
-    const result = response.data; // Axios otomatis memparsing JSON ke response.data
+    try {
+      const response = await api.get('/quotations'); // Menggunakan instance api
+      const result = response.data; // Axios otomatis memparsing JSON ke response.data
 
-    if (result.status === 'success' && result.data) {
-      const formattedData = result.data.map((item) => ({
-        id: item.id,
-        quotation_number: item.quotation_number,
-        date: item.date,
-        admin_sales: item.admin_sales,
-        customer_name: item.customer_name,
-        customer_address: item.customer_address,
-        subject: item.subject,
-        items: item.items,
-        sub_total: item.sub_total,
-        tax_amount: item.tax_amount,
-        grand_total: item.grand_total,
-        poNumber: item.quotation_number,
-        client: item.customer_name,
-        item: item.items && item.items.length > 0 ? `${item.items.length} Item Barang` : item.subject,
-      }));
+      if (result.status === 'success' && result.data) {
+        const formattedData = result.data.map((item) => ({
+          id: item.id,
+          quotation_number: item.quotation_number,
+          date: item.date,
+          admin_sales: item.admin_sales,
+          customer_name: item.customer_name,
+          customer_address: item.customer_address,
+          subject: item.subject,
+          items: item.items,
+          sub_total: item.sub_total,
+          tax_amount: item.tax_amount,
+          grand_total: item.grand_total,
+          poNumber: item.quotation_number,
+          client: item.customer_name,
+          item: item.items && item.items.length > 0 ? `${item.items.length} Item Barang` : item.subject,
+        }));
         setPoList(formattedData);
       }
     } catch (error) {
@@ -133,36 +133,40 @@ export default function Dashboard() {
         items: formattedItems
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/quotations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+      // Kirim lewat instance api agar token Sanctum otomatis ikut terkirim
+      await api.post('/quotations', payload);
 
-      if (response.ok) {
-        alert('Berhasil menambahkan PO baru ke database dengan banyak item!');
-        setIsModalOpen(false);
-        setFormData({
-          quotation_number: '',
-          date: new Date().toISOString().split('T')[0],
-          admin_sales: '',
-          customer_name: '',
-          customer_address: 'Jakarta',
-          customer_phone: '-',
-          customer_email: '-',
-          subject: '',
-          items: [{ description: '', qty: 1, unit_price: 0 }]
-        });
-        fetchQuotations();
+      alert('Berhasil menambahkan PO baru ke database dengan banyak item!');
+      setIsModalOpen(false);
+      setFormData({
+        quotation_number: '',
+        date: new Date().toISOString().split('T')[0],
+        admin_sales: '',
+        customer_name: '',
+        customer_address: 'Jakarta',
+        customer_phone: '-',
+        customer_email: '-',
+        subject: '',
+        items: [{ description: '', qty: 1, unit_price: 0 }]
+      });
+      fetchQuotations();
+    } catch (error) {
+      console.error('Terjadi kesalahan saat menyimpan PO:', error);
+
+      // Tampilkan pesan asli dari Laravel agar penyebabnya kelihatan
+      const serverMessage = error.response?.data?.message;
+      const validationErrors = error.response?.data?.errors;
+
+      if (error.response?.status === 401) {
+        alert('Sesi login Anda sudah berakhir. Silakan login ulang.');
+      } else if (validationErrors) {
+        const detail = Object.values(validationErrors).flat().join('\n');
+        alert('Data ditolak oleh server:\n' + detail);
+      } else if (serverMessage) {
+        alert('Gagal menyimpan data: ' + serverMessage);
       } else {
         alert('Gagal menyimpan data, periksa kembali inputan Anda.');
       }
-    } catch (error) {
-      console.error('Terjadi kesalahan:', error);
-      alert('Gagal terhubung ke server Laravel.');
     }
   };
 

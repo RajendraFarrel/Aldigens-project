@@ -69,6 +69,17 @@ export const deleteProduct = (id) =>
 export const searchProductByCode = (code) =>
     api.get('/inventory/products/search', { params: { code } });
 
+export const importProducts = (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/inventory/products/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+};
+
+export const downloadProductTemplate = () =>
+    api.get('/inventory/products/import-template', { responseType: 'blob' });
+
 // -----------------------------------------------
 // Inventory – Transactions
 // -----------------------------------------------

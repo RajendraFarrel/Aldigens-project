@@ -39,7 +39,8 @@ export default function Quotation() {
     terms_of_delivery: 'Indent 3-5 days',
     terms_of_warranty: '1 Year',
     status: 'Pending',
-    items: [{ product_code: '', part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
+    ppn_percentage: 11,
+    items: [{ product_code: '', part_number: '', description: '', qty: 1, unit_price: 0 }]
   });
 
   useEffect(() => {
@@ -72,7 +73,6 @@ export default function Quotation() {
       ...newItems[index],
       product_code: product.product_code || '',
       part_number: product.part_number || '',
-      internal_code: product.product_code || '',
       description: product.name || '',
       stock: product.stock ?? null,
       product_id: product.id,
@@ -187,7 +187,7 @@ export default function Quotation() {
   const handleAddItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { product_code: '', part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
+      items: [...formData.items, { product_code: '', part_number: '', description: '', qty: 1, unit_price: 0 }]
     });
   };
 
@@ -211,7 +211,8 @@ export default function Quotation() {
   };
 
   const subtotal = calculateSubtotal();
-  const taxAmount = subtotal * 0.11;
+  const ppnPercentage = parseFloat(formData.ppn_percentage) || 0;
+  const taxAmount = subtotal * (ppnPercentage / 100);
   const grandTotal = subtotal + taxAmount;
 
   const handleSubmit = async (e) => {
@@ -240,7 +241,7 @@ export default function Quotation() {
       const payload = {
         ...formData,
         sub_total: subtotal,
-        tax_percentage: 11,
+        tax_percentage: ppnPercentage,
         tax_amount: taxAmount,
         grand_total: grandTotal,
         items: payloadItems
@@ -267,7 +268,8 @@ export default function Quotation() {
         terms_of_delivery: 'Indent 3-5 days',
         terms_of_warranty: '1 Year',
         status: 'Pending',
-        items: [{ product_code: '', part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
+        ppn_percentage: 11,
+        items: [{ product_code: '', part_number: '', description: '', qty: 1, unit_price: 0 }]
       });
       fetchQuotations();
     } catch (error) {
@@ -455,8 +457,8 @@ export default function Quotation() {
                       })()}
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">INTERNAL KODE</label>
-                      <input type="text" placeholder="Cth: INT-001" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium" value={item.internal_code} onChange={(e) => handleItemChange(index, 'internal_code', e.target.value)} />
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER</label>
+                      <input type="text" placeholder="Cth: 19-003-12" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium" value={item.part_number} onChange={(e) => handleItemChange(index, 'part_number', e.target.value)} />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">DESKRIPSI BARANG</label>
@@ -505,11 +507,23 @@ export default function Quotation() {
                 <span>Subtotal</span>
                 <span className="font-semibold">{formatRupiah(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm text-slate-600 border-b border-blue-100 pb-2">
-                <span>PPN 11%</span>
+              <div className="flex justify-between items-center text-sm text-slate-600 gap-3">
+                <span className="flex items-center gap-2">
+                  PPN
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-500 text-center font-semibold"
+                    value={formData.ppn_percentage}
+                    onChange={(e) => setFormData({ ...formData, ppn_percentage: e.target.value })}
+                  />
+                  <span>%</span>
+                </span>
                 <span className="font-semibold">{formatRupiah(taxAmount)}</span>
               </div>
-              <div className="flex justify-between items-center pt-1">
+              <div className="flex justify-between items-center pt-1 border-t border-blue-100">
                 <span className="text-sm font-extrabold text-slate-900">Grand Total</span>
                 <span className="text-xl font-black text-blue-900">{formatRupiah(grandTotal)}</span>
               </div>
@@ -595,8 +609,8 @@ export default function Quotation() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] uppercase tracking-wider">
+                    <th className="p-4 font-bold w-36">Kode Produk</th>
                     <th className="p-4 font-bold w-36">Part Number</th>
-                    <th className="p-4 font-bold w-36">Internal Kode</th>
                     <th className="p-4 font-bold">Deskripsi Barang</th>
                     <th className="p-4 font-bold text-center w-20">QTY</th>
                     <th className="p-4 font-bold text-right w-36">Harga Satuan</th>
@@ -607,8 +621,8 @@ export default function Quotation() {
                   {selectedQuotation.items && selectedQuotation.items.length > 0 ? (
                     selectedQuotation.items.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50 transition">
-                        <td className="p-4 text-sm font-semibold text-slate-700">{item.part_number || '-'}</td>
-                        <td className="p-4 text-sm font-semibold text-slate-600">{item.internal_code || '-'}</td>
+                        <td className="p-4 text-sm font-semibold text-slate-700">{item.product_code || item.internal_code || '-'}</td>
+                        <td className="p-4 text-sm font-semibold text-slate-600">{item.part_number || '-'}</td>
                         <td className="p-4 text-sm font-medium text-slate-600">{item.description || '-'}</td>
                         <td className="p-4 text-sm text-center font-bold text-slate-800">{item.qty}</td>
                         <td className="p-4 text-sm text-right font-medium text-slate-600">{formatRupiah(item.unit_price)}</td>

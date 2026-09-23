@@ -49,6 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Products (Inventory)
     Route::get('/inventory/products/search', [ProductController::class, 'findByCode']);
+    Route::get('/inventory/products/import-template', [ProductController::class, 'downloadTemplate']);
+    Route::post('/inventory/products/import', [ProductController::class, 'import']);
     Route::apiResource('/inventory/products', ProductController::class);
 
     // Inventory Transactions

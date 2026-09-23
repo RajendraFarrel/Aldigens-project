@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Imports\ProductsImport;
+use App\Exports\ProductsTemplateExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
 {
@@ -109,6 +112,41 @@ class ProductController extends Controller
     {
         $product->delete();
         return response()->json(['message' => 'Produk berhasil dihapus.']);
+    }
+
+    /**
+     * Import data produk dari file Excel/CSV.
+     * Kolom Kode Produk dibuat otomatis (INT-XXXX).
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt|max:10240',
+        ]);
+
+        try {
+            $import = new ProductsImport();
+            Excel::import($import, $request->file('file'));
+
+            return response()->json([
+                'message'  => 'Import selesai.',
+                'imported' => $import->getImported(),
+                'skipped'  => $import->getSkipped(),
+                'errors'   => $import->getErrors(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengimpor file: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Unduh template Excel untuk import produk.
+     */
+    public function downloadTemplate()
+    {
+        return Excel::download(new ProductsTemplateExport(), 'template-import-produk.xlsx');
     }
 
     /**

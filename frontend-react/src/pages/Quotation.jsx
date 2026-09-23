@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
-import { Plus, Trash2, ArrowLeft, Save, Calendar, Package, FileText, CheckCircle2, Check, XCircle } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Save, Calendar, Package, FileText, CheckCircle2, Check, XCircle, Search } from 'lucide-react';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 
 export default function Quotation() {
@@ -14,6 +14,11 @@ export default function Quotation() {
   const [customerPoNumber, setCustomerPoNumber] = useState('');
   const [poDate, setPoDate] = useState('');
   const [converting, setConverting] = useState(false);
+
+  // Data produk (untuk autocomplete item barang)
+  const [products, setProducts] = useState([]);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(null);
+  const blurTimeout = useRef(null);
 
   // State form pembuatan
   const [formData, setFormData] = useState({
@@ -34,12 +39,73 @@ export default function Quotation() {
     terms_of_delivery: 'Indent 3-5 days',
     terms_of_warranty: '1 Year',
     status: 'Pending',
-    items: [{ part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
+    items: [{ product_code: '', part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
   });
 
   useEffect(() => {
     fetchQuotations();
+    fetchProducts();
   }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const response = await api.get('/inventory/products');
+      setProducts(response.data.data || response.data || []);
+    } catch (error) {
+      console.error('Gagal memuat data produk:', error);
+    }
+  };
+
+  // Filter produk berdasarkan kode produk (product_code)
+  const getProductMatches = (keyword) => {
+    const q = (keyword || '').toLowerCase().trim();
+    if (!q) return products.slice(0, 8);
+    return products.filter((p) =>
+      (p.product_code || '').toLowerCase().includes(q)
+    ).slice(0, 8);
+  };
+
+  // Saat produk dipilih: isi kode produk, part number, internal kode & deskripsi otomatis
+  const handleSelectProduct = (index, product) => {
+    const newItems = [...formData.items];
+    newItems[index] = {
+      ...newItems[index],
+      product_code: product.product_code || '',
+      part_number: product.part_number || '',
+      internal_code: product.product_code || '',
+      description: product.name || '',
+      stock: product.stock ?? null,
+      product_id: product.id,
+    };
+    setFormData({ ...formData, items: newItems });
+    setActiveSearchIndex(null);
+
+    // Peringatkan lebih awal bila QTY saat ini sudah melebihi stok
+    const qty = parseFloat(newItems[index].qty) || 0;
+    const stock = Number(product.stock) || 0;
+    if (qty > stock) {
+      swalError(
+        'Stok Kurang',
+        `Stok "${product.name}" hanya ${stock}. Permintaan (${qty}) melebihi stok yang tersedia.`
+      );
+    }
+  };
+
+  // Validasi seluruh item terhadap stok. Mengembalikan daftar error siap tampil.
+  const validateStock = () => {
+    const problems = [];
+    formData.items.forEach((item, i) => {
+      if (item.product_id == null) return; // item manual tanpa data produk -> dilewati
+      const stock = Number(item.stock) || 0;
+      const qty = parseFloat(item.qty) || 0;
+      if (qty > stock) {
+        problems.push(
+          `Baris ${i + 1} (${item.description || item.product_code || item.part_number}): diminta ${qty}, stok hanya ${stock}.`
+        );
+      }
+    });
+    return problems;
+  };
 
   const fetchQuotations = async () => {
     try {
@@ -121,7 +187,7 @@ export default function Quotation() {
   const handleAddItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
+      items: [...formData.items, { product_code: '', part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
     });
   };
 
@@ -150,6 +216,17 @@ export default function Quotation() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Tolak penawaran bila QTY melebihi stok barang
+    const stockProblems = validateStock();
+    if (stockProblems.length > 0) {
+      swalError(
+        'Stok Tidak Mencukupi',
+        'Penawaran tidak dapat disimpan karena stok barang kurang:\n\n' + stockProblems.join('\n')
+      );
+      return;
+    }
+
     try {
       const payloadItems = formData.items.map(item => {
         const itemQty = parseFloat(item.qty) || 0;
@@ -190,7 +267,7 @@ export default function Quotation() {
         terms_of_delivery: 'Indent 3-5 days',
         terms_of_warranty: '1 Year',
         status: 'Pending',
-        items: [{ part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
+        items: [{ product_code: '', part_number: '', internal_code: '', description: '', qty: 1, unit_price: 0 }]
       });
       fetchQuotations();
     } catch (error) {
@@ -211,7 +288,7 @@ export default function Quotation() {
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manajemen Penawaran (Quotation)</h1>
             <p className="text-sm text-slate-500 mt-1">Kelola dokumen Surat Penawaran Harga (SPH) resmi perusahaan.</p>
           </div>
-          <button 
+          <button
             onClick={() => setIsCreating(true)}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
           >
@@ -225,7 +302,7 @@ export default function Quotation() {
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 animate-fadeIn w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
             <div className="flex items-center gap-4">
-              <button 
+              <button
                 type="button"
                 onClick={() => setIsCreating(false)}
                 className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
@@ -237,7 +314,7 @@ export default function Quotation() {
                 <p className="text-sm text-slate-500">Lengkapi data informasi klien dan ketentuan komersial.</p>
               </div>
             </div>
-            <button 
+            <button
               type="submit"
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition cursor-pointer"
             >
@@ -332,9 +409,50 @@ export default function Quotation() {
                 const subtotalItem = (parseFloat(item.qty) || 0) * (parseFloat(item.unit_price) || 0);
                 return (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 items-center">
-                    <div className="md:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER</label>
-                      <input type="text" required placeholder="Cth: 19-RFB-001" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium" value={item.part_number} onChange={(e) => handleItemChange(index, 'part_number', e.target.value)} />
+                    <div className="md:col-span-2 relative">
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">KODE PRODUK</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          autoComplete="off"
+                          placeholder="Ketik / pilih kode produk"
+                          className="w-full bg-white border border-slate-200 rounded-xl pl-3 pr-8 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                          value={item.product_code}
+                          onChange={(e) => { handleItemChange(index, 'product_code', e.target.value); setActiveSearchIndex(index); }}
+                          onFocus={() => setActiveSearchIndex(index)}
+                          onBlur={() => { blurTimeout.current = setTimeout(() => setActiveSearchIndex(null), 200); }}
+                        />
+                        <Search className="w-4 h-4 text-slate-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                      {activeSearchIndex === index && (() => {
+                        const matches = getProductMatches(item.product_code);
+                        if (matches.length === 0) {
+                          return (
+                            <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-xs text-slate-400">
+                              Produk tidak ditemukan. Isi manual atau tambah di menu Data Produk.
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg">
+                            {matches.map((p) => (
+                              <button
+                                type="button"
+                                key={p.id}
+                                onMouseDown={(e) => { e.preventDefault(); clearTimeout(blurTimeout.current); handleSelectProduct(index, p); }}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition border-b border-slate-50 last:border-0 cursor-pointer"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-bold text-slate-700">{p.product_code || '-'}</span>
+                                  <span className="text-[10px] font-medium text-slate-400">{p.part_number || ''}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 truncate">{p.name}</div>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">INTERNAL KODE</label>
@@ -346,7 +464,19 @@ export default function Quotation() {
                     </div>
                     <div className="md:col-span-1">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">QTY</label>
-                      <input type="number" min="1" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-center font-bold" value={item.qty} onChange={(e) => handleItemChange(index, 'qty', e.target.value)} />
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        className={`w-full bg-white border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 text-center font-bold ${(item.stock != null && (parseFloat(item.qty) || 0) > Number(item.stock)) ? 'border-rose-400 focus:ring-rose-500 text-rose-600' : 'border-slate-200 focus:ring-blue-500'}`}
+                        value={item.qty}
+                        onChange={(e) => handleItemChange(index, 'qty', e.target.value)}
+                      />
+                      {item.stock != null && (
+                        <p className={`text-[10px] mt-1 font-medium ${(parseFloat(item.qty) || 0) > Number(item.stock) ? 'text-rose-600' : 'text-slate-400'}`}>
+                          Stok: {Number(item.stock)}
+                        </p>
+                      )}
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">HARGA SATUAN</label>

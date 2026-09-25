@@ -248,7 +248,7 @@ export default function Quotation() {
       };
 
       await api.post('/quotations', payload);
-      swalSuccess('Berhasil', 'Surat Penawaran (Quotation) berhasil disimpan!');
+      swalSuccess('Berhasil', 'Surat Penawaran berhasil disimpan!');
       setIsCreating(false);
       setFormData({
         quotation_number: `AQ-${Math.floor(26090000 + Math.random() * 9999)}`,
@@ -287,7 +287,7 @@ export default function Quotation() {
       {!isCreating && !selectedQuotation && (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manajemen Penawaran (Quotation)</h1>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manajemen Penawaran</h1>
             <p className="text-sm text-slate-500 mt-1">Kelola dokumen Surat Penawaran Harga (SPH) resmi perusahaan.</p>
           </div>
           <button
@@ -312,7 +312,7 @@ export default function Quotation() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h2 className="text-xl font-bold text-slate-800">Formulir Surat Penawaran (Quotation)</h2>
+                <h2 className="text-xl font-bold text-slate-800">Formulir Surat Penawaran</h2>
                 <p className="text-sm text-slate-500">Lengkapi data informasi klien dan ketentuan komersial.</p>
               </div>
             </div>

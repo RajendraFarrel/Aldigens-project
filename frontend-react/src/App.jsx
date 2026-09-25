@@ -1,11 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
-import Quotation from './pages/Quotation';
+// Import Modul Pembelian
+import PurchaseRequisition from './pages/PurchaseRequisition';
 import POList from './pages/POList';
+import ReceiveItem from './pages/ReceiveItem';
+import PurchaseInvoice from './pages/PurchaseInvoice';
+import PurchaseReturn from './pages/PurchaseReturn';
+import PurchasePayment from './pages/PurchasePayment';
+// Import Modul Penjualan
+import Quotation from './pages/Quotation';
 import SalesOrder from './pages/SalesOrder';
 import DeliveryOrder from './pages/DeliveryOrder';
 import Invoice from './pages/Invoice';
+import SalesReturn from './pages/SalesReturn';
+import SalesReceipt from './pages/SalesReceipt';
+// Import Modul Manufaktur
+import BillOfMaterials from './pages/BillOfMaterials';
+import WorkOrder from './pages/WorkOrder';
+import MaterialRelease from './pages/MaterialRelease';
+import ProductResult from './pages/ProductResult';
+// Import Modul Lainnya
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 import InventoryProducts from './pages/InventoryProducts';
@@ -19,11 +34,26 @@ import { getAllowedMenus } from './config/menus';
 
 const PAGE_TITLES = {
   'dashboard':              'Dashboard Utama',
-  'quotation':              'Manajemen Penawaran (Quotation)',
-  'purchase-order':         'Purchase Order (PO)',
+  // Pembelian
+  'purchase-requisition':   'Permintaan Pembelian (PR)',
+  'purchase-order':         'Pesanan Pembelian (PO)',
+  'receive-item':           'Penerimaan Barang (RI)',
+  'purchase-invoice':       'Faktur Pembelian (PI)',
+  'purchase-return':        'Retur Pembelian',
+  'purchase-payment':       'Pembayaran Pembelian',
+  // Penjualan
+  'quotation':              'Manajemen Penawaran ',
   'sales-order':            'Manajemen Sales Order',
   'delivery-order':         'Delivery Order (Surat Jalan)',
   'invoice':                'Invoice / Tagihan',
+  'sales-return':           'Retur Penjualan (Sales Return)',
+  'sales-receipt':          'Penerimaan Penjualan (Sales Receipt)',
+  // Manufaktur
+  'bill-of-materials':      'Formula Produk (BOM)',
+  'work-order':             'Perintah Kerja Produksi',
+  'material-release':       'Pengeluaran Bahan Baku',
+  'product-result':         'Penerimaan Hasil Produksi',
+  // Pengaturan & Inventory
   'users':                  'Pengaturan Sistem',
   'inventory-products':     'Data Produk Inventory',
   'inventory-scan':         'Scanner Barcode',
@@ -48,12 +78,10 @@ export default function App() {
 
   const allowedMenus = getAllowedMenus(currentUser);
 
-  // Jika tab aktif tidak lagi diizinkan (mis. akses dicabut), pindah ke dashboard.
   useEffect(() => {
     if (isAuthenticated && !allowedMenus.includes(activeTab)) {
       setActiveTab('dashboard');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, currentUser]);
 
   useEffect(() => {
@@ -62,18 +90,15 @@ export default function App() {
       .then(response => console.log(response.data))
       .catch(error => console.error(error));
 
-    // Listen for auto-logout dari interceptor
     const handleLogout = () => {
       setIsAuthenticated(false);
       setCurrentUser(null);
     };
 
-    // Sinkronkan user saat data user diperbarui (mis. akses menu diubah admin)
     const handleUserUpdate = () => {
       try {
         setCurrentUser(JSON.parse(localStorage.getItem('auth_user') || 'null'));
       } catch {
-        /* ignore */
       }
     };
 
@@ -108,11 +133,30 @@ export default function App() {
   const renderPage = () => {
     switch (activeTab) {
       case 'dashboard':              return <Dashboard />;
-      case 'quotation':              return <Quotation />;
+      
+      // Modul Pembelian
+      case 'purchase-requisition':   return <PurchaseRequisition />;
       case 'purchase-order':         return <POList />;
+      case 'receive-item':           return <ReceiveItem />;
+      case 'purchase-invoice':       return <PurchaseInvoice />;
+      case 'purchase-return':        return <PurchaseReturn />;
+      case 'purchase-payment':       return <PurchasePayment />;
+
+      // Modul Penjualan
+      case 'quotation':              return <Quotation />;
       case 'sales-order':            return <SalesOrder />;
       case 'delivery-order':         return <DeliveryOrder />;
       case 'invoice':                return <Invoice />;
+      case 'sales-return':           return <SalesReturn />;
+      case 'sales-receipt':          return <SalesReceipt />;
+
+      // Modul Manufaktur
+      case 'bill-of-materials':      return <BillOfMaterials />;
+      case 'work-order':             return <WorkOrder />;
+      case 'material-release':       return <MaterialRelease />;
+      case 'product-result':         return <ProductResult />;
+      
+      // Modul Pengaturan & Inventory
       case 'users':                  return <UserManagement />;
       case 'inventory-products':     return <InventoryProducts />;
       case 'inventory-scan':         return <InventoryScan />;

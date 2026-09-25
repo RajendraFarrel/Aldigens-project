@@ -13,6 +13,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\SalesReturnController;
+use App\Http\Controllers\SalesReceiptController;
 
 /*
 |--------------------------------------------------------------------------
@@ -89,4 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::apiResource('sales-returns', SalesReturnController::class);
+    Route::apiResource('sales-receipts', SalesReceiptController::class);
 });

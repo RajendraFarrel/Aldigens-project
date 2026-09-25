@@ -1,15 +1,39 @@
-import React from 'react';
-import { LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { LogOut, ChevronDown, ChevronRight } from 'lucide-react'; // Tambahan ikon panah
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 import { MENU_GROUPS } from '../config/menus';
 
 export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, allowedMenus }) {
-  // Filter grup & item berdasarkan menu yang diizinkan untuk user ini.
+  // State untuk melacak menu dropdown mana yang sedang terbuka
+  const [openDropdowns, setOpenDropdowns] = useState({});
+
+  const toggleDropdown = (key) => {
+    setOpenDropdowns((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Filter grup, item, dan sub-item berdasarkan allowedMenus
   const menuGroups = MENU_GROUPS
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => !allowedMenus || allowedMenus.includes(item.key)),
-    }))
+    .map((group) => {
+      const filteredItems = group.items
+        .map((item) => {
+          // Jika item punya sub-menu, filter juga sub-menunya
+          if (item.subItems) {
+            return {
+              ...item,
+              subItems: item.subItems.filter((sub) => !allowedMenus || allowedMenus.includes(sub.key)),
+            };
+          }
+          return item;
+        })
+        .filter((item) => {
+          // Tampilkan item jika dia punya sub-menu yang diizinkan ATAU jika item itu sendiri diizinkan
+          const hasAllowedSubItems = item.subItems && item.subItems.length > 0;
+          const isItemAllowed = !allowedMenus || allowedMenus.includes(item.key);
+          return hasAllowedSubItems || isItemAllowed;
+        });
+
+      return { ...group, items: filteredItems };
+    })
     .filter((group) => group.items.length > 0);
 
   return (
@@ -45,23 +69,64 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
             <div className="space-y-1">
               {items.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.key;
+                const hasSubItems = item.subItems && item.subItems.length > 0;
+                
+                // Cek apakah item ini atau salah satu sub-itemnya sedang aktif
+                const isActive = activeTab === item.key || (hasSubItems && item.subItems.some((sub) => sub.key === activeTab));
+                const isDropdownOpen = openDropdowns[item.key];
+
                 return (
-                  <button
-                    key={item.key}
-                    onClick={() => setActiveTab(item.key)}
-                    title={!isOpen ? item.label : ''}
-                    className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'hover:bg-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <Icon className="h-5 w-5 flex-shrink-0" />
-                    <span className={`truncate transition-opacity duration-300 ${isOpen ? 'opacity-100 inline' : 'hidden'}`}>
-                      {item.label}
-                    </span>
-                  </button>
+                  <div key={item.key} className="flex flex-col">
+                    <button
+                      onClick={() => (hasSubItems ? toggleDropdown(item.key) : setActiveTab(item.key))}
+                      title={!isOpen ? item.label : ''}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer ${
+                        isActive && !hasSubItems
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 truncate">
+                        <Icon className="h-5 w-5 flex-shrink-0" />
+                        <span className={`truncate transition-opacity duration-300 ${isOpen ? 'opacity-100 inline' : 'hidden'}`}>
+                          {item.label}
+                        </span>
+                      </div>
+                      
+                      {/* Ikon panah untuk Dropdown */}
+                      {hasSubItems && isOpen && (
+                        isDropdownOpen ? (
+                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-slate-400" />
+                        )
+                      )}
+                    </button>
+
+                    {/* Sub-menu Rendering */}
+                    {hasSubItems && isDropdownOpen && isOpen && (
+                      <div className="mt-1 ml-4 pl-4 border-l-2 border-slate-700 space-y-1">
+                        {item.subItems.map((sub) => {
+                          const SubIcon = sub.icon;
+                          const isSubActive = activeTab === sub.key;
+                          return (
+                            <button
+                              key={sub.key}
+                              onClick={() => setActiveTab(sub.key)}
+                              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                                isSubActive
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <SubIcon className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">{sub.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

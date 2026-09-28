@@ -168,7 +168,7 @@ export default function DeliveryOrder() {
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  // ---------------- CETAK SURAT JALAN ----------------
+  // ---------------- CETAK SURAT JALAN (Format Accurate 4) ----------------
   const printSuratJalan = (doData) => {
     if (!doData) return;
     const win = window.open('', '_blank', 'width=900,height=700');
@@ -178,71 +178,120 @@ export default function DeliveryOrder() {
     }
     const rows = (doData.items || []).map((it, i) => `
       <tr>
-        <td class="c">${i + 1}</td>
+        <td align="center">${i + 1}</td>
         <td>${escapeHtml(it.part_number || '-')}</td>
         <td>${escapeHtml(it.description || '-')}</td>
-        <td class="c">${it.qty_sent}</td>
-        <td class="c">${escapeHtml(it.unit || 'SET')}</td>
+        <td align="center"><strong>${it.qty_sent} ${escapeHtml(it.unit || 'SET')}</strong></td>
       </tr>`).join('');
 
     win.document.write(`
-      <!DOCTYPE html><html><head><meta charset="utf-8"><title>Surat Jalan ${escapeHtml(doData.do_number)}</title>
-      <style>
-        * { box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-        .header { display:flex; align-items:center; gap:16px; border-bottom:3px solid #0f172a; padding-bottom:14px; }
-        .header img { width:64px; height:64px; object-fit:cover; border-radius:8px; }
-        .header h1 { margin:0; font-size:18px; }
-        .header p { margin:2px 0 0; font-size:12px; color:#475569; }
-        .title { text-align:center; margin:22px 0 6px; font-size:20px; font-weight:bold; text-decoration:underline; }
-        .subtitle { text-align:center; font-size:12px; color:#475569; margin-bottom:20px; }
-        .meta { display:flex; justify-content:space-between; font-size:13px; margin-bottom:16px; }
-        .meta div { line-height:1.7; }
-        table { width:100%; border-collapse:collapse; font-size:13px; }
-        th, td { border:1px solid #cbd5e1; padding:8px 10px; }
-        th { background:#f1f5f9; text-align:left; }
-        td.c, th.c { text-align:center; }
-        .sign { display:flex; justify-content:space-between; margin-top:56px; font-size:13px; }
-        .sign div { text-align:center; width:30%; }
-        .sign .line { margin-top:64px; border-top:1px solid #0f172a; }
-        .notes { margin-top:18px; font-size:12px; color:#475569; }
-        @media print { body { padding:0; } }
-      </style></head>
-      <body>
-        <div class="header">
-          <img src="${logoPerusahaan}" alt="logo" />
-          <div>
-            <h1>PT. ALDIGENS PUTERA PERSADA</h1>
-            <p>Sistem Terintegrasi PO &amp; Inventory</p>
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Surat Jalan - ${escapeHtml(doData.do_number)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; margin: 0; }
+            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+            .logo-area { width: 60%; vertical-align: top; }
+            .company-address { font-size: 9px; line-height: 1.3; color: #333; margin-top: 4px; }
+            .title-area { width: 40%; text-align: right; vertical-align: top; }
+            .doc-title { font-size: 18px; font-weight: bold; margin: 0 0 4px 0; letter-spacing: 0.5px; }
+            .meta-table { width: 100%; font-size: 10px; margin-bottom: 12px; }
+            .meta-table td { vertical-align: top; padding: 2px; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .items-table th, .items-table td { border: 1px solid #000; padding: 6px; font-size: 10px; }
+            .items-table th { background: #f0f0f0; text-align: center; }
+            .sign-container { margin-top: 50px; page-break-inside: avoid; }
+            .sign-table { width: 100%; text-align: center; font-size: 10px; }
+            .sign-box { height: 70px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <table class="header-table">
+            <tr>
+              <td class="logo-area">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                  <img src="${logoPerusahaan}" alt="Logo" style="height: 40px; border-radius: 4px;" />
+                  <span style="font-weight: 900; font-size: 16px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</span>
+                </div>
+                <div class="company-address">
+                  Ruko Bekasi Mas Blok C-25<br/>
+                  Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
+                </div>
+              </td>
+              <td class="title-area">
+                <div class="doc-title">DELIVERY ORDER</div>
+                <div style="font-size: 11px;"><strong>Surat Jalan</strong></div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="meta-table">
+            <tr>
+              <td style="width: 60%;">
+                <table style="width: 100%; font-size: 10px;">
+                  <tr><td style="width: 20%;"><strong>Deliver To</strong></td><td>: ${escapeHtml(doData.customer_name || '-')}</td></tr>
+                  <tr><td><strong>Address</strong></td><td>: ${escapeHtml(doData.delivery_address || '-')}</td></tr>
+                  <tr><td><strong>Driver</strong></td><td>: ${escapeHtml(doData.driver_name || '-')}</td></tr>
+                </table>
+              </td>
+              <td style="width: 40%;">
+                <table style="width: 100%; font-size: 10px;">
+                  <tr><td style="width: 40%;"><strong>D.O Number</strong></td><td>: ${escapeHtml(doData.do_number || '-')}</td></tr>
+                  <tr><td><strong>Date</strong></td><td>: ${escapeHtml(doData.do_date || '-')}</td></tr>
+                  <tr><td><strong>SO Ref</strong></td><td>: ${escapeHtml(doData.so_number || doData.sales_order?.so_number || '-')}</td></tr>
+                  <tr><td><strong>Vehicle No.</strong></td><td>: ${escapeHtml(doData.vehicle_number || '-')}</td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 5%;">No</th>
+                <th style="width: 25%;">Item No.</th>
+                <th style="width: 55%;">Description</th>
+                <th style="width: 15%;">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="4" align="center">Tidak ada item</td></tr>'}
+            </tbody>
+          </table>
+
+          <div style="font-size: 10px; margin-bottom: 20px;">
+            <strong>Keterangan:</strong><br/>
+            ${escapeHtml(doData.notes || 'Barang diterima dalam kondisi baik dan lengkap sesuai pesanan.')}
           </div>
-        </div>
-        <div class="title">SURAT JALAN</div>
-        <div class="subtitle">No. ${escapeHtml(doData.do_number)}</div>
-        <div class="meta">
-          <div>
-            <strong>Kepada:</strong><br/>
-            ${escapeHtml(doData.customer_name || '-')}<br/>
-            ${escapeHtml(doData.delivery_address || '-')}
+
+          <div class="sign-container">
+            <table class="sign-table">
+              <tr>
+                <td style="width: 33%;">
+                  Dibuat Oleh,<br/>
+                  <div class="sign-box"></div>
+                  <strong>( WAREHOUSE )</strong>
+                </td>
+                <td style="width: 33%;">
+                  Pengirim / Supir,<br/>
+                  <div class="sign-box"></div>
+                  <strong>( LOGISTIK )</strong>
+                </td>
+                <td style="width: 33%;">
+                  Diterima Oleh,<br/>
+                  <div class="sign-box"></div>
+                  <strong>( CUSTOMER )</strong><br/>
+                  <span style="font-size: 8px; color: #666;">Tgl / Cap Perusahaan</span>
+                </td>
+              </tr>
+            </table>
           </div>
-          <div style="text-align:right">
-            <strong>Tanggal:</strong> ${escapeHtml(doData.do_date || '-')}<br/>
-            <strong>No. SO:</strong> ${escapeHtml(doData.so_number || doData.sales_order?.so_number || '-')}<br/>
-            <strong>Kendaraan:</strong> ${escapeHtml(doData.vehicle_number || '-')}<br/>
-            <strong>Driver:</strong> ${escapeHtml(doData.driver_name || '-')}
-          </div>
-        </div>
-        <table>
-          <thead><tr><th class="c" style="width:40px">No</th><th>Part Number</th><th>Deskripsi Barang</th><th class="c" style="width:70px">Qty</th><th class="c" style="width:70px">Unit</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" class="c">Tidak ada item</td></tr>'}</tbody>
-        </table>
-        ${doData.notes ? `<div class="notes"><strong>Catatan:</strong> ${escapeHtml(doData.notes)}</div>` : ''}
-        <div class="sign">
-          <div><p>Pengirim</p><div class="line"></div></div>
-          <div><p>Pengemudi</p><div class="line"></div></div>
-          <div><p>Penerima</p><div class="line"></div></div>
-        </div>
-        <script>window.onload = function(){ window.focus(); window.print(); };<\/script>
-      </body></html>
+          <script>window.onload = function(){ window.focus(); window.print(); };</script>
+        </body>
+      </html>
     `);
     win.document.close();
   };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2 } from 'lucide-react';
 
 export default function SalesOrder() {
@@ -7,25 +7,40 @@ export default function SalesOrder() {
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
 
-  // Data Dummy Sales Order (SO)
-  const [dummySOs, setDummySOs] = useState([
-    {
-      id: 1,
-      soNo: 'SO-26090021',
-      date: '2026-09-28',
-      customer: 'PT. UNITED TRACTORS Tbk',
-      shipTo: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
-      refPo: '990621159',
-      terms: 'Net 30',
-      estDate: '2026-09-21',
-      sentBy: 'B 1234 SZT',
-      salesman: 'FIKHAY',
-      status: 'Disetujui',
-      items: [
-        { id: 101, code: 'OPT-PRTR-KCMS-P400', name: 'HANDRAIL PC400', qty: 1, unit: 'PCS', price: 1500000, disc: 0, tax: 11 }
-      ]
+  // Data Sales Order (SO) - Diinisialisasi dari localStorage atau data bawaan
+  const [salesOrders, setSalesOrders] = useState(() => {
+    const saved = localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Gagal parse localStorage SO", e);
+      }
     }
-  ]);
+    return [
+      {
+        id: 1,
+        soNo: 'SO-26090021',
+        date: '2026-09-28',
+        customer: 'PT. UNITED TRACTORS Tbk',
+        shipTo: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
+        refPo: '990621159',
+        terms: 'Net 30',
+        estDate: '2026-09-21',
+        sentBy: 'B 1234 SZT',
+        salesman: 'FIKHAY',
+        status: 'Disetujui',
+        items: [
+          { id: 101, code: 'OPT-PRTR-KCMS-P400', name: 'HANDRAIL PC400', qty: 1, unit: 'PCS', price: 1500000, disc: 0, tax: 11 }
+        ]
+      }
+    ];
+  });
+
+  // Sinkronisasi otomatis dengan localStorage setiap kali salesOrders berubah
+  useEffect(() => {
+    localStorage.setItem('aldigens_sales_orders', JSON.stringify(salesOrders));
+  }, [salesOrders]);
 
   // State Form Input
   const [formData, setFormData] = useState({
@@ -100,33 +115,36 @@ export default function SalesOrder() {
     }
 
     if (editingId) {
-      setDummySOs(dummySOs.map(item => item.id === editingId ? { ...item, ...formData } : item));
+      setSalesOrders(salesOrders.map(item => item.id === editingId ? { ...item, ...formData } : item));
     } else {
-      setDummySOs([{ id: Date.now(), ...formData }, ...dummySOs]);
+      setSalesOrders([{ id: Date.now(), ...formData }, ...salesOrders]);
     }
     setViewMode('list');
   };
 
   const handleDelete = (id) => {
     if (window.confirm('Apakah Anda yakin ingin menghapus Sales Order ini?')) {
-      setDummySOs(dummySOs.filter(item => item.id !== id));
+      setSalesOrders(salesOrders.filter(item => item.id !== id));
       setActiveMenuId(null);
     }
   };
 
-  // --- TEMPLATE CETAK STANDARD ACCURATE 4 DENGAN LOGO DARI FOLDER PUBLIC ---
+  // --- TEMPLATE CETAK STANDARD ACCURATE 4 ---
   const handlePrint = (item) => {
     setActiveMenuId(null);
-    const subTotal = item.items.reduce((acc, curr) => acc + (curr.qty * curr.price), 0);
-    const discountTotal = item.items.reduce((acc, curr) => acc + ((curr.qty * curr.price) * (curr.disc || 0) / 100), 0);
+    const rawItems = item.items || [];
+    const subTotal = rawItems.reduce((acc, curr) => acc + (Number(curr.qty || curr.quantity || 1) * Number(curr.unit_price || curr.price || 0)), 0);
+    const discountTotal = rawItems.reduce((acc, curr) => acc + ((Number(curr.qty || 1) * Number(curr.unit_price || curr.price || 0)) * (curr.disc || 0) / 100), 0);
     const taxTotal = (subTotal - discountTotal) * 0.11; // PPN 11%
     const grandTotal = (subTotal - discountTotal) + taxTotal;
 
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
     printWindow.document.write(`
       <html>
         <head>
-          <title>Sales Order - ${item.soNo}</title>
+          <title>Sales Order - ${item.soNo || item.so_number || 'SO'}</title>
           <style>
             body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; margin: 0; }
             .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
@@ -149,23 +167,15 @@ export default function SalesOrder() {
           <table class="header-table">
             <tr>
               <td class="logo-area">
-                <!-- Logo Vektor Presisi PT. Aldigens Putera Persada -->
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
-                  <svg width="45" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M10 90 L10 35 L38 10 L38 90 Z" fill="none" stroke="#000" stroke-width="8"/>
-                    <path d="M28 90 L28 22 L62 5 L62 90 Z" fill="none" stroke="#000" stroke-width="8"/>
-                  </svg>
-                  <span style="font-family: Arial, sans-serif; font-weight: 900; font-size: 18px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</span>
-                </div>
+                <div style="font-weight: 900; font-size: 18px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</div>
                 <div class="company-address">
                   Ruko Bekasi Mas Blok C-25<br/>
-                  Jl. Jend. Ahmad Yani, Margajaya<br/>
-                  Bekasi Selatan - 17141
+                  Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
                 </div>
               </td>
               <td class="title-area">
                 <div class="doc-title">SALES ORDER</div>
-                <div><strong>No :</strong> ${item.soNo}</div>
+                <div><strong>No :</strong> ${item.soNo || item.so_number || '-'}</div>
               </td>
             </tr>
           </table>
@@ -175,13 +185,10 @@ export default function SalesOrder() {
               <td style="width: 55%;"></td>
               <td style="width: 45%;">
                 <table style="width: 100%; font-size: 11px;">
-                  <tr><td><strong>Tanggal</strong></td><td>: ${item.date}</td></tr>
-                  <tr><td><strong>Reff. PO. No</strong></td><td>: ${item.refPo || '-'}</td></tr>
-                  <tr><td><strong>Term Pembayaran</strong></td><td>: ${item.terms}</td></tr>
-                  <tr><td><strong>Est. Tgl Kirim</strong></td><td>: ${item.estDate}</td></tr>
-                  <tr><td><strong>Dikirim Oleh</strong></td><td>: ${item.sentBy}</td></tr>
-                  <tr><td><strong>Salesman</strong></td><td>: ${item.salesman}</td></tr>
-                  <tr><td><strong>Halaman</strong></td><td>: 1 / 1</td></tr>
+                  <tr><td><strong>Tanggal</strong></td><td>: ${item.date || '-'}</td></tr>
+                  <tr><td><strong>Reff. PO. No</strong></td><td>: ${item.refPo || item.reff_po || '-'}</td></tr>
+                  <tr><td><strong>Term Pembayaran</strong></td><td>: ${item.terms || 'Net 30'}</td></tr>
+                  <tr><td><strong>Salesman</strong></td><td>: ${item.salesman || 'Administrator'}</td></tr>
                 </table>
               </td>
             </tr>
@@ -191,11 +198,11 @@ export default function SalesOrder() {
             <tr>
               <td>
                 <strong>Pelanggan :</strong><br/>
-                <span style="font-size: 13px; font-weight: bold;">${item.customer}</span>
+                <span style="font-size: 13px; font-weight: bold;">${item.customer || item.customer_name || '-'}</span>
               </td>
               <td>
                 <strong>Dikirim Ke :</strong><br/>
-                <span>${item.shipTo || '-'}</span>
+                <span>${item.shipTo || 'Jakarta'}</span>
               </td>
             </tr>
           </table>
@@ -213,15 +220,15 @@ export default function SalesOrder() {
               </tr>
             </thead>
             <tbody>
-              ${item.items.map((i, idx) => `
+              ${rawItems.map((i, idx) => `
                 <tr>
                   <td align="center">${idx + 1}</td>
-                  <td>${i.code}</td>
-                  <td>${i.name}</td>
-                  <td align="center">${i.qty}</td>
-                  <td align="center">${i.unit}</td>
-                  <td align="right">${i.price.toLocaleString()}</td>
-                  <td align="right">${(i.qty * i.price).toLocaleString()}</td>
+                  <td>${i.code || i.part_number || '-'}</td>
+                  <td>${i.name || i.description || '-'}</td>
+                  <td align="center">${i.qty || 1}</td>
+                  <td align="center">${i.unit || 'PCS'}</td>
+                  <td align="right">${Number(i.price || i.unit_price || 0).toLocaleString()}</td>
+                  <td align="right">${(Number(i.qty || 1) * Number(i.price || i.unit_price || 0)).toLocaleString()}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -232,13 +239,12 @@ export default function SalesOrder() {
               <td style="width: 60%; vertical-align: top;">
                 <div style="border: 1px solid #999; padding: 8px; min-height: 50px;">
                   <strong>Keterangan :</strong><br/>
-                  <span style="color: #333;">${item.remarks || 'Pesanan penjualan sistem terintegrasi ERP.'}</span>
+                  <span>${item.subject || 'Pesanan penjualan sistem terintegrasi ERP.'}</span>
                 </div>
               </td>
               <td style="width: 40%; vertical-align: top;">
                 <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
                   <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Sub Total</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${subTotal.toLocaleString()}</td></tr>
-                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Discount</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${discountTotal.toLocaleString()}</td></tr>
                   <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>PPN 11%</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${taxTotal.toLocaleString()}</td></tr>
                   <tr><td style="padding: 6px; font-size: 12px; font-weight: bold;">Total</td><td align="right" style="padding: 6px; font-size: 12px; font-weight: bold;">${grandTotal.toLocaleString()}</td></tr>
                 </table>
@@ -248,18 +254,8 @@ export default function SalesOrder() {
 
           <table class="sign-table">
             <tr>
-              <td style="width: 50%;">
-                Dibuat Oleh,<br/>
-                <div class="sign-box"></div>
-                <strong>( ADMIN )</strong><br/>
-                <span style="font-size: 9px; color: #666;">Tgl: ${new Date().toLocaleDateString()}</span>
-              </td>
-              <td style="width: 50%;">
-                Disetujui Oleh,<br/>
-                <div class="sign-box"></div>
-                <strong>( MANAGER )</strong><br/>
-                <span style="font-size: 9px; color: #666;">Tgl: ........................</span>
-              </td>
+              <td style="width: 50%;">Dibuat Oleh,<br/><div class="sign-box"></div><strong>( ADMIN )</strong></td>
+              <td style="width: 50%;">Disetujui Oleh,<br/><div class="sign-box"></div><strong>( MANAGER )</strong></td>
             </tr>
           </table>
         </body>
@@ -350,16 +346,16 @@ export default function SalesOrder() {
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
                         <td className="px-4 py-3">
-                          <input required type="text" placeholder="Kode..." value={item.code} onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <input required type="text" placeholder="Kode..." value={item.code || item.part_number || ''} onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
                         </td>
                         <td className="px-4 py-3">
-                          <input required type="text" placeholder="Nama barang..." value={item.name} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <input required type="text" placeholder="Nama barang..." value={item.name || item.description || ''} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
                         </td>
                         <td className="px-4 py-3">
-                          <input required type="number" min="1" value={item.qty} onChange={(e) => handleItemChange(item.id, 'qty', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <input required type="number" min="1" value={item.qty || 1} onChange={(e) => handleItemChange(item.id, 'qty', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
                         </td>
                         <td className="px-4 py-3">
-                          <select value={item.unit} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                          <select value={item.unit || 'PCS'} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
                             <option value="PCS">PCS</option>
                             <option value="Unit">Unit</option>
                             <option value="Set">Set</option>
@@ -367,7 +363,7 @@ export default function SalesOrder() {
                           </select>
                         </td>
                         <td className="px-4 py-3">
-                          <input required type="number" min="0" value={item.price} onChange={(e) => handleItemChange(item.id, 'price', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <input required type="number" min="0" value={item.price || item.unit_price || 0} onChange={(e) => handleItemChange(item.id, 'price', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button type="button" onClick={() => handleRemoveItemRow(item.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition" title="Hapus Baris">
@@ -430,17 +426,17 @@ export default function SalesOrder() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {dummySOs.filter(item => item.soNo.toLowerCase().includes(searchTerm.toLowerCase()) || item.customer.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+              {salesOrders.filter(item => (item.soNo || item.so_number || '').toLowerCase().includes(searchTerm.toLowerCase()) || (item.customer || item.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition relative">
-                  <td className="px-6 py-4">{item.date}</td>
-                  <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">{item.soNo}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{item.customer}</td>
-                  <td className="px-6 py-4 text-slate-500">{item.refPo || '-'}</td>
-                  <td className="px-6 py-4">{item.salesman}</td>
+                  <td className="px-6 py-4">{item.date || '-'}</td>
+                  <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">{item.soNo || item.so_number}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{item.customer || item.customer_name}</td>
+                  <td className="px-6 py-4 text-slate-500">{item.refPo || item.reff_po || '-'}</td>
+                  <td className="px-6 py-4">{item.salesman || item.admin_sales || 'Administrator'}</td>
                   <td className="px-6 py-4">
                     <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-max bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      {item.status}
+                      {item.status || 'Disetujui'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center relative">

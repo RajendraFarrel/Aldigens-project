@@ -70,7 +70,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
               {items.map((item) => {
                 const Icon = item.icon;
                 const hasSubItems = item.subItems && item.subItems.length > 0;
-                
+
                 // Cek apakah item ini atau salah satu sub-itemnya sedang aktif
                 const isActive = activeTab === item.key || (hasSubItems && item.subItems.some((sub) => sub.key === activeTab));
                 const isDropdownOpen = openDropdowns[item.key];

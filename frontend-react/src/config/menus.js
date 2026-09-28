@@ -9,6 +9,9 @@ import {
     Truck,
     ScanLine,
     History,
+    Network,
+    ShieldCheck,
+    ClipboardList as ActivityLogIcon,
     BarChart3,
     Receipt,
     PackageMinus,
@@ -85,24 +88,47 @@ export const MENU_GROUPS = [{
     },
     {
         group: 'Inventory',
-        items: [
-            { key: 'inventory-products', label: 'Data Part Number', icon: Package },
-            { key: 'inventory-warehouses', label: 'Warehouse', icon: Warehouse },
-            { key: 'inventory-receive', label: 'Penerimaan Barang', icon: PackagePlus },
-            { key: 'inventory-issue', label: 'Pengeluaran Barang', icon: PackageX },
-            { key: 'inventory-transfer', label: 'Transfer Lokasi', icon: ArrowUpRight },
-            { key: 'inventory-opname', label: 'Stock Opname', icon: ClipboardList },
-            { key: 'inventory-scan', label: 'Scanner Barcode', icon: ScanLine },
-            { key: 'inventory-transactions', label: 'Riwayat Transaksi', icon: History },
-            { key: 'inventory-reports', label: 'Laporan Stok', icon: BarChart3 },
-        ],
+        items: [{
+            key: 'inventory-menu',
+            label: 'Inventory',
+            icon: Package,
+            subItems: [
+                { key: 'inventory-products', label: 'Data Part Number', icon: Package },
+                { key: 'inventory-warehouses', label: 'Warehouse', icon: Warehouse },
+                { key: 'inventory-receive', label: 'Penerimaan Barang', icon: PackagePlus },
+                { key: 'inventory-issue', label: 'Pengeluaran Barang', icon: PackageX },
+                { key: 'inventory-transfer', label: 'Transfer Lokasi', icon: ArrowUpRight },
+                { key: 'inventory-opname', label: 'Stock Opname', icon: ClipboardList },
+                { key: 'inventory-scan', label: 'Scanner Barcode', icon: ScanLine },
+                { key: 'inventory-transactions', label: 'Riwayat Transaksi', icon: History },
+                { key: 'inventory-reports', label: 'Laporan Stok', icon: BarChart3 },
+            ],
+        }],
     },
     {
         group: 'Master Data',
-        items: [
-            { key: 'master-customers', label: 'Customer', icon: UsersRound },
-            { key: 'master-suppliers', label: 'Supplier', icon: Truck },
-        ],
+        items: [{
+            key: 'master-data-menu',
+            label: 'Master Data',
+            icon: UsersRound,
+            subItems: [
+                { key: 'master-customers', label: 'Customer', icon: UsersRound },
+                { key: 'master-suppliers', label: 'Supplier', icon: Truck },
+            ],
+        }],
+    },
+    {
+        group: 'Network & Security',
+        items: [{
+            key: 'network-security-menu',
+            label: 'Network & Security',
+            icon: Network,
+            subItems: [
+                { key: 'network-monitoring', label: 'Network Monitoring', icon: Network },
+                { key: 'security-status', label: 'Security Status', icon: ShieldCheck },
+                { key: 'activity-log', label: 'Activity Log', icon: ActivityLogIcon },
+            ],
+        }],
     },
     {
         group: 'Pengaturan',

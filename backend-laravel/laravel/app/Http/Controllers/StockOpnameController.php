@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryStock;
+use App\Models\WarehouseLocation;
 use App\Models\StockOpname;
 use App\Services\InventoryStockService;
 use Illuminate\Http\Request;
@@ -45,7 +46,15 @@ class StockOpnameController extends Controller
                 $query = InventoryStock::where('product_id', $item['product_id'])
                     ->where('warehouse_id', $data['warehouse_id']);
                 $item['warehouse_location_id'] = $item['warehouse_location_id'] ?? null;
-                $item['system_quantity'] = (int) $query->where('warehouse_location_id', $item['warehouse_location_id'])->value('quantity');
+                if ($item['warehouse_location_id'] && !WarehouseLocation::where('id', $item['warehouse_location_id'])
+                    ->where('warehouse_id', $data['warehouse_id'])->exists()) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Lokasi Stock Opname harus berada di warehouse yang dipilih.',
+                    ]);
+                }
+                $item['system_quantity'] = $item['warehouse_location_id']
+                    ? (int) $query->where('warehouse_location_id', $item['warehouse_location_id'])->value('quantity')
+                    : (int) $query->sum('quantity');
                 $item['difference'] = (int) $item['physical_quantity'] - $item['system_quantity'];
                 $opname->items()->create($item);
             }
@@ -56,27 +65,52 @@ class StockOpnameController extends Controller
 
     public function complete(Request $request, StockOpname $stockOpname, InventoryStockService $stockService)
     {
-        if ($stockOpname->status !== 'DRAFT') {
-            throw ValidationException::withMessages(['status' => 'Stock opname sudah diproses.']);
-        }
-        $stockOpname->load('items.product');
-        DB::transaction(function () use ($stockOpname, $stockService, $request) {
-            foreach ($stockOpname->items as $item) {
-                $difference = (int) $item->difference;
+        $completed = DB::transaction(function () use ($stockOpname, $stockService, $request) {
+            $lockedOpname = StockOpname::query()->lockForUpdate()->findOrFail($stockOpname->id);
+            if ($lockedOpname->status !== 'DRAFT') {
+                throw ValidationException::withMessages(['status' => 'Stock opname sudah diproses.']);
+            }
+
+            $lockedOpname->load('items.product');
+            foreach ($lockedOpname->items as $item) {
+                $systemQuantityQuery = InventoryStock::query()
+                    ->where('product_id', $item->product_id)
+                    ->where('warehouse_id', $lockedOpname->warehouse_id);
+                $systemQuantity = $item->warehouse_location_id
+                    ? (int) $systemQuantityQuery->where('warehouse_location_id', $item->warehouse_location_id)->sum('quantity')
+                    : (int) $systemQuantityQuery->sum('quantity');
+                $difference = (int) $item->physical_quantity - $systemQuantity;
+
+                $item->update([
+                    'system_quantity' => $systemQuantity,
+                    'difference' => $difference,
+                ]);
                 if ($difference === 0) continue;
-                $stockService->adjust($item->product, abs($difference), $difference > 0 ? 'ADJUSTMENT' : 'KELUAR', [
+
+                $stockService->adjustWarehouseTotal($item->product, $difference, [
                     'user_id' => $request->user()?->id,
                     'user_name' => $request->user()?->name,
-                    'warehouse_id' => $stockOpname->warehouse_id,
+                    'warehouse_id' => $lockedOpname->warehouse_id,
                     'warehouse_location_id' => $item->warehouse_location_id,
                     'reference_type' => 'STOCK_OPNAME',
-                    'reference_id' => $stockOpname->id,
-                    'reference_number' => $stockOpname->document_number,
+                    'reference_id' => $lockedOpname->id,
+                    'reference_number' => $lockedOpname->document_number,
                     'notes' => $item->notes,
                 ]);
             }
-            $stockOpname->update(['status' => 'COMPLETED', 'approved_by' => $request->user()?->id, 'approved_at' => now()]);
+
+            $lockedOpname->update([
+                'status' => 'COMPLETED',
+                'approved_by' => $request->user()?->id,
+                'approved_at' => now(),
+            ]);
+
+            return $lockedOpname;
         });
-        return response()->json(['message' => 'Stock opname selesai dan adjustment tercatat.', 'data' => $stockOpname->fresh(['warehouse', 'items.product'])]);
+
+        return response()->json([
+            'message' => 'Stock opname selesai dan adjustment tercatat.',
+            'data' => $completed->fresh(['warehouse', 'items.product']),
+        ]);
     }
 }

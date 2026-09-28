@@ -32,6 +32,9 @@ import MasterData from './pages/MasterData';
 import InventoryScan from './pages/InventoryScan';
 import InventoryTransactions from './pages/InventoryTransactions';
 import InventoryReports from './pages/InventoryReports';
+import NetworkMonitoring from './pages/NetworkMonitoring';
+import SecurityStatus from './pages/SecurityStatus';
+import ActivityLog from './pages/ActivityLog';
 import { Menu, Moon, Sun } from 'lucide-react';
 import axios from 'axios';
 import { useTheme } from './context/ThemeContext';
@@ -72,6 +75,9 @@ const PAGE_TITLES = {
   'inventory-scan':         'Scanner Barcode',
   'inventory-transactions': 'Riwayat Transaksi Inventory',
   'inventory-reports':      'Laporan Stok Mingguan',
+  'network-monitoring':     'Network Monitoring',
+  'security-status':        'Security Status',
+  'activity-log':           'Activity Log',
 };
 
 export default function App() {
@@ -183,6 +189,9 @@ export default function App() {
       case 'inventory-scan':         return <InventoryScan />;
       case 'inventory-transactions': return <InventoryTransactions />;
       case 'inventory-reports':      return <InventoryReports />;
+      case 'network-monitoring':     return <NetworkMonitoring />;
+      case 'security-status':        return <SecurityStatus />;
+      case 'activity-log':           return <ActivityLog />;
       default:                       return <Dashboard />;
     }
   };

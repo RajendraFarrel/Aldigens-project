@@ -1,411 +1,485 @@
-import React, { useState, useEffect } from 'react';
-import api from '../services/api';
-import { Plus, Trash2, ArrowLeft, Save, ShoppingCart, Calendar, CheckCircle2, Package } from 'lucide-react';
-import { swalSuccess, swalError } from '../utils/swal';
+import React, { useState } from 'react';
+import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2 } from 'lucide-react';
 
 export default function SalesOrder() {
-  const [salesOrders, setSalesOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedSO, setSelectedSO] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
+  const [activeMenuId, setActiveMenuId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
 
+  // Data Dummy Sales Order (SO)
+  const [dummySOs, setDummySOs] = useState([
+    {
+      id: 1,
+      soNo: 'SO-26090021',
+      date: '2026-09-28',
+      customer: 'PT. UNITED TRACTORS Tbk',
+      shipTo: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
+      refPo: '990621159',
+      terms: 'Net 30',
+      estDate: '2026-09-21',
+      sentBy: 'B 1234 SZT',
+      salesman: 'FIKHAY',
+      status: 'Disetujui',
+      items: [
+        { id: 101, code: 'OPT-PRTR-KCMS-P400', name: 'HANDRAIL PC400', qty: 1, unit: 'PCS', price: 1500000, disc: 0, tax: 11 }
+      ]
+    }
+  ]);
+
+  // State Form Input
   const [formData, setFormData] = useState({
-    quotation_id: '',
-    so_number: `SO-${Math.floor(1000 + Math.random() * 9000)}`,
-    client_po_number: '',
-    so_date: new Date().toISOString().split('T')[0],
-    customer_name: '',
-    customer_address: '',
-    model_unit: '',
-    status: 'Pending',
-    items: [{ product_id: '', description: '-', qty: 1, unit_price: 0 }]
+    soNo: 'SO-' + Math.floor(10000000 + Math.random() * 90000000),
+    date: new Date().toISOString().split('T')[0],
+    customer: '',
+    shipTo: '',
+    refPo: '',
+    terms: 'Net 30',
+    estDate: new Date().toISOString().split('T')[0],
+    sentBy: 'Kurir Perusahaan',
+    salesman: 'Administrator',
+    status: 'Disetujui',
+    items: [{ id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
   });
 
-  useEffect(() => {
-    fetchSalesOrders();
-  }, []);
-
-  const fetchSalesOrders = async () => {
-    try {
-      const response = await api.get('/sales-orders');
-      const rawData = response.data.data || response.data;
-      setSalesOrders(Array.isArray(rawData) ? rawData : []);
-    } catch (error) {
-      console.error('Gagal memuat data Sales Order:', error);
-      setSalesOrders([]);
-    } finally {
-      setLoading(false);
-    }
+  const handleOpenAddForm = () => {
+    setEditingId(null);
+    setFormData({
+      soNo: 'SO-' + Math.floor(10000000 + Math.random() * 90000000),
+      date: new Date().toISOString().split('T')[0],
+      customer: '',
+      shipTo: '',
+      refPo: '',
+      terms: 'Net 30',
+      estDate: new Date().toISOString().split('T')[0],
+      sentBy: 'Kurir Perusahaan',
+      salesman: 'Administrator',
+      status: 'Disetujui',
+      items: [{ id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
+    });
+    setViewMode('form');
   };
 
-  const handleViewDetail = async (id) => {
-    try {
-      const response = await api.get(`/sales-orders/${id}`);
-      setSelectedSO(response.data.data || response.data);
-    } catch (error) {
-      console.error('Gagal memuat detail SO:', error);
-      swalError('Gagal Memuat', 'Gagal mengambil detail pesanan dari server.');
-    }
+  const handleOpenEditForm = (item) => {
+    setEditingId(item.id);
+    setFormData({ ...item });
+    setViewMode('form');
+    setActiveMenuId(null);
   };
 
-  const handleAddItem = () => {
+  const handleAddItemRow = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { product_id: '', description: '-', qty: 1, unit_price: 0 }]
+      items: [...formData.items, { id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
     });
   };
 
-  const handleRemoveItem = (index) => {
-    const newItems = formData.items.filter((_, i) => i !== index);
-    setFormData({ ...formData, items: newItems });
+  const handleRemoveItemRow = (id) => {
+    if (formData.items.length === 1) {
+      alert('Sales Order minimal harus memiliki 1 item barang!');
+      return;
+    }
+    setFormData({
+      ...formData,
+      items: formData.items.filter(i => i.id !== id)
+    });
   };
 
-  const handleItemChange = (index, field, value) => {
-    const newItems = [...formData.items];
-    newItems[index][field] = value;
-    setFormData({ ...formData, items: newItems });
+  const handleItemChange = (id, field, value) => {
+    setFormData({
+      ...formData,
+      items: formData.items.map(i => i.id === id ? { ...i, [field]: value } : i)
+    });
   };
 
-  const calculateGrandTotal = () => {
-    return formData.items.reduce((total, item) => {
-      const qty = parseFloat(item.qty) || 0;
-      const price = parseFloat(item.unit_price) || 0;
-      return total + (qty * price);
-    }, 0);
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSave = (e) => {
     e.preventDefault();
-    try {
-      const payloadItems = formData.items.map(item => {
-        const itemQty = parseFloat(item.qty) || 0;
-        const itemPrice = parseFloat(item.unit_price) || 0;
-        return {
-          ...item,
-          amount: itemQty * itemPrice
-        };
-      });
+    if (!formData.customer.trim()) {
+      alert('Nama Pelanggan wajib diisi!');
+      return;
+    }
 
-      const payload = {
-        ...formData,
-        items: payloadItems,
-        sub_total: calculateGrandTotal(),
-        tax_amount: 0,
-        grand_total: calculateGrandTotal()
-      };
+    if (editingId) {
+      setDummySOs(dummySOs.map(item => item.id === editingId ? { ...item, ...formData } : item));
+    } else {
+      setDummySOs([{ id: Date.now(), ...formData }, ...dummySOs]);
+    }
+    setViewMode('list');
+  };
 
-      await api.post('/sales-orders', payload);
-      swalSuccess('Berhasil', 'Sales Order berhasil disimpan ke database!');
-      setIsCreating(false);
-
-      setFormData({
-        quotation_id: '',
-        so_number: `SO-${Math.floor(1000 + Math.random() * 9000)}`,
-        client_po_number: '',
-        so_date: new Date().toISOString().split('T')[0],
-        customer_name: '',
-        customer_address: '',
-        model_unit: '',
-        status: 'Pending',
-        items: [{ product_id: '', description: '-', qty: 1, unit_price: 0 }]
-      });
-
-      fetchSalesOrders();
-    } catch (error) {
-      console.error('Gagal menyimpan SO:', error.response?.data || error.message);
-      swalError('Gagal Menyimpan', 'Terjadi kesalahan saat menyimpan data ke backend.');
+  const handleDelete = (id) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus Sales Order ini?')) {
+      setDummySOs(dummySOs.filter(item => item.id !== id));
+      setActiveMenuId(null);
     }
   };
 
-  const formatRupiah = (number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(number);
+  // --- TEMPLATE CETAK STANDARD ACCURATE 4 DENGAN LOGO DARI FOLDER PUBLIC ---
+  const handlePrint = (item) => {
+    setActiveMenuId(null);
+    const subTotal = item.items.reduce((acc, curr) => acc + (curr.qty * curr.price), 0);
+    const discountTotal = item.items.reduce((acc, curr) => acc + ((curr.qty * curr.price) * (curr.disc || 0) / 100), 0);
+    const taxTotal = (subTotal - discountTotal) * 0.11; // PPN 11%
+    const grandTotal = (subTotal - discountTotal) + taxTotal;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Sales Order - ${item.soNo}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; margin: 0; }
+            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+            .logo-area { width: 55%; vertical-align: top; }
+            .company-address { font-size: 10px; line-height: 1.3; color: #333; margin-top: 6px; }
+            .title-area { width: 45%; text-align: right; vertical-align: top; }
+            .doc-title { font-size: 20px; font-weight: bold; margin: 0 0 5px 0; letter-spacing: 1px; }
+            .meta-table { width: 100%; font-size: 11px; margin-bottom: 15px; }
+            .meta-table td { padding: 2px 5px; vertical-align: top; }
+            .info-box-table { width: 100%; margin-bottom: 15px; border: 1px solid #999; border-collapse: collapse; }
+            .info-box-table td { padding: 6px 10px; vertical-align: top; width: 50%; border: 1px solid #999; font-size: 11px; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .items-table th, .items-table td { border: 1px solid #000; padding: 6px 8px; font-size: 11px; }
+            .items-table th { background: #f0f0f0; text-align: center; }
+            .sign-table { width: 100%; margin-top: 30px; text-align: center; }
+            .sign-box { height: 60px; }
+          </style>
+        </head>
+        <body>
+          <table class="header-table">
+            <tr>
+              <td class="logo-area">
+                <!-- Logo Vektor Presisi PT. Aldigens Putera Persada -->
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                  <svg width="45" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 90 L10 35 L38 10 L38 90 Z" fill="none" stroke="#000" stroke-width="8"/>
+                    <path d="M28 90 L28 22 L62 5 L62 90 Z" fill="none" stroke="#000" stroke-width="8"/>
+                  </svg>
+                  <span style="font-family: Arial, sans-serif; font-weight: 900; font-size: 18px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</span>
+                </div>
+                <div class="company-address">
+                  Ruko Bekasi Mas Blok C-25<br/>
+                  Jl. Jend. Ahmad Yani, Margajaya<br/>
+                  Bekasi Selatan - 17141
+                </div>
+              </td>
+              <td class="title-area">
+                <div class="doc-title">SALES ORDER</div>
+                <div><strong>No :</strong> ${item.soNo}</div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="meta-table">
+            <tr>
+              <td style="width: 55%;"></td>
+              <td style="width: 45%;">
+                <table style="width: 100%; font-size: 11px;">
+                  <tr><td><strong>Tanggal</strong></td><td>: ${item.date}</td></tr>
+                  <tr><td><strong>Reff. PO. No</strong></td><td>: ${item.refPo || '-'}</td></tr>
+                  <tr><td><strong>Term Pembayaran</strong></td><td>: ${item.terms}</td></tr>
+                  <tr><td><strong>Est. Tgl Kirim</strong></td><td>: ${item.estDate}</td></tr>
+                  <tr><td><strong>Dikirim Oleh</strong></td><td>: ${item.sentBy}</td></tr>
+                  <tr><td><strong>Salesman</strong></td><td>: ${item.salesman}</td></tr>
+                  <tr><td><strong>Halaman</strong></td><td>: 1 / 1</td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <table class="info-box-table">
+            <tr>
+              <td>
+                <strong>Pelanggan :</strong><br/>
+                <span style="font-size: 13px; font-weight: bold;">${item.customer}</span>
+              </td>
+              <td>
+                <strong>Dikirim Ke :</strong><br/>
+                <span>${item.shipTo || '-'}</span>
+              </td>
+            </tr>
+          </table>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 5%;">No</th>
+                <th style="width: 20%;">Kode Barang</th>
+                <th style="width: 35%;">Nama Barang</th>
+                <th style="width: 8%;">Qty</th>
+                <th style="width: 8%;">Satuan</th>
+                <th style="width: 12%;">Harga</th>
+                <th style="width: 12%;">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${item.items.map((i, idx) => `
+                <tr>
+                  <td align="center">${idx + 1}</td>
+                  <td>${i.code}</td>
+                  <td>${i.name}</td>
+                  <td align="center">${i.qty}</td>
+                  <td align="center">${i.unit}</td>
+                  <td align="right">${i.price.toLocaleString()}</td>
+                  <td align="right">${(i.qty * i.price).toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <table style="width: 100%; margin-top: 10px;">
+            <tr>
+              <td style="width: 60%; vertical-align: top;">
+                <div style="border: 1px solid #999; padding: 8px; min-height: 50px;">
+                  <strong>Keterangan :</strong><br/>
+                  <span style="color: #333;">${item.remarks || 'Pesanan penjualan sistem terintegrasi ERP.'}</span>
+                </div>
+              </td>
+              <td style="width: 40%; vertical-align: top;">
+                <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
+                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Sub Total</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${subTotal.toLocaleString()}</td></tr>
+                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Discount</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${discountTotal.toLocaleString()}</td></tr>
+                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>PPN 11%</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${taxTotal.toLocaleString()}</td></tr>
+                  <tr><td style="padding: 6px; font-size: 12px; font-weight: bold;">Total</td><td align="right" style="padding: 6px; font-size: 12px; font-weight: bold;">${grandTotal.toLocaleString()}</td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <table class="sign-table">
+            <tr>
+              <td style="width: 50%;">
+                Dibuat Oleh,<br/>
+                <div class="sign-box"></div>
+                <strong>( ADMIN )</strong><br/>
+                <span style="font-size: 9px; color: #666;">Tgl: ${new Date().toLocaleDateString()}</span>
+              </td>
+              <td style="width: 50%;">
+                Disetujui Oleh,<br/>
+                <div class="sign-box"></div>
+                <strong>( MANAGER )</strong><br/>
+                <span style="font-size: 9px; color: #666;">Tgl: ........................</span>
+              </td>
+            </tr>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
   };
 
-  return (
-    <div className="p-4 md:p-8 w-full max-w-full space-y-6">
-      
-      {!isCreating && !selectedSO && (
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manajemen Sales Order</h1>
-            <p className="text-sm text-slate-500 mt-1">Kelola data pesanan pelanggan secara terintegrasi.</p>
-          </div>
-          <button 
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/20 transition-all cursor-pointer"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Buat SO Baru</span>
-          </button>
-        </div>
-      )}
-
-      {isCreating ? (
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 animate-fadeIn w-full">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
-            <div className="flex items-center gap-4">
-              <button 
-                type="button"
-                onClick={() => setIsCreating(false)}
-                className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-              >
-                <ArrowLeft className="w-5 h-5" />
+  if (viewMode === 'form') {
+    return (
+      <div className="p-6 max-w-5xl mx-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div>
-                <h2 className="text-xl font-bold text-slate-800">Formulir Sales Order Baru</h2>
-                <p className="text-sm text-slate-500">Lengkapi data pesanan di bawah ini.</p>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  {editingId ? 'Edit Sales Order (SO)' : 'Buat Sales Order Baru'}
+                </h2>
+                <p className="text-xs text-slate-500">Formulir pesanan penjualan model Accurate 4</p>
               </div>
             </div>
-            <button 
-              type="submit"
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>Simpan SO</span>
-            </button>
+            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold">
+              {formData.soNo}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">ID Quotation (Opsional)</label>
-              <input type="number" placeholder="Cth: 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition" value={formData.quotation_id} onChange={(e) => setFormData({...formData, quotation_id: e.target.value})} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">No. PO Client</label>
-              <input type="text" required placeholder="Masukkan No. PO Client" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition" value={formData.client_po_number} onChange={(e) => setFormData({...formData, client_po_number: e.target.value})} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tanggal SO</label>
-              <input type="date" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition" value={formData.so_date} onChange={(e) => setFormData({...formData, so_date: e.target.value})} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Nama Pelanggan</label>
-              <input type="text" required placeholder="Nama PT / Klien" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition" value={formData.customer_name} onChange={(e) => setFormData({...formData, customer_name: e.target.value})} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Model Unit</label>
-              <input type="text" placeholder="Model / Tipe Alat" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition" value={formData.model_unit} onChange={(e) => setFormData({...formData, model_unit: e.target.value})} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Alamat Pelanggan</label>
-              <input type="text" placeholder="Alamat lengkap klien" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition" value={formData.customer_address} onChange={(e) => setFormData({...formData, customer_address: e.target.value})} />
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-6 border-t border-slate-100">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Package className="w-4 h-4 text-blue-500" /> Daftar Item Barang
-              </h3>
-              <button type="button" onClick={handleAddItem} className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs px-4 py-2 rounded-xl transition cursor-pointer">
-                <Plus className="w-4 h-4" /> Tambah Baris
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {formData.items.map((item, index) => {
-                const subtotal = (parseFloat(item.qty) || 0) * (parseFloat(item.unit_price) || 0);
-                return (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 items-center">
-                    <div className="md:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">ID PRODUK</label>
-                      <input type="text" required placeholder="PRD-001" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" value={item.product_id} onChange={(e) => handleItemChange(index, 'product_id', e.target.value)} />
-                    </div>
-                    <div className="md:col-span-4">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">DESKRIPSI BARANG</label>
-                      <input type="text" required placeholder="Deskripsi barang" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">QTY</label>
-                      <input type="number" min="1" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-center" value={item.qty} onChange={(e) => handleItemChange(index, 'qty', e.target.value)} />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">HARGA SATUAN</label>
-                      <input type="number" min="0" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">SUBTOTAL</label>
-                      <div className="text-sm font-bold text-slate-800 py-2">{formatRupiah(subtotal)}</div>
-                    </div>
-                    <div className="md:col-span-1 text-right">
-                      {formData.items.length > 1 && (
-                        <button type="button" onClick={() => handleRemoveItem(index)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer mt-5 md:mt-0">
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-6">
-            <div className="w-full md:w-1/3 bg-blue-50/50 p-6 rounded-2xl border border-blue-100/60">
-              <p className="text-sm text-slate-500 font-medium mb-1">Total Estimasi Keseluruhan</p>
-              <h4 className="text-3xl font-black text-blue-900">{formatRupiah(calculateGrandTotal())}</h4>
-            </div>
-          </div>
-        </form>
-
-      ) : selectedSO ? (
-
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 animate-fadeIn w-full">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setSelectedSO(null)}
-                className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
+          <form onSubmit={handleSave} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
               <div>
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight">Detail: {selectedSO.so_number}</h2>
-                <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
-                  <Calendar className="w-4 h-4" /> Dibuat pada {selectedSO.so_date}
-                </p>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">No. SO</label>
+                <input type="text" value={formData.soNo} disabled className="w-full px-4 py-2.5 bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Tanggal</label>
+                <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Nama Pelanggan</label>
+                <input required type="text" placeholder="Contoh: PT. UNITED TRACTORS Tbk" value={formData.customer} onChange={(e) => setFormData({...formData, customer: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Alamat Kirim (Ship To)</label>
+                <input type="text" placeholder="Alamat pengiriman barang..." value={formData.shipTo} onChange={(e) => setFormData({...formData, shipTo: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Reff. PO No.</label>
+                <input type="text" placeholder="No PO Pelanggan..." value={formData.refPo} onChange={(e) => setFormData({...formData, refPo: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Term Pembayaran</label>
+                <input type="text" value={formData.terms} onChange={(e) => setFormData({...formData, terms: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Salesman</label>
+                <input type="text" value={formData.salesman} onChange={(e) => setFormData({...formData, salesman: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-sm font-bold border border-emerald-100">
-              <CheckCircle2 className="w-4 h-4" /> {selectedSO.status}
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
             <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Nama Pelanggan</p>
-              <p className="font-semibold text-slate-800 text-base">{selectedSO.customer_name}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">No. PO Client</p>
-              <p className="font-semibold text-slate-800 text-base">{selectedSO.client_po_number}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Model Unit</p>
-              <p className="font-semibold text-slate-800 text-base">{selectedSO.model_unit || '-'}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Alamat Pengiriman</p>
-              <p className="font-semibold text-slate-800 text-base line-clamp-2">{selectedSO.customer_address || '-'}</p>
-            </div>
-          </div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 text-blue-500" /> Detail Item Penjualan
+                </h3>
+                <button type="button" onClick={handleAddItemRow} className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg transition">
+                  <Plus className="h-3.5 w-3.5" /> Tambah Baris Barang
+                </button>
+              </div>
 
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 mb-4 flex items-center gap-2">
-              <Package className="w-4 h-4 text-blue-500" /> Daftar Barang Pesanan
-            </h3>
-            
-            <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] uppercase tracking-wider">
-                    <th className="p-4 font-bold w-32">ID Produk / Part Number</th>
-                    <th className="p-4 font-bold">Deskripsi Barang</th>
-                    <th className="p-4 font-bold text-center w-24">QTY</th>
-                    <th className="p-4 font-bold text-right w-40">Harga Satuan</th>
-                    <th className="p-4 font-bold text-right w-48">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {selectedSO.items && selectedSO.items.length > 0 ? (
-                    selectedSO.items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition">
-                        <td className="p-4 text-sm font-semibold text-slate-700">{item.part_number || item.product_id || '-'}</td>
-                        <td className="p-4 text-sm font-medium text-slate-600">{item.description || '-'}</td>
-                        <td className="p-4 text-sm text-center font-bold text-slate-800">{item.qty || item.quantity}</td>
-                        <td className="p-4 text-sm text-right font-medium text-slate-600">{formatRupiah(item.unit_price)}</td>
-                        <td className="p-4 text-sm text-right font-bold text-slate-800 bg-slate-50/30">
-                          {formatRupiah(item.amount || ((item.qty || item.quantity) * item.unit_price))}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-xs uppercase font-semibold">
+                    <tr>
+                      <th className="px-4 py-3 w-12 text-center">#</th>
+                      <th className="px-4 py-3">Kode Barang</th>
+                      <th className="px-4 py-3">Nama Barang</th>
+                      <th className="px-4 py-3 w-24">Qty</th>
+                      <th className="px-4 py-3 w-28">Satuan</th>
+                      <th className="px-4 py-3 w-36">Harga (Rp)</th>
+                      <th className="px-4 py-3 w-16 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                    {formData.items.map((item, index) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
+                        <td className="px-4 py-3">
+                          <input required type="text" placeholder="Kode..." value={item.code} onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input required type="text" placeholder="Nama barang..." value={item.name} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input required type="number" min="1" value={item.qty} onChange={(e) => handleItemChange(item.id, 'qty', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <select value={item.unit} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                            <option value="PCS">PCS</option>
+                            <option value="Unit">Unit</option>
+                            <option value="Set">Set</option>
+                            <option value="Batang">Batang</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-3">
+                          <input required type="number" min="0" value={item.price} onChange={(e) => handleItemChange(item.id, 'price', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button type="button" onClick={() => handleRemoveItemRow(item.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition" title="Hapus Baris">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="5" className="p-12 text-center text-sm font-medium text-slate-400">
-                        Tidak ada detail barang untuk pesanan ini.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            
-            <div className="flex justify-end mt-6">
-              <div className="w-full md:w-96 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-sm font-medium text-slate-500">Subtotal</span>
-                  <span className="text-sm font-bold text-slate-800">{formatRupiah(selectedSO.sub_total || selectedSO.grand_total)}</span>
-                </div>
-                <div className="flex justify-between items-center mb-5">
-                  <span className="text-sm font-medium text-slate-500">Pajak (Tax)</span>
-                  <span className="text-sm font-bold text-slate-800">{formatRupiah(selectedSO.tax_amount || 0)}</span>
-                </div>
-                <div className="flex justify-between items-center border-t border-slate-200 pt-5">
-                  <span className="text-base font-extrabold text-slate-900">Total Keseluruhan</span>
-                  <span className="text-xl font-black text-blue-600">{formatRupiah(selectedSO.grand_total)}</span>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
+              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition">Batal</button>
+              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition">
+                <Save className="h-4 w-4" /> Simpan Sales Order
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
+        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Cari no. SO atau pelanggan..." 
+                className="pl-10 pr-4 py-2.5 w-full sm:w-80 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
+          
+          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition">
+            <Plus className="h-4 w-4" />
+            Buat Sales Order (SO) Baru
+          </button>
         </div>
 
-      ) : (
+        <div className="overflow-x-auto min-h-[350px]">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-xs uppercase font-semibold">
+              <tr>
+                <th className="px-6 py-3.5">Tanggal</th>
+                <th className="px-6 py-3.5">No. SO</th>
+                <th className="px-6 py-3.5">Pelanggan</th>
+                <th className="px-6 py-3.5">Reff. PO</th>
+                <th className="px-6 py-3.5">Salesman</th>
+                <th className="px-6 py-3.5">Status</th>
+                <th className="px-6 py-3.5 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+              {dummySOs.filter(item => item.soNo.toLowerCase().includes(searchTerm.toLowerCase()) || item.customer.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition relative">
+                  <td className="px-6 py-4">{item.date}</td>
+                  <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">{item.soNo}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{item.customer}</td>
+                  <td className="px-6 py-4 text-slate-500">{item.refPo || '-'}</td>
+                  <td className="px-6 py-4">{item.salesman}</td>
+                  <td className="px-6 py-4">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-max bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {item.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center relative">
+                    <button 
+                      onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                    >
+                      <MoreVertical className="h-4 w-4 inline" />
+                    </button>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden w-full">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200">
-                  <th className="p-5 font-bold">No. SO</th>
-                  <th className="p-5 font-bold">Nama Pelanggan</th>
-                  <th className="p-5 font-bold">No. PO Client</th>
-                  <th className="p-5 font-bold">Tanggal</th>
-                  <th className="p-5 font-bold">Total Nilai</th>
-                  <th className="p-5 font-bold text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan="6" className="text-center p-12 text-slate-400 text-sm">Memuat data dari server...</td>
-                  </tr>
-                ) : salesOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="text-center p-16 text-slate-400 text-sm">
-                      <div className="flex flex-col items-center justify-center space-y-3">
-                        <ShoppingCart className="w-12 h-12 text-slate-200" />
-                        <p className="font-medium">Belum ada data Sales Order yang tercatat.</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  salesOrders.map((so) => (
-                    <tr key={so.id} className="hover:bg-slate-50/80 transition text-sm">
-                      <td className="p-5 font-bold text-slate-800">{so.so_number}</td>
-                      <td className="p-5 text-slate-700 font-medium">{so.customer_name}</td>
-                      <td className="p-5 text-slate-500">{so.client_po_number}</td>
-                      <td className="p-5 text-slate-500">{so.so_date}</td>
-                      <td className="p-5 font-bold text-slate-800">{formatRupiah(so.grand_total || 0)}</td>
-                      <td className="p-5 text-center">
+                    {activeMenuId === item.id && (
+                      <div className="absolute right-12 top-10 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
                         <button 
-                          onClick={() => handleViewDetail(so.id)}
-                          className="text-blue-600 hover:text-white font-semibold text-xs bg-blue-50 hover:bg-blue-600 px-4 py-2 rounded-xl transition-all cursor-pointer"
+                          onClick={() => handleOpenEditForm(item)}
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
                         >
-                          Lihat Detail
+                          <Edit3 className="h-4 w-4 text-blue-500" /> Edit SO
                         </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                        <button 
+                          onClick={() => handlePrint(item)}
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                        >
+                          <Printer className="h-4 w-4 text-emerald-500" /> Cetak Dokumen
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(item.id)}
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700"
+                        >
+                          <Trash2 className="h-4 w-4" /> Hapus SO
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
-
+      </div>
     </div>
   );
 }

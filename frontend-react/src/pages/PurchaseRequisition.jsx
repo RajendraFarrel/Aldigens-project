@@ -1,85 +1,348 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Search, Plus, Filter, MoreVertical, ClipboardList, Save } from 'lucide-react';
-import { createPurchaseRequest, getProducts, getPurchaseRequests, updatePurchaseRequestStatus } from '../services/api';
+import React, { useState } from 'react';
+import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock } from 'lucide-react';
 
 export default function PurchaseRequisition() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [rows, setRows] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [form, setForm] = useState({ document_number: `PR-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${Date.now().toString().slice(-4)}`, request_date: new Date().toISOString().slice(0, 10), request_type: 'PEMBELIAN', notes: '', items: [{ product_id: '', quantity: 1, unit: 'PCS', notes: '' }] });
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const load = useCallback(async () => { try { const [pr, p] = await Promise.all([getPurchaseRequests(), getProducts()]); setRows(pr.data?.data || []); setProducts(p.data?.data || []); } catch (e) { setError(e.response?.data?.message || 'Data PR gagal dimuat.'); } }, []);
-  useEffect(() => { load(); }, [load]);
-  const submit = async (e) => {
-    e.preventDefault(); setError(''); setMessage('');
-    try {
-      await createPurchaseRequest(form);
-      setMessage('Purchase Request berhasil disimpan.');
-      setForm({ ...form, document_number: `PR-${Date.now()}`, items: [{ product_id: '', quantity: 1, unit: 'PCS', notes: '' }] });
-      await load();
-    } catch (e) {
-      setError(e.response?.data?.message || Object.values(e.response?.data?.errors || {}).flat()[0] || 'PR gagal disimpan.');
+  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
+  const [activeMenuId, setActiveMenuId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+
+  // Data Dummy Permintaan Pembelian (PR)
+  const [dummyPRs, setDummyPRs] = useState([
+    {
+      id: 1,
+      prNo: 'PR-20260928-7683',
+      date: '2026-09-28',
+      department: 'Produksi',
+      requester: 'Farel',
+      remarks: 'Kebutuhan material perakitan bulanan',
+      status: 'Menunggu',
+      items: [
+        { id: 101, partNumber: 'PART-001 - Pipa Besi 2 Inch', quantity: 20, unit: 'Batang' },
+        { id: 102, partNumber: 'PART-005 - Baut Baja M10', quantity: 100, unit: 'Pcs' }
+      ]
+    },
+    {
+      id: 2,
+      prNo: 'PR-20260927-1102',
+      date: '2026-09-27',
+      department: 'Maintenance',
+      requester: 'Budi',
+      remarks: 'Penggantian sparepart mesin harian',
+      status: 'Disetujui',
+      items: [
+        { id: 201, partNumber: 'PART-012 - Bearing 6204', quantity: 4, unit: 'Pcs' }
+      ]
+    }
+  ]);
+
+  // State Form Input
+  const [formData, setFormData] = useState({
+    prNo: 'PR-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(1000 + Math.random() * 9000),
+    date: new Date().toISOString().split('T')[0],
+    department: 'Produksi',
+    requester: 'Administrator',
+    remarks: '',
+    status: 'Menunggu',
+    items: [{ id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+  });
+
+  const handleOpenAddForm = () => {
+    setEditingId(null);
+    setFormData({
+      prNo: 'PR-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(1000 + Math.random() * 9000),
+      date: new Date().toISOString().split('T')[0],
+      department: 'Produksi',
+      requester: 'Administrator',
+      remarks: '',
+      status: 'Menunggu',
+      items: [{ id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+    });
+    setViewMode('form');
+  };
+
+  const handleOpenEditForm = (item) => {
+    setEditingId(item.id);
+    setFormData({ ...item });
+    setViewMode('form');
+    setActiveMenuId(null);
+  };
+
+  const handleAddItemRow = () => {
+    setFormData({
+      ...formData,
+      items: [...formData.items, { id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+    });
+  };
+
+  const handleRemoveItemRow = (id) => {
+    if (formData.items.length === 1) {
+      alert('Permintaan minimal harus memiliki 1 item barang!');
+      return;
+    }
+    setFormData({
+      ...formData,
+      items: formData.items.filter(i => i.id !== id)
+    });
+  };
+
+  const handleItemChange = (id, field, value) => {
+    setFormData({
+      ...formData,
+      items: formData.items.map(i => i.id === id ? { ...i, [field]: value } : i)
+    });
+  };
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    if (!formData.department.trim()) {
+      alert('Departemen wajib diisi!');
+      return;
+    }
+
+    if (editingId) {
+      setDummyPRs(dummyPRs.map(item => item.id === editingId ? { ...item, ...formData } : item));
+    } else {
+      setDummyPRs([{ id: Date.now(), ...formData }, ...dummyPRs]);
+    }
+    setViewMode('list');
+  };
+
+  const handleDelete = (id) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus Permintaan Pembelian ini?')) {
+      setDummyPRs(dummyPRs.filter(item => item.id !== id));
+      setActiveMenuId(null);
     }
   };
-  const setItem = (index, key, value) => setForm({ ...form, items: form.items.map((item, i) => i === index ? { ...item, [key]: value } : item) });
-  const status = (value) => value === 'APPROVED' ? 'Disetujui' : value === 'REJECTED' ? 'Ditolak' : value === 'WAITING APPROVAL' ? 'Menunggu' : value;
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Disetujui':
-        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400';
-      case 'Menunggu':
-        return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
-      case 'Ditolak':
-        return 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-400';
-      default:
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
-    }
+  const handlePrint = (item) => {
+    setActiveMenuId(null);
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html><head><title>PR - ${item.prNo}</title><style>body{font-family:Arial;padding:20px} table{width:100%;border-collapse:collapse;margin-top:15px} th,td{padding:8px;border:1px solid #ddd;text-align:left}</style></head>
+      <body>
+        <h2>PT. ALDIGENS PUTERA PERSADA</h2>
+        <h3>FORM PERMINTAAN PEMBELIAN (PURCHASE REQUISITION)</h3>
+        <p><strong>No. PR:</strong> ${item.prNo}</p>
+        <p><strong>Tanggal:</strong> ${item.date} | <strong>Departemen:</strong> ${item.department} | <strong>Pemohon:</strong> ${item.requester}</p>
+        <p><strong>Keterangan:</strong> ${item.remarks || '-'}</p>
+        <h4>Daftar Item Diminta:</h4>
+        <table>
+          <thead><tr><th>No</th><th>Part Number / Nama Barang</th><th>Kuantitas</th><th>Satuan</th></tr></thead>
+          <tbody>
+            ${item.items.map((i, idx) => `<tr><td>${idx+1}</td><td>${i.partNumber}</td><td>${i.quantity}</td><td>${i.unit}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </body></html>
+    `);
+    printWindow.document.close(); printWindow.print();
   };
 
+  // --- TAMPILAN FORM ---
+  if (viewMode === 'form') {
+    return (
+      <div className="p-6 max-w-5xl mx-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
+          
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
+              </button>
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  {editingId ? 'Edit Permintaan Pembelian (PR)' : 'Buat Permintaan Pembelian Baru'}
+                </h2>
+                <p className="text-xs text-slate-500">Formulir pengajuan kebutuhan barang dan material perusahaan</p>
+              </div>
+            </div>
+            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold">
+              {formData.prNo}
+            </span>
+          </div>
+
+          <form onSubmit={handleSave} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">No. PR</label>
+                <input type="text" value={formData.prNo} disabled className="w-full px-4 py-2.5 bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Tanggal Permintaan</label>
+                <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Departemen</label>
+                <input required type="text" placeholder="Contoh: Produksi / Maintenance" value={formData.department} onChange={(e) => setFormData({...formData, department: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Pemohon (Requester)</label>
+                <input required type="text" placeholder="Nama pemohon..." value={formData.requester} onChange={(e) => setFormData({...formData, requester: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Status</label>
+                <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                  <option value="Menunggu">Menunggu (Pending)</option>
+                  <option value="Disetujui">Disetujui (Approved)</option>
+                </select>
+              </div>
+              <div className="md:col-span-3">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Keterangan / Catatan</label>
+                <textarea rows="2" placeholder="Catatan atau alasan permintaan..." value={formData.remarks} onChange={(e) => setFormData({...formData, remarks: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"></textarea>
+              </div>
+            </div>
+
+            {/* Tabel Item Dinamis */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-500" /> Daftar Item yang Diminta
+                </h3>
+                <button type="button" onClick={handleAddItemRow} className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg transition">
+                  <Plus className="h-3.5 w-3.5" /> Tambah Baris Item
+                </button>
+              </div>
+
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-xs uppercase font-semibold">
+                    <tr>
+                      <th className="px-4 py-3 w-12 text-center">#</th>
+                      <th className="px-4 py-3">Part Number / Nama Barang</th>
+                      <th className="px-4 py-3 w-36">Kuantitas</th>
+                      <th className="px-4 py-3 w-32">Satuan</th>
+                      <th className="px-4 py-3 w-16 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                    {formData.items.map((item, index) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
+                        <td className="px-4 py-3">
+                          <input required type="text" placeholder="Pilih Part Number / Nama Barang..." value={item.partNumber} onChange={(e) => handleItemChange(item.id, 'partNumber', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input required type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <select value={item.unit} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                            <option value="PCS">PCS</option>
+                            <option value="Unit">Unit</option>
+                            <option value="Batang">Batang</option>
+                            <option value="Kg">Kg</option>
+                            <option value="Set">Set</option>
+                            <option value="Meter">Meter</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button type="button" onClick={() => handleRemoveItemRow(item.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition" title="Hapus Baris">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
+              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition">Batal</button>
+              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition">
+                <Save className="h-4 w-4" /> Simpan Permintaan (PR)
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- TAMPILAN DAFTAR (LIST) ---
   return (
     <div className="p-6">
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
-
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
+        
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Cari no. PR atau departemen..."
-                className="pl-9 pr-4 py-2 w-full sm:w-72 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="Cari no. PR atau departemen..." 
+                className="pl-10 pr-4 py-2.5 w-full sm:w-80 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <button className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition">
-              <Filter className="h-4 w-4" />
-            </button>
           </div>
-
-          <button type="submit" form="purchase-request-form" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"><Plus className="h-4 w-4" />Simpan PR</button>
+          
+          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition">
+            <Plus className="h-4 w-4" />
+            Simpan PR
+          </button>
         </div>
 
-        {error && <div className="m-5 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
-        {message && <div className="m-5 p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">{message}</div>}
-        <form id="purchase-request-form" onSubmit={submit} className="p-5 grid md:grid-cols-3 gap-3 border-b border-slate-200"><input required value={form.document_number} onChange={e => setForm({ ...form, document_number: e.target.value })} placeholder="Nomor PR" className="border rounded-lg px-3 py-2 text-sm" /><input required type="date" value={form.request_date} onChange={e => setForm({ ...form, request_date: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" /><input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Keterangan" className="border rounded-lg px-3 py-2 text-sm" />{form.items.map((item, index) => <React.Fragment key={index}><select required value={item.product_id} onChange={e => setItem(index, 'product_id', e.target.value)} className="border rounded-lg px-3 py-2 text-sm"><option value="">Pilih Part Number</option>{products.map(p => <option key={p.id} value={p.id}>{p.part_number || p.product_code} — {p.name}</option>)}</select><input required min="0.001" type="number" value={item.quantity} onChange={e => setItem(index, 'quantity', e.target.value)} placeholder="Quantity" className="border rounded-lg px-3 py-2 text-sm" /><select value={item.unit} onChange={e => setItem(index, 'unit', e.target.value)} className="border rounded-lg px-3 py-2 text-sm"><option>PCS</option><option>METER</option><option>LOT</option></select></React.Fragment>)}</form>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[350px]">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-xs uppercase font-semibold">
               <tr>
-                <th className="px-6 py-4 font-medium">Tanggal</th>
-                <th className="px-6 py-4 font-medium">No. PR</th>
-                <th className="px-6 py-4 font-medium">Departemen</th>
-                <th className="px-6 py-4 font-medium">Pemohon</th>
-                <th className="px-6 py-4 font-medium">Keterangan</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium text-right">Aksi</th>
+                <th className="px-6 py-3.5">Tanggal</th>
+                <th className="px-6 py-3.5">No. PR</th>
+                <th className="px-6 py-3.5">Departemen</th>
+                <th className="px-6 py-3.5">Pemohon</th>
+                <th className="px-6 py-3.5">Keterangan</th>
+                <th className="px-6 py-3.5">Status</th>
+                <th className="px-6 py-3.5 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {rows.filter(item => !searchTerm || `${item.document_number} ${item.notes || ''}`.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (<tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition"><td className="px-6 py-4">{item.request_date}</td><td className="px-6 py-4 font-medium text-blue-600">{item.document_number}</td><td className="px-6 py-4">{item.request_type || '-'}</td><td className="px-6 py-4">{item.requester?.name || '-'}</td><td className="px-6 py-4 text-slate-500">{item.notes || '-'}</td><td className="px-6 py-4"><span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${getStatusBadge(status(item.status))}`}>{status(item.status)}</span></td><td className="px-6 py-4 text-right">{item.status === 'DRAFT' && <button onClick={() => updatePurchaseRequestStatus(item.id, 'WAITING APPROVAL').then(load)} className="text-blue-600 text-xs">Ajukan</button>}</td></tr>))}
+              {dummyPRs.filter(item => item.prNo.toLowerCase().includes(searchTerm.toLowerCase()) || item.department.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition relative">
+                  <td className="px-6 py-4">{item.date}</td>
+                  <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">{item.prNo}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{item.department}</td>
+                  <td className="px-6 py-4">{item.requester}</td>
+                  <td className="px-6 py-4 text-slate-500">{item.remarks || '-'}</td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-max ${item.status === 'Disetujui' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400'}`}>
+                      {item.status === 'Disetujui' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
+                      {item.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center relative">
+                    <button 
+                      onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                    >
+                      <MoreVertical className="h-4 w-4 inline" />
+                    </button>
+
+                    {activeMenuId === item.id && (
+                      <div className="absolute right-12 top-10 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
+                        <button 
+                          onClick={() => handleOpenEditForm(item)}
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                        >
+                          <Edit3 className="h-4 w-4 text-blue-500" /> Edit PR
+                        </button>
+                        <button 
+                          onClick={() => handlePrint(item)}
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                        >
+                          <Printer className="h-4 w-4 text-emerald-500" /> Cetak Dokumen
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(item.id)}
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700"
+                        >
+                          <Trash2 className="h-4 w-4" /> Hapus PR
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

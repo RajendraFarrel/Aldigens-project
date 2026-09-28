@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import api from '../services/api'; // Sesuaikan path import api.js kamu
+import api from '../services/api';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
-import { PlusCircle, X, Trash2, Plus } from 'lucide-react';
+import { PlusCircle, X, Trash2, Plus, Printer } from 'lucide-react';
 
 export default function POList() {
     const [purchaseOrders, setPurchaseOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // State form Input PO Baru (dipindahkan dari Dashboard)
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
         quotation_number: '',
@@ -21,14 +20,13 @@ export default function POList() {
         items: [{ description: '', qty: 1, unit_price: 0 }],
     });
 
-    // Ambil data PO dari backend saat komponen dimuat
     useEffect(() => {
         fetchPurchaseOrders();
     }, []);
 
     const fetchPurchaseOrders = async () => {
         try {
-            const response = await api.get('/purchase-orders');
+            const response = await api.get('/quotations');
             setPurchaseOrders(response.data.data || response.data);
         } catch (error) {
             console.error("Gagal memuat data PO:", error);
@@ -37,15 +35,12 @@ export default function POList() {
         }
     };
 
-    // -----------------------------------------------
-    // Form Input PO Baru (dipindahkan dari Dashboard)
-    // -----------------------------------------------
     const handleAddItem = () => {
         setFormData({ ...formData, items: [...formData.items, { description: '', qty: 1, unit_price: 0 }] });
     };
 
     const handleRemoveItem = (index) => {
-        if (formData.items.length === 1) return; // Sisakan minimal 1 baris
+        if (formData.items.length === 1) return;
         setFormData({ ...formData, items: formData.items.filter((_, i) => i !== index) });
     };
 
@@ -110,29 +105,21 @@ export default function POList() {
             };
 
             await api.post('/quotations', payload);
-            swalSuccess('Berhasil', 'PO baru berhasil ditambahkan ke database dengan banyak item!');
+            swalSuccess('Berhasil', 'PO baru berhasil ditambahkan ke database!');
             setIsModalOpen(false);
             resetForm();
             fetchPurchaseOrders();
         } catch (error) {
             console.error('Terjadi kesalahan saat menyimpan PO:', error);
             const serverMessage = error.response?.data?.message;
-            const validationErrors = error.response?.data?.errors;
-
-            if (error.response?.status === 401) {
-                swalError('Sesi Berakhir', 'Sesi login Anda sudah berakhir. Silakan login ulang.');
-            } else if (validationErrors) {
-                const detail = Object.values(validationErrors).flat().join('\n');
-                swalError('Data Ditolak', 'Data ditolak oleh server:\n' + detail);
-            } else if (serverMessage) {
-                swalError('Gagal Menyimpan', 'Gagal menyimpan data: ' + serverMessage);
+            if (serverMessage) {
+                swalError('Gagal Menyimpan', serverMessage);
             } else {
-                swalError('Gagal Menyimpan', 'Gagal menyimpan data, periksa kembali inputan Anda.');
+                swalError('Gagal Menyimpan', 'Periksa kembali inputan Anda.');
             }
         }
     };
 
-    // Fungsi untuk memproses konversi PO ke SO secara aman menggunakan instance 'api'
     const handleConvertToSO = async (id) => {
         const ok = await swalConfirm({
             title: 'Proses ke Sales Order?',
@@ -146,13 +133,163 @@ export default function POList() {
         try {
             const response = await api.post(`/purchase-orders/${id}/convert-to-so`);
             swalSuccess('Berhasil', response.data.message || 'Berhasil diproses ke Sales Order!');
-
-            // Refresh daftar PO agar statusnya berubah menjadi 'processed_to_so'
             fetchPurchaseOrders();
         } catch (error) {
-            console.error('Gagal konversi ke SO:', error.response?.data || error.message);
-            swalError('Gagal memproses', error.response?.data?.message || 'Terjadi kesalahan saat memproses PO ke SO.');
+            console.error('Gagal konversi ke SO:', error);
+            swalError('Gagal memproses', 'Terjadi kesalahan saat memproses PO ke SO.');
         }
+    };
+
+    const handlePrintPO = (po) => {
+        const itemsList = po.items || [];
+        const subTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || curr.price || 0)), 0);
+        const taxTotal = subTotal * 0.11;
+        const grandTotal = subTotal + taxTotal;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Purchase Order - ${po.customer_po_number || po.quotation_number}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; margin: 0; }
+                        .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+                        .logo-area { width: 50%; vertical-align: top; }
+                        .company-address { font-size: 9px; line-height: 1.3; color: #333; margin-top: 4px; }
+                        .title-area { width: 50%; text-align: right; vertical-align: top; }
+                        .doc-title { font-size: 18px; font-weight: bold; margin: 0 0 4px 0; letter-spacing: 0.5px; }
+                        .meta-table { width: 100%; font-size: 10px; margin-bottom: 12px; }
+                        .meta-table td { padding: 2px 4px; vertical-align: top; }
+                        .info-box-table { width: 100%; margin-bottom: 12px; border: 1px solid #999; border-collapse: collapse; }
+                        .info-box-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #999; font-size: 10px; }
+                        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                        .items-table th, .items-table td { border: 1px solid #000; padding: 5px 6px; font-size: 10px; }
+                        .items-table th { background: #f0f0f0; text-align: center; }
+                        .sign-container { margin-top: 90px; page-break-inside: avoid; }
+                        .sign-table { width: 100%; text-align: center; font-size: 10px; }
+                        .sign-box { height: 60px; }
+                    </style>
+                </head>
+                <body>
+                    <table class="header-table">
+                        <tr>
+                            <td class="logo-area">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
+                                    <svg width="38" height="35" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M10 90 L10 35 L38 10 L38 90 Z" fill="none" stroke="#000" stroke-width="8"/>
+                                        <path d="M28 90 L28 22 L62 5 L62 90 Z" fill="none" stroke="#000" stroke-width="8"/>
+                                    </svg>
+                                    <span style="font-weight: 900; font-size: 15px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</span>
+                                </div>
+                                <div class="company-address">
+                                    Ruko Bekasi Mas Blok C-25<br/>
+                                    Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
+                                </div>
+                            </td>
+                            <td class="title-area">
+                                <div class="doc-title">Purchase Order</div>
+                                <div><strong>PO Number :</strong> ${po.customer_po_number || po.quotation_number || '-'}</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="meta-table">
+                        <tr>
+                            <td style="width: 50%;"></td>
+                            <td style="width: 50%;">
+                                <table style="width: 100%; font-size: 10px;">
+                                    <tr><td><strong>PO Date</strong></td><td>: ${po.po_date || po.date || '-'}</td></tr>
+                                    <tr><td><strong>Terms</strong></td><td>: Cash / Transfer</td></tr>
+                                    <tr><td><strong>Ship Via</strong></td><td>: Kurir Perusahaan</td></tr>
+                                    <tr><td><strong>Vendor is Taxable</strong></td><td>: Yes (11%)</td></tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="info-box-table">
+                        <tr>
+                            <td>
+                                <strong>Vendor :</strong><br/>
+                                <span style="font-size: 12px; font-weight: bold;">${po.customer_name || 'Vendor Umum'}</span><br/>
+                                <span>${po.customer_address || '-'}</span>
+                            </td>
+                            <td>
+                                <strong>Ship To :</strong><br/>
+                                <span>Ruko Bekasi Mas Blok C-25, Bekasi Selatan</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 5%;">Item</th>
+                                <th style="width: 45%;">Description</th>
+                                <th style="width: 8%;">Qty</th>
+                                <th style="width: 14%;">Unit Price</th>
+                                <th style="width: 6%;">Disc %</th>
+                                <th style="width: 6%;">Tax</th>
+                                <th style="width: 16%;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsList.map((item, idx) => `
+                                <tr>
+                                    <td align="center">${idx + 1}</td>
+                                    <td>${item.description || item.part_number || '-'}</td>
+                                    <td align="center">${item.qty}</td>
+                                    <td align="right">${Number(item.unit_price || 0).toLocaleString()}</td>
+                                    <td align="center">0</td>
+                                    <td align="center">11</td>
+                                    <td align="right">${(Number(item.qty) * Number(item.unit_price || 0)).toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <table style="width: 100%; margin-top: 25px;">
+                        <tr>
+                            <td style="width: 55%; vertical-align: top; padding-right: 15px;">
+                                <div style="border: 1px solid #999; padding: 8px; min-height: 50px; font-size: 10px;">
+                                    <strong>Description :</strong><br/>
+                                    <span>${po.subject || 'Pengadaan barang operasional perusahaan.'}</span>
+                                </div>
+                            </td>
+                            <td style="width: 45%; vertical-align: top;">
+                                <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                                    <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Sub Total</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${subTotal.toLocaleString()}</td></tr>
+                                    <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Discount</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">0</td></tr>
+                                    <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>PPN 11%</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${taxTotal.toLocaleString()}</td></tr>
+                                    <tr><td style="padding: 6px; font-size: 11px; font-weight: bold;">Total Order</td><td align="right" style="padding: 6px; font-size: 11px; font-weight: bold;">${grandTotal.toLocaleString()}</td></tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div class="sign-container">
+                        <table class="sign-table">
+                            <tr>
+                                <td style="width: 50%;">
+                                    Prepared By,<br/>
+                                    <div class="sign-box"></div>
+                                    <strong>( PURCHASING )</strong><br/>
+                                    <span style="font-size: 8px; color: #666;">Date: ${new Date().toLocaleDateString()}</span>
+                                </td>
+                                <td style="width: 50%;">
+                                    Approved By,<br/>
+                                    <div class="sign-box"></div>
+                                    <strong>( DIRECTOR )</strong><br/>
+                                    <span style="font-size: 8px; color: #666;">Date: ........................</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
     };
 
     if (loading) return <div className="p-6 text-slate-600 dark:text-slate-300">Memuat data Purchase Order...</div>;
@@ -174,7 +311,7 @@ export default function POList() {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
                     <thead className="bg-gray-50 dark:bg-slate-900">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">No. PO Klien</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">No. PO / Klien</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tanggal</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">Aksi</th>
@@ -184,14 +321,23 @@ export default function POList() {
                         {purchaseOrders.length > 0 ? (
                             purchaseOrders.map((po) => (
                                 <tr key={po.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-slate-100">{po.customer_po_number}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">{po.po_date}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-slate-100">{po.customer_po_number || po.quotation_number}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">{po.po_date || po.date}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${po.status === 'processed_to_so' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                            {po.status}
+                                            {po.status || 'Pending'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+                                        <button
+                                            onClick={() => handlePrintPO(po)}
+                                            className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 hover:bg-emerald-100 dark:hover:bg-emerald-500/25 px-3 py-1 rounded transition inline-flex items-center space-x-1 cursor-pointer"
+                                            title="Cetak Dokumen PO"
+                                        >
+                                            <Printer className="h-3.5 w-3.5" />
+                                            <span>Cetak</span>
+                                        </button>
+
                                         {po.status !== 'processed_to_so' ? (
                                             <button
                                                 onClick={() => handleConvertToSO(po.id)}
@@ -214,7 +360,6 @@ export default function POList() {
                 </table>
             </div>
 
-            {/* Modal Input PO Baru (dipindahkan dari Dashboard) */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden border border-slate-200">

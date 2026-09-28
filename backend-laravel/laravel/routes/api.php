@@ -23,6 +23,7 @@ use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\BomController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ProductionController;
+use App\Http\Controllers\Api\ReceiveItemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -131,4 +132,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('sales-returns', SalesReturnController::class);
     Route::apiResource('sales-receipts', SalesReceiptController::class);
+    Route::apiResource('receive-items', ReceiveItemController::class);
 });

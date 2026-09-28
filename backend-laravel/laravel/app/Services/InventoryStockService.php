@@ -99,4 +99,101 @@ class InventoryStockService
             return $lockedProduct->fresh();
         });
     }
+
+    /**
+     * Menyesuaikan total stok pada satu warehouse tanpa membuat saldo baru
+     * di lokasi umum. Digunakan khusus oleh Stock Opname level warehouse.
+     */
+    public function adjustWarehouseTotal(Product|int $product, int $difference, array $context = []): Product
+    {
+        if ($difference === 0) {
+            return $product instanceof Product ? $product->fresh() : Product::findOrFail($product);
+        }
+
+        return DB::transaction(function () use ($product, $difference, $context) {
+            $productId = $product instanceof Product ? $product->id : $product;
+            $lockedProduct = Product::query()->lockForUpdate()->find($productId);
+
+            if (!$lockedProduct) {
+                throw ValidationException::withMessages(['product_id' => 'Item tidak ditemukan.']);
+            }
+
+            $warehouse = Warehouse::query()->lockForUpdate()->find($context['warehouse_id'] ?? null);
+            if (!$warehouse) {
+                throw ValidationException::withMessages(['warehouse_id' => 'Warehouse tidak ditemukan.']);
+            }
+
+            $locationId = $context['warehouse_location_id'] ?? null;
+            $stocksQuery = InventoryStock::query()
+                ->where('product_id', $lockedProduct->id)
+                ->where('warehouse_id', $warehouse->id);
+            if ($locationId) {
+                $stocksQuery->where('warehouse_location_id', $locationId);
+            }
+            $stocks = $stocksQuery
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+            $stockBefore = (int) $stocks->sum('quantity');
+            $stockAfter = $stockBefore + $difference;
+
+            if ($stockAfter < 0) {
+                throw ValidationException::withMessages([
+                    'quantity' => "Stok {$lockedProduct->name} di {$warehouse->name} tidak mencukupi. Tersedia: {$stockBefore}.",
+                ]);
+            }
+
+            if ($difference < 0) {
+                $remaining = abs($difference);
+                foreach ($stocks as $stock) {
+                    if ($remaining === 0) break;
+                    $decrease = min((int) $stock->quantity, $remaining);
+                    if ($decrease > 0) {
+                        $stock->decrement('quantity', $decrease);
+                        $remaining -= $decrease;
+                    }
+                }
+            } else {
+                $stock = $stocks->firstWhere('warehouse_location_id', '!=', null) ?: $stocks->first();
+                if (!$stock) {
+                    if (!$locationId) {
+                        throw ValidationException::withMessages([
+                            'quantity' => 'Saldo warehouse belum tersedia untuk adjustment Stock Opname.',
+                        ]);
+                    }
+                    $stock = InventoryStock::create([
+                        'product_id' => $lockedProduct->id,
+                        'warehouse_id' => $warehouse->id,
+                        'warehouse_location_id' => $locationId,
+                        'quantity' => 0,
+                    ]);
+                }
+                $stock->increment('quantity', $difference);
+            }
+
+            $lockedProduct->update([
+                'stock' => InventoryStock::where('product_id', $lockedProduct->id)->sum('quantity'),
+            ]);
+
+            InventoryTransaction::create([
+                'product_id' => $lockedProduct->id,
+                'transaction_type' => 'ADJUSTMENT',
+                'quantity' => $difference,
+                'stock_before' => $stockBefore,
+                'stock_after' => $stockAfter,
+                'user_id' => $context['user_id'] ?? null,
+                'user_name' => $context['user_name'] ?? null,
+                'client_pc' => $context['client_pc'] ?? null,
+                'warehouse_id' => $warehouse->id,
+                'warehouse_location_id' => $locationId,
+                'reference_type' => $context['reference_type'] ?? null,
+                'reference_id' => $context['reference_id'] ?? null,
+                'reference_number' => $context['reference_number'] ?? null,
+                'notes' => $context['notes'] ?? null,
+                'transaction_time' => now(),
+            ]);
+
+            return $lockedProduct->fresh();
+        });
+    }
 }

@@ -5,10 +5,11 @@ import {
   FileText, 
   Search
 } from 'lucide-react';
-import api from '../services/api';
+import api, { getDashboardStats } from '../services/api';
 
 export default function Dashboard() {
   const [poList, setPoList] = useState([]);
+  const [inventory, setInventory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
 
@@ -45,6 +46,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchQuotations();
+    getDashboardStats().then((response) => setInventory(response.data)).catch((error) => console.error('Gagal mengambil dashboard inventory:', error));
   }, []);
 
   if (selectedQuotation) {
@@ -63,7 +65,7 @@ export default function Dashboard() {
         <div className="bg-white p-6 rounded-xl shadow-xs border border-slate-200 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-500">Total PO Aktif</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-1">{poList.length} Dokumen</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{inventory?.total_products ?? poList.length} Item</h3>
           </div>
           <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
             <FileText className="h-6 w-6" />
@@ -72,8 +74,8 @@ export default function Dashboard() {
 
         <div className="bg-white p-6 rounded-xl shadow-xs border border-slate-200 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Radar Repeat Order (Mendesak)</p>
-            <h3 className="text-2xl font-bold text-amber-600 mt-1">3 Klien</h3>
+            <p className="text-sm font-medium text-slate-500">Stok Minimum</p>
+            <h3 className="text-2xl font-bold text-amber-600 mt-1">{inventory?.minimum_stock ?? 0} Item</h3>
           </div>
           <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
             <AlertTriangle className="h-6 w-6" />
@@ -82,8 +84,8 @@ export default function Dashboard() {
 
         <div className="bg-white p-6 rounded-xl shadow-xs border border-slate-200 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">BAST Selesai Bulan Ini</p>
-            <h3 className="text-2xl font-bold text-emerald-600 mt-1">12 Unit</h3>
+            <p className="text-sm font-medium text-slate-500">Total Stok</p>
+            <h3 className="text-2xl font-bold text-emerald-600 mt-1">{inventory?.total_stock ?? 0} Unit</h3>
           </div>
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
             <PackageCheck className="h-6 w-6" />

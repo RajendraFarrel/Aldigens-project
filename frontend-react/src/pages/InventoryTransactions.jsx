@@ -96,20 +96,22 @@ export default function InventoryTransactions() {
                 <th className="text-right px-4 py-3 font-semibold text-slate-600">Qty</th>
                 <th className="text-right px-4 py-3 font-semibold text-slate-600">Stok Sebelum</th>
                 <th className="text-right px-4 py-3 font-semibold text-slate-600">Stok Sesudah</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Warehouse / Lokasi</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Dokumen</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Petugas</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400">
+                  <td colSpan={10} className="text-center py-10 text-slate-400">
                     <RefreshCw className="h-5 w-5 animate-spin inline mr-2" />
                     Memuat data...
                   </td>
                 </tr>
               ) : transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-slate-400">
+                  <td colSpan={10} className="text-center py-10 text-slate-400">
                     Tidak ada data transaksi.
                   </td>
                 </tr>
@@ -143,6 +145,8 @@ export default function InventoryTransactions() {
                       {t.stock_after}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{t.warehouse ? `${t.warehouse.code} / ${t.location?.code || 'Umum'}` : '-'}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{t.reference_number || t.reference_type || '-'}</td>
                   <td className="px-4 py-3 text-xs text-slate-500">{t.user_name || '-'}</td>
                 </tr>
               ))}

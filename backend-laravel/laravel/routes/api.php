@@ -15,6 +15,14 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\SalesReturnController;
 use App\Http\Controllers\SalesReceiptController;
+use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\MasterDataController;
+use App\Http\Controllers\InventoryWarehouseController;
+use App\Http\Controllers\StockOpnameController;
+use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\BomController;
+use App\Http\Controllers\ExportController;
+use App\Http\Controllers\ProductionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -55,17 +63,46 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inventory/products/import', [ProductController::class, 'import']);
     Route::apiResource('/inventory/products', ProductController::class);
 
+    // Warehouse berada di dalam Inventory
+    Route::apiResource('/inventory/warehouses', WarehouseController::class)->except(['show']);
+    Route::get('/inventory/warehouses/{warehouse}/locations', [WarehouseController::class, 'locations']);
+    Route::post('/inventory/warehouses/{warehouse}/locations', [WarehouseController::class, 'storeLocation']);
+    Route::get('/inventory/stocks', [InventoryWarehouseController::class, 'stocks']);
+    Route::post('/inventory/receive', [InventoryWarehouseController::class, 'receive']);
+    Route::post('/inventory/issue', [InventoryWarehouseController::class, 'issue']);
+    Route::post('/inventory/transfer', [InventoryWarehouseController::class, 'transfer']);
+    Route::get('/inventory/stock-opnames', [StockOpnameController::class, 'index']);
+    Route::post('/inventory/stock-opnames', [StockOpnameController::class, 'store']);
+    Route::post('/inventory/stock-opnames/{stockOpname}/complete', [StockOpnameController::class, 'complete']);
+
+    // Master Data
+    Route::get('/customers', [MasterDataController::class, 'customers']);
+    Route::post('/customers', [MasterDataController::class, 'storeCustomer']);
+    Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
+    Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
+    Route::get('/suppliers', [MasterDataController::class, 'suppliers']);
+    Route::post('/suppliers', [MasterDataController::class, 'storeSupplier']);
+    Route::put('/suppliers/{supplier}', [MasterDataController::class, 'updateSupplier']);
+    Route::delete('/suppliers/{supplier}', [MasterDataController::class, 'deleteSupplier']);
+
     // Inventory Transactions
     Route::get('/inventory/transactions', [InventoryTransactionController::class, 'index']);
     Route::post('/inventory/transactions', [InventoryTransactionController::class, 'store']);
     Route::post('/inventory/transactions/batch', [InventoryTransactionController::class, 'batch']);
 
-    // Reports
+    // Reports dan export CSV (kompatibel dengan Excel)
     Route::get('/inventory/reports/weekly', [ReportController::class, 'weekly']);
+    Route::get('/exports/{type}', [ExportController::class, 'csv']);
 
     // Users
     Route::put('users/{user}/menu-access', [UserController::class, 'updateMenuAccess']);
     Route::apiResource('users', UserController::class)->except(['show']);
+
+    // Purchase Request dan BOM
+    Route::apiResource('/purchase-requests', PurchaseRequestController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+    Route::patch('/purchase-requests/{purchaseRequest}/status', [PurchaseRequestController::class, 'updateStatus']);
+    Route::apiResource('/boms', BomController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
+    Route::apiResource('/productions', ProductionController::class)->only(['index', 'store']);
 
     // --- Existing routes ---
     Route::apiResource('quotations', QuotationController::class);

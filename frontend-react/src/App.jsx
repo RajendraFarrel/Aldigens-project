@@ -20,10 +20,15 @@ import BillOfMaterials from './pages/BillOfMaterials';
 import WorkOrder from './pages/WorkOrder';
 import MaterialRelease from './pages/MaterialRelease';
 import ProductResult from './pages/ProductResult';
+import Production from './pages/Production';
 // Import Modul Lainnya
 import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 import InventoryProducts from './pages/InventoryProducts';
+import Warehouse from './pages/Warehouse';
+import InventoryWarehouse from './pages/InventoryWarehouse';
+import StockOpname from './pages/StockOpname';
+import MasterData from './pages/MasterData';
 import InventoryScan from './pages/InventoryScan';
 import InventoryTransactions from './pages/InventoryTransactions';
 import InventoryReports from './pages/InventoryReports';
@@ -53,9 +58,17 @@ const PAGE_TITLES = {
   'work-order':             'Perintah Kerja Produksi',
   'material-release':       'Pengeluaran Bahan Baku',
   'product-result':         'Penerimaan Hasil Produksi',
+  'production':             'Produksi',
   // Pengaturan & Inventory
   'users':                  'Pengaturan Sistem',
-  'inventory-products':     'Data Produk Inventory',
+  'inventory-products':     'Data Part Number Inventory',
+  'inventory-warehouses':    'Warehouse Inventory',
+  'inventory-receive':       'Penerimaan Barang',
+  'inventory-issue':         'Pengeluaran Barang',
+  'inventory-transfer':      'Transfer Lokasi',
+  'inventory-opname':        'Stock Opname',
+  'master-customers':        'Master Customer',
+  'master-suppliers':        'Master Supplier',
   'inventory-scan':         'Scanner Barcode',
   'inventory-transactions': 'Riwayat Transaksi Inventory',
   'inventory-reports':      'Laporan Stok Mingguan',
@@ -133,7 +146,7 @@ export default function App() {
   const renderPage = () => {
     switch (activeTab) {
       case 'dashboard':              return <Dashboard />;
-      
+
       // Modul Pembelian
       case 'purchase-requisition':   return <PurchaseRequisition />;
       case 'purchase-order':         return <POList />;
@@ -155,10 +168,18 @@ export default function App() {
       case 'work-order':             return <WorkOrder />;
       case 'material-release':       return <MaterialRelease />;
       case 'product-result':         return <ProductResult />;
-      
+      case 'production':             return <Production />;
+
       // Modul Pengaturan & Inventory
       case 'users':                  return <UserManagement />;
       case 'inventory-products':     return <InventoryProducts />;
+      case 'inventory-warehouses':    return <Warehouse />;
+      case 'inventory-receive':       return <InventoryWarehouse operation="receive" />;
+      case 'inventory-issue':         return <InventoryWarehouse operation="issue" />;
+      case 'inventory-transfer':      return <InventoryWarehouse operation="transfer" />;
+      case 'inventory-opname':        return <StockOpname />;
+      case 'master-customers':        return <MasterData type="customer" />;
+      case 'master-suppliers':        return <MasterData type="supplier" />;
       case 'inventory-scan':         return <InventoryScan />;
       case 'inventory-transactions': return <InventoryTransactions />;
       case 'inventory-reports':      return <InventoryReports />;

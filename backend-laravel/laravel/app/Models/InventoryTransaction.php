@@ -11,6 +11,12 @@ class InventoryTransaction extends Model
 
     protected $fillable = [
         'product_id',
+        'user_id',
+        'warehouse_id',
+        'warehouse_location_id',
+        'reference_type',
+        'reference_id',
+        'reference_number',
         'transaction_type',
         'quantity',
         'stock_before',
@@ -31,5 +37,15 @@ class InventoryTransaction extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function location()
+    {
+        return $this->belongsTo(WarehouseLocation::class, 'warehouse_location_id');
     }
 }

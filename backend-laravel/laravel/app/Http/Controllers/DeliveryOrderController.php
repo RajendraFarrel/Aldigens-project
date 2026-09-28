@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\DeliveryOrder;
 use App\Models\DeliveryOrderItem;
-use App\Models\Inventory;
+use App\Models\Product;
+use App\Services\InventoryStockService;
 use Illuminate\Support\Facades\DB;
 
 class DeliveryOrderController extends Controller
@@ -40,8 +41,20 @@ class DeliveryOrderController extends Controller
     }
 
     // 3. Menyimpan Delivery Order baru dan otomatis memotong stok inventaris gudang
-    public function store(Request $request)
+    public function store(Request $request, InventoryStockService $stockService)
     {
+        $request->validate([
+            'sales_order_id' => 'required|exists:sales_orders,id',
+            'do_number' => 'required|string|max:100|unique:delivery_orders,do_number',
+            'do_date' => 'required|date',
+            'items' => 'required|array|min:1',
+            'items.*.part_number' => 'required|string',
+            'items.*.description' => 'required|string',
+            'items.*.qty_sent' => 'required|integer|min:1',
+            'items.*.unit' => 'nullable|string|max:50',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
+        ]);
         DB::beginTransaction();
 
         try {
@@ -69,14 +82,23 @@ class DeliveryOrderController extends Controller
                         'unit'              => $item['unit'] ?? 'SET',
                     ]);
 
-                    // Otomatis kurangi stok di tabel inventories jika part_number ditemukan
-                    if (!empty($item['part_number'])) {
-                        $inventory = Inventory::where('part_number', $item['part_number'])->first();
-                        if ($inventory) {
-                            $inventory->stock_quantity -= $item['qty_sent'];
-                            $inventory->save();
-                        }
+                    $product = Product::where('part_number', $item['part_number'])
+                        ->orWhere('barcode', $item['part_number'])
+                        ->orWhere('product_code', $item['part_number'])
+                        ->first();
+                    if (!$product) {
+                        throw new \RuntimeException("Part Number {$item['part_number']} tidak ditemukan.");
                     }
+                    $stockService->adjust($product, (int) $item['qty_sent'], 'KELUAR', [
+                        'user_id' => $request->user()?->id,
+                        'user_name' => $request->user()?->name,
+                        'warehouse_id' => $request->warehouse_id,
+                        'warehouse_location_id' => $request->warehouse_location_id,
+                        'reference_type' => 'DO',
+                        'reference_id' => $deliveryOrder->id,
+                        'reference_number' => $deliveryOrder->do_number,
+                        'notes' => $request->notes,
+                    ]);
                 }
             }
 

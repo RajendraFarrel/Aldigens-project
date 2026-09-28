@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, Barcode, X, Save, RefreshCw, Package, Printer, Upload, FileSpreadsheet } from 'lucide-react';
-import { getProducts, createProduct, updateProduct, deleteProduct, importProducts, downloadProductTemplate } from '../services/api';
+import { getProducts, createProduct, updateProduct, deleteProduct, importProducts, downloadProductTemplate, downloadExport, getCustomers } from '../services/api';
 import BarcodeLabel, { printBarcodes } from '../components/BarcodeLabel';
 import { swalConfirm, swalError, swalToast } from '../utils/swal';
 
@@ -9,12 +9,17 @@ const EMPTY_FORM = {
   part_number: '',
   name: '',
   category: '',
-  unit: 'Unit',
+  item_type: 'BAHAN / COMPONENT',
+  unit: 'PCS',
   stock: 0,
+  minimum_stock: 0,
+  maximum_stock: '',
+  customer_id: '',
 };
 
 export default function InventoryProducts() {
   const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -61,14 +66,22 @@ export default function InventoryProducts() {
       part_number: product.part_number || '',
       name: product.name || '',
       category: product.category || '',
-      unit: product.unit || 'Unit',
+      item_type: product.item_type || 'BAHAN / COMPONENT',
+      unit: product.unit || 'PCS',
       stock: product.stock ?? 0,
+      minimum_stock: product.minimum_stock ?? 0,
+      maximum_stock: product.maximum_stock ?? '',
+      customer_id: product.customer_id ?? '',
     });
     setError('');
     setShowModal(true);
   };
 
   const handleSave = async () => {
+    if (!form.part_number.trim()) {
+      setError('Part Number wajib diisi.');
+      return;
+    }
     if (!form.name.trim()) {
       setError('Nama produk wajib diisi.');
       return;
@@ -77,7 +90,8 @@ export default function InventoryProducts() {
     setError('');
     try {
       if (editingProduct) {
-        await updateProduct(editingProduct.id, form);
+        const { stock, ...editableForm } = form;
+        await updateProduct(editingProduct.id, editableForm);
         swalToast('Produk berhasil diperbarui.', 'success');
       } else {
         await createProduct(form);
@@ -121,6 +135,10 @@ export default function InventoryProducts() {
     } finally {
       setImporting(false);
     }
+  };
+
+  const handleExport = async () => {
+    try { const res = await downloadExport('products'); const url = window.URL.createObjectURL(new Blob([res.data])); const a = document.createElement('a'); a.href = url; a.download = 'master-part-number.csv'; a.click(); window.URL.revokeObjectURL(url); swalToast('Export berhasil diunduh.', 'success'); } catch { swalError('Gagal export', 'Tidak dapat mengunduh data.'); }
   };
 
   const handleDownloadTemplate = async () => {
@@ -179,6 +197,7 @@ export default function InventoryProducts() {
           <Upload className="h-4 w-4" />
           Import Excel
         </button>
+        <button onClick={handleExport} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer"><FileSpreadsheet className="h-4 w-4" />Export Excel</button>
         <button
           onClick={openAdd}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer"
@@ -225,6 +244,7 @@ export default function InventoryProducts() {
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Kode Produk</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Part Number</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Nama Produk</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-600">Customer</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Kategori</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Satuan</th>
                 <th className="text-right px-4 py-3 font-semibold text-slate-600">Stok</th>
@@ -234,14 +254,14 @@ export default function InventoryProducts() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-slate-400">
+                  <td colSpan={8} className="text-center py-10 text-slate-400">
                     <RefreshCw className="h-5 w-5 animate-spin inline mr-2" />
                     Memuat data...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-slate-400">
+                  <td colSpan={8} className="text-center py-10 text-slate-400">
                     Tidak ada produk ditemukan.
                   </td>
                 </tr>
@@ -254,6 +274,7 @@ export default function InventoryProducts() {
                   </td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{p.part_number || '-'}</td>
                   <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
+                  <td className="px-4 py-3 text-slate-500">{p.customer?.customer_name || '-'}</td>
                   <td className="px-4 py-3 text-slate-500">{p.category || '-'}</td>
                   <td className="px-4 py-3 text-slate-500">{p.unit}</td>
                   <td className="px-4 py-3 text-right">
@@ -340,6 +361,14 @@ export default function InventoryProducts() {
                 />
               </div>
               <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Customer</label>
+                <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option value="">Tanpa Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customer_code} — {customer.customer_name}</option>)}</select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Jenis Item</label>
+                <select value={form.item_type} onChange={(e) => setForm({ ...form, item_type: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option>BAHAN / COMPONENT</option><option>PRODUK JADI</option><option>PRODUKSI</option></select>
+              </div>
+              <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Nama Produk <span className="text-red-500">*</span></label>
                 <input
                   type="text"
@@ -367,7 +396,6 @@ export default function InventoryProducts() {
                     onChange={(e) => setForm({ ...form, unit: e.target.value })}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   >
-                    <option>Unit</option>
                     <option>PCS</option>
                     <option>SET</option>
                     <option>ROLL</option>
@@ -379,8 +407,8 @@ export default function InventoryProducts() {
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Stok Awal</label>
+              <div className="grid grid-cols-3 gap-3">
+                <div><label className="text-xs font-semibold text-slate-600 block mb-1">Stok Awal</label>
                 <input
                   type="number"
                   min={0}
@@ -388,6 +416,7 @@ export default function InventoryProducts() {
                   onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                </div>
               </div>
             </div>
 

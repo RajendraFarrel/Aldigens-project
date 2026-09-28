@@ -13,10 +13,15 @@ class Product extends Model
         'product_code',
         'barcode',
         'part_number',
+        'customer_id',
         'name',
         'category',
+        'item_type',
         'unit',
         'stock',
+        'minimum_stock',
+        'maximum_stock',
+        'status',
     ];
 
     protected $casts = [
@@ -26,6 +31,11 @@ class Product extends Model
     public function inventoryTransactions()
     {
         return $this->hasMany(InventoryTransaction::class);
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     /**

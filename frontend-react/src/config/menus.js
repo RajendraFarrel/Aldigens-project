@@ -4,10 +4,12 @@ import {
     ShoppingCart,
     Users,
     Package,
+    Warehouse,
+    UsersRound,
+    Truck,
     ScanLine,
     History,
     BarChart3,
-    Truck,
     Receipt,
     PackageMinus,
     Wallet,
@@ -76,6 +78,7 @@ export const MENU_GROUPS = [{
                 { key: 'bill-of-materials', label: 'Formula Produk (BOM)', icon: ListTree },
                 { key: 'work-order', label: 'Perintah Kerja (WO)', icon: FileCog },
                 { key: 'material-release', label: 'Pengeluaran Bahan', icon: ArrowUpRight },
+                { key: 'production', label: 'Produksi', icon: Factory },
                 { key: 'product-result', label: 'Hasil Produksi', icon: PackageCheck },
             ],
         }, ]
@@ -83,10 +86,22 @@ export const MENU_GROUPS = [{
     {
         group: 'Inventory',
         items: [
-            { key: 'inventory-products', label: 'Data Produk', icon: Package },
+            { key: 'inventory-products', label: 'Data Part Number', icon: Package },
+            { key: 'inventory-warehouses', label: 'Warehouse', icon: Warehouse },
+            { key: 'inventory-receive', label: 'Penerimaan Barang', icon: PackagePlus },
+            { key: 'inventory-issue', label: 'Pengeluaran Barang', icon: PackageX },
+            { key: 'inventory-transfer', label: 'Transfer Lokasi', icon: ArrowUpRight },
+            { key: 'inventory-opname', label: 'Stock Opname', icon: ClipboardList },
             { key: 'inventory-scan', label: 'Scanner Barcode', icon: ScanLine },
             { key: 'inventory-transactions', label: 'Riwayat Transaksi', icon: History },
             { key: 'inventory-reports', label: 'Laporan Stok', icon: BarChart3 },
+        ],
+    },
+    {
+        group: 'Master Data',
+        items: [
+            { key: 'master-customers', label: 'Customer', icon: UsersRound },
+            { key: 'master-suppliers', label: 'Supplier', icon: Truck },
         ],
     },
     {

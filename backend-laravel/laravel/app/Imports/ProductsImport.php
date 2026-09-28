@@ -3,6 +3,8 @@
 namespace App\Imports;
 
 use App\Models\Product;
+use App\Models\Customer;
+use App\Services\InventoryStockService;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Illuminate\Support\Collection;
@@ -66,6 +68,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
             $partNumber = $this->firstValue($data, ['part_number', 'partnumber', 'part_no']);
             $name       = $this->firstValue($data, ['nama_barang', 'name', 'nama']);
             $category   = $this->firstValue($data, ['jenis_barang', 'category', 'kategori']);
+            $customerName = $this->firstValue($data, ['customer', 'customer_name', 'pelanggan']);
             $unit       = $this->firstValue($data, ['satuan', 'unit']);
             $stock      = $this->firstValue($data, ['stock_awal', 'stok_awal', 'stock', 'stok']);
 
@@ -87,7 +90,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
             // Deteksi duplikat berdasarkan part_number + name
             $duplicateQuery = Product::where('name', $name);
             if ($partNumber !== null && $partNumber !== '') {
-                $duplicateQuery->where('part_number', $partNumber);
+                $duplicateQuery = Product::where('part_number', $partNumber);
             } else {
                 $duplicateQuery->whereNull('part_number');
             }
@@ -101,15 +104,17 @@ class ProductsImport implements ToCollection, WithHeadingRow
             try {
                 $productCode = Product::generateInternalCode();
 
-                Product::create([
+                $product = Product::create([
                     'product_code' => $productCode,
                     'barcode'      => $productCode,
                     'part_number'  => ($partNumber !== null && $partNumber !== '') ? $partNumber : null,
+                    'customer_id'  => $customerName ? Customer::where('customer_name', $customerName)->value('id') : null,
                     'name'         => $name,
                     'category'     => ($category !== null && $category !== '') ? $category : null,
-                    'unit'         => ($unit !== null && $unit !== '') ? $unit : 'Unit',
-                    'stock'        => $stockValue,
+                    'unit'         => ($unit !== null && $unit !== '') ? $unit : 'PCS',
+                    'stock'        => 0,
                 ]);
+                if ($stockValue > 0) app(InventoryStockService::class)->adjust($product, $stockValue, 'MASUK', ['reference_type' => 'IMPORT_EXCEL', 'reference_number' => $productCode, 'notes' => 'Saldo awal import Excel']);
 
                 $this->imported++;
             } catch (\Exception $e) {

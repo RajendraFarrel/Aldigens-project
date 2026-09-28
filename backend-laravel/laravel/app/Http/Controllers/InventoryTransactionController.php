@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryTransaction;
 use App\Models\Product;
+use App\Services\InventoryStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -11,10 +12,10 @@ class InventoryTransactionController extends Controller
 {
     public function index(Request $request)
     {
-        $query = InventoryTransaction::with('product')
+        $query = InventoryTransaction::with(['product', 'warehouse', 'location'])
             ->orderBy('id', 'desc');
 
-        if ($request->has('type') && in_array($request->type, ['MASUK', 'KELUAR'])) {
+        if ($request->filled('type')) {
             $query->where('transaction_type', $request->type);
         }
 
@@ -34,6 +35,11 @@ class InventoryTransactionController extends Controller
                 'notes'            => $t->notes,
                 'transaction_time' => $t->transaction_time,
                 'created_at'       => $t->created_at,
+                'warehouse'        => $t->warehouse ? ['id' => $t->warehouse->id, 'code' => $t->warehouse->code, 'name' => $t->warehouse->name] : null,
+                'location'         => $t->location ? ['id' => $t->location->id, 'code' => $t->location->code, 'name' => $t->location->name] : null,
+                'reference_type'   => $t->reference_type,
+                'reference_id'     => $t->reference_id,
+                'reference_number' => $t->reference_number,
                 'product'          => $t->product ? [
                     'id'           => $t->product->id,
                     'product_code' => $t->product->product_code,
@@ -53,70 +59,39 @@ class InventoryTransactionController extends Controller
     /**
      * Transaksi tunggal: satu barang masuk/keluar.
      */
-    public function store(Request $request)
+    public function store(Request $request, InventoryStockService $stockService)
     {
         $validated = $request->validate([
-            'barcode'          => 'required|string',
-            'transaction_type' => 'required|in:MASUK,KELUAR',
-            'quantity'         => 'required|integer|min:1',
-            'user_name'        => 'nullable|string|max:255',
-            'client_pc'        => 'nullable|string|max:255',
-            'notes'            => 'nullable|string',
+            'barcode' => 'required|string',
+            'transaction_type' => 'required|in:MASUK,KELUAR,ADJUSTMENT,PRODUKSI MASUK,PRODUKSI KELUAR,RETURN',
+            'quantity' => 'required|integer|min:1',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
+            'reference_type' => 'nullable|string|max:50',
+            'reference_id' => 'nullable|integer',
+            'reference_number' => 'nullable|string|max:100',
+            'user_name' => 'nullable|string|max:255',
+            'client_pc' => 'nullable|string|max:255',
+            'notes' => 'nullable|string',
         ]);
 
         $product = Product::findByCode($validated['barcode']);
-
         if (!$product) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Produk tidak ditemukan untuk barcode: ' . $validated['barcode'],
-            ], 404);
+            return response()->json(['success' => false, 'message' => 'Produk tidak ditemukan untuk barcode: ' . $validated['barcode']], 404);
         }
 
-        $quantity    = $validated['quantity'];
-        $stockBefore = $product->stock;
-
-        if ($validated['transaction_type'] === 'KELUAR') {
-            if ($quantity > $stockBefore) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Stok {$product->name} tidak mencukupi. Stok tersedia: {$stockBefore}, yang diminta: {$quantity}.",
-                ], 400);
-            }
-            $stockAfter = $stockBefore - $quantity;
-        } else {
-            $stockAfter = $stockBefore + $quantity;
-        }
-
-        DB::transaction(function () use ($product, $validated, $stockBefore, $stockAfter, $quantity) {
-            $product->update(['stock' => $stockAfter]);
-
-            InventoryTransaction::create([
-                'product_id'       => $product->id,
-                'transaction_type' => $validated['transaction_type'],
-                'quantity'         => $quantity,
-                'stock_before'     => $stockBefore,
-                'stock_after'      => $stockAfter,
-                'user_name'        => $validated['user_name'] ?? null,
-                'client_pc'        => $validated['client_pc'] ?? null,
-                'notes'            => $validated['notes'] ?? null,
-                'transaction_time' => now(),
-            ]);
-        });
-
-        $product->refresh();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Transaksi berhasil disimpan.',
-            'data'    => $product,
+        $updated = $stockService->adjust($product, $validated['quantity'], $validated['transaction_type'], [
+            ...$validated,
+            'user_id' => $request->user()?->id,
         ]);
+
+        return response()->json(['success' => true, 'message' => 'Transaksi berhasil disimpan.', 'data' => $updated]);
     }
 
     /**
      * Transaksi batch: banyak barang sekaligus.
      */
-    public function batch(Request $request)
+    public function batch(Request $request, InventoryStockService $stockService)
     {
         $validated = $request->validate([
             'transaction_type' => 'required|in:MASUK,KELUAR',
@@ -171,28 +146,14 @@ class InventoryTransactionController extends Controller
             }
         }
 
-        // Eksekusi semua transaksi
-        DB::transaction(function () use ($resolvedItems, $transactionType, $userName, $clientPc) {
+        // Semua perubahan stok tetap melalui service terpusat dan satu transaksi database.
+        DB::transaction(function () use ($resolvedItems, $transactionType, $userName, $clientPc, $stockService, $request) {
             foreach ($resolvedItems as $ri) {
-                $product     = $ri['product'];
-                $quantity    = $ri['quantity'];
-                $stockBefore = $product->stock;
-                $stockAfter  = $transactionType === 'MASUK'
-                    ? $stockBefore + $quantity
-                    : $stockBefore - $quantity;
-
-                $product->update(['stock' => $stockAfter]);
-
-                InventoryTransaction::create([
-                    'product_id'       => $product->id,
-                    'transaction_type' => $transactionType,
-                    'quantity'         => $quantity,
-                    'stock_before'     => $stockBefore,
-                    'stock_after'      => $stockAfter,
-                    'user_name'        => $userName,
-                    'client_pc'        => $clientPc,
-                    'notes'            => $ri['notes'],
-                    'transaction_time' => now(),
+                $stockService->adjust($ri['product'], $ri['quantity'], $transactionType, [
+                    'user_id' => $request->user()?->id,
+                    'user_name' => $userName,
+                    'client_pc' => $clientPc,
+                    'notes' => $ri['notes'],
                 ]);
             }
         });

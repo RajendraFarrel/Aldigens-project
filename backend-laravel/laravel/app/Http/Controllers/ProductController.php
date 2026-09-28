@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\InventoryStock;
 use App\Models\Product;
+use App\Models\Warehouse;
 use App\Imports\ProductsImport;
 use App\Exports\ProductsTemplateExport;
 use Illuminate\Http\Request;
@@ -14,7 +16,7 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::query();
+        $query = Product::with('customer');
 
         if ($request->has('search') && $request->search !== '') {
             $search = $request->search;
@@ -32,15 +34,20 @@ class ProductController extends Controller
         return response()->json(['data' => $products]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, \App\Services\InventoryStockService $stockService)
     {
         $validated = $request->validate([
             'product_code' => 'nullable|string|max:255',
-            'part_number'  => 'nullable|string|max:255',
+            'part_number'  => 'required|string|max:255',
+            'customer_id'  => 'nullable|exists:customers,id',
             'name'         => 'required|string|max:255',
             'category'     => 'nullable|string|max:255',
+            'item_type'    => 'nullable|in:BAHAN / COMPONENT,PRODUK JADI,PRODUKSI',
             'unit'         => 'nullable|string|max:50',
             'stock'        => 'nullable|integer|min:0',
+            'minimum_stock' => 'nullable|integer|min:0',
+            'maximum_stock' => 'nullable|integer|min:0',
+            'status'       => 'nullable|in:AKTIF,NONAKTIF',
         ]);
 
         // Auto-generate product code jika kosong
@@ -49,12 +56,13 @@ class ProductController extends Controller
         }
 
         $validated['barcode'] = $validated['product_code'];
-        $validated['unit']    = $validated['unit'] ?? 'Unit';
+        $validated['unit']    = $validated['unit'] ?? 'PCS';
         $validated['stock']   = $validated['stock'] ?? 0;
 
-        // Cek duplikasi
+        // Cek duplikasi identitas teknis dan Part Number bisnis.
         $exists = Product::where('product_code', $validated['product_code'])
                          ->orWhere('barcode', $validated['barcode'])
+                         ->orWhere('part_number', $validated['part_number'])
                          ->exists();
 
         if ($exists) {
@@ -63,9 +71,18 @@ class ProductController extends Controller
             ], 422);
         }
 
+        $initialStock = (int) ($validated['stock'] ?? 0);
+        unset($validated['stock']);
         $product = Product::create($validated);
+        if ($initialStock > 0) {
+            $stockService->adjust($product, $initialStock, 'MASUK', [
+                'user_id' => $request->user()?->id, 'user_name' => $request->user()?->name,
+                'reference_type' => 'OPENING_BALANCE', 'reference_number' => $product->part_number,
+                'notes' => 'Saldo awal saat pembuatan item',
+            ]);
+        }
 
-        return response()->json(['data' => $product, 'message' => 'Produk berhasil ditambahkan.'], 201);
+        return response()->json(['data' => $product->fresh(), 'message' => 'Produk berhasil ditambahkan.'], 201);
     }
 
     public function show(Product $product)
@@ -77,11 +94,16 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'product_code' => 'nullable|string|max:255',
-            'part_number'  => 'nullable|string|max:255',
+            'part_number'  => 'required|string|max:255',
+            'customer_id'  => 'nullable|exists:customers,id',
             'name'         => 'required|string|max:255',
             'category'     => 'nullable|string|max:255',
+            'item_type'    => 'nullable|in:BAHAN / COMPONENT,PRODUK JADI,PRODUKSI',
             'unit'         => 'nullable|string|max:50',
-            'stock'        => 'nullable|integer|min:0',
+            'stock'        => 'prohibited',
+            'minimum_stock' => 'nullable|integer|min:0',
+            'maximum_stock' => 'nullable|integer|min:0',
+            'status'       => 'nullable|in:AKTIF,NONAKTIF',
         ]);
 
         if (empty($validated['product_code'])) {
@@ -94,7 +116,8 @@ class ProductController extends Controller
         // Cek duplikasi (kecuali produk itu sendiri)
         $exists = Product::where(function ($q) use ($validated) {
             $q->where('product_code', $validated['product_code'])
-              ->orWhere('barcode', $validated['barcode']);
+              ->orWhere('barcode', $validated['barcode'])
+              ->orWhere('part_number', $validated['part_number']);
         })->where('id', '!=', $product->id)->exists();
 
         if ($exists) {
@@ -108,10 +131,13 @@ class ProductController extends Controller
         return response()->json(['data' => $product, 'message' => 'Produk berhasil diperbarui.']);
     }
 
-    public function destroy(Product $product)
+    public function destroy(Product $product, Request $request)
     {
-        $product->delete();
-        return response()->json(['message' => 'Produk berhasil dihapus.']);
+        if ($product->stock > 0 || $product->inventoryTransactions()->exists()) {
+            return response()->json(['message' => 'Item yang memiliki stok atau histori transaksi tidak dapat dihapus. Nonaktifkan item sebagai gantinya.'], 422);
+        }
+        $product->update(['status' => 'NONAKTIF']);
+        return response()->json(['message' => 'Item berhasil dinonaktifkan.']);
     }
 
     /**

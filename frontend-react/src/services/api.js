@@ -93,10 +93,54 @@ export const createBatchTransaction = (data) =>
     api.post('/inventory/transactions/batch', data);
 
 // -----------------------------------------------
+// Inventory – Warehouse
+// -----------------------------------------------
+export const getWarehouses = () => api.get('/inventory/warehouses');
+export const createWarehouse = (data) => api.post('/inventory/warehouses', data);
+export const updateWarehouse = (id, data) => api.put(`/inventory/warehouses/${id}`, data);
+export const deleteWarehouse = (id) => api.delete(`/inventory/warehouses/${id}`);
+export const getWarehouseLocations = (id) => api.get(`/inventory/warehouses/${id}/locations`);
+export const createWarehouseLocation = (id, data) => api.post(`/inventory/warehouses/${id}/locations`, data);
+export const getInventoryStocks = (params = {}) => api.get('/inventory/stocks', { params });
+export const receiveInventory = (data) => api.post('/inventory/receive', data);
+export const issueInventory = (data) => api.post('/inventory/issue', data);
+export const transferInventory = (data) => api.post('/inventory/transfer', data);
+export const getStockOpnames = (params = {}) => api.get('/inventory/stock-opnames', { params });
+export const createStockOpname = (data) => api.post('/inventory/stock-opnames', data);
+export const completeStockOpname = (id) => api.post(`/inventory/stock-opnames/${id}/complete`);
+
+// Master Data
+export const getCustomers = (params = {}) => api.get('/customers', { params });
+export const createCustomer = (data) => api.post('/customers', data);
+export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data);
+export const deleteCustomer = (id) => api.delete(`/customers/${id}`);
+export const getSuppliers = (params = {}) => api.get('/suppliers', { params });
+export const createSupplier = (data) => api.post('/suppliers', data);
+export const updateSupplier = (id, data) => api.put(`/suppliers/${id}`, data);
+export const deleteSupplier = (id) => api.delete(`/suppliers/${id}`);
+
+// -----------------------------------------------
+// Procurement & Production
+// -----------------------------------------------
+export const getPurchaseRequests = () => api.get('/purchase-requests');
+export const createPurchaseRequest = (data) => api.post('/purchase-requests', data);
+export const updatePurchaseRequest = (id, data) => api.put(`/purchase-requests/${id}`, data);
+export const deletePurchaseRequest = (id) => api.delete(`/purchase-requests/${id}`);
+export const updatePurchaseRequestStatus = (id, status) => api.patch(`/purchase-requests/${id}/status`, { status });
+export const getBoms = () => api.get('/boms');
+export const createBom = (data) => api.post('/boms', data);
+export const updateBom = (id, data) => api.put(`/boms/${id}`, data);
+export const deleteBom = (id) => api.delete(`/boms/${id}`);
+export const getProductions = () => api.get('/productions');
+export const createProduction = (data) => api.post('/productions', data);
+
+// -----------------------------------------------
 // Inventory – Reports
 // -----------------------------------------------
 export const getWeeklyReport = (week = '') =>
-    api.get('/inventory/reports/weekly', { params: week ? { week } : {} });
+  api.get('/inventory/reports/weekly', { params: week ? { week } : {} });
+
+export const downloadExport = (type) => api.get(`/exports/${type}`, { responseType: 'blob' });
 
 // -----------------------------------------------
 // Users

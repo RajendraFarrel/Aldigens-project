@@ -24,6 +24,7 @@ use App\Http\Controllers\BomController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\Api\ReceiveItemController;
+use App\Http\Controllers\CustomerPartNumberController;
 
 /*
 |--------------------------------------------------------------------------
@@ -81,6 +82,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/customers', [MasterDataController::class, 'storeCustomer']);
     Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
+    Route::get('/customer-part-numbers', [CustomerPartNumberController::class, 'index']);
+    Route::post('/customer-part-numbers/import', [CustomerPartNumberController::class, 'import']);
+    Route::get('/customer-part-numbers/export', [CustomerPartNumberController::class, 'export']);
     Route::get('/suppliers', [MasterDataController::class, 'suppliers']);
     Route::post('/suppliers', [MasterDataController::class, 'storeSupplier']);
     Route::put('/suppliers/{supplier}', [MasterDataController::class, 'updateSupplier']);

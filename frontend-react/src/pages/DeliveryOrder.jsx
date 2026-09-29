@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Truck, Plus, ArrowLeft, Save, Trash2, Printer, Package, RefreshCw,
-  FileText, MapPin, Calendar, User, CheckCircle2, X
+  Calendar, CheckCircle2
 } from 'lucide-react';
 import {
   getDeliveryOrders, getDeliveryOrder, createDeliveryOrder, getSalesOrders, getSalesOrder
 } from '../services/api';
-import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 import { swalError } from '../utils/swal';
 
 export default function DeliveryOrder() {
@@ -34,9 +33,17 @@ export default function DeliveryOrder() {
   const fetchDOs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getDeliveryOrders();
-      const raw = res.data.data || res.data;
-      setDeliveryOrders(Array.isArray(raw) ? raw : []);
+      let apiData = [];
+      try {
+        const res = await getDeliveryOrders();
+        apiData = res.data.data || res.data || [];
+      } catch (err) {
+        console.warn("API DO tidak aktif, menggunakan localStorage.");
+      }
+
+      const localSaved = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]');
+      const combined = [...localSaved, ...(Array.isArray(apiData) ? apiData : [])];
+      setDeliveryOrders(combined);
     } catch (e) {
       console.error('Gagal memuat DO:', e);
       setDeliveryOrders([]);
@@ -47,9 +54,17 @@ export default function DeliveryOrder() {
 
   const fetchSOs = useCallback(async () => {
     try {
-      const res = await getSalesOrders();
-      const raw = res.data.data || res.data;
-      setSalesOrders(Array.isArray(raw) ? raw : []);
+      let apiSOs = [];
+      try {
+        const res = await getSalesOrders();
+        apiSOs = res.data.data || res.data || [];
+      } catch (err) {
+        console.warn("API SO tidak aktif.");
+      }
+
+      const localSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
+      const combinedSOs = [...localSOs, ...(Array.isArray(apiSOs) ? apiSOs : [])];
+      setSalesOrders(combinedSOs);
     } catch (e) {
       console.error('Gagal memuat SO:', e);
     }
@@ -60,33 +75,28 @@ export default function DeliveryOrder() {
     fetchSOs();
   }, [fetchDOs, fetchSOs]);
 
-  // Pilih SO -> tarik jadwal & item untuk Surat Jalan
   const handleSelectSO = async (soId) => {
     setFormData((prev) => ({ ...prev, sales_order_id: soId, items: [] }));
     if (!soId) return;
 
-    const so = salesOrders.find((s) => String(s.id) === String(soId));
-    try {
-      const res = await getSalesOrder(soId);
-      const detail = res.data.data || res.data;
-      const items = (detail.items || []).map((it) => ({
-        part_number: it.part_number || it.product_id || '',
-        description: it.description || '-',
-        qty_sent: it.qty || 1,
-        unit: it.unit || 'SET',
-      }));
+    const so = salesOrders.find((s) => String(s.id) === String(soId) || String(s.soNo) === String(soId));
+    if (!so) return;
 
-      setFormData((prev) => ({
-        ...prev,
-        sales_order_id: soId,
-        customer_name: detail.customer_name || so?.customer_name || '',
-        delivery_address: detail.customer_address || so?.customer_address || '',
-        items: items.length ? items : [{ part_number: '', description: '-', qty_sent: 1, unit: 'SET' }],
-      }));
-    } catch (e) {
-      console.error('Gagal ambil detail SO:', e);
-      setError('Gagal mengambil detail SO.');
-    }
+    const items = (so.items || []).map((it) => ({
+      part_number: it.code || it.part_number || '',
+      description: it.name || it.description || '-',
+      qty_sent: it.qty || it.qty_sent || 1,
+      unit: it.unit || 'PCS',
+    }));
+
+    setFormData((prev) => ({
+      ...prev,
+      sales_order_id: soId,
+      customer_name: so.customer || so.customer_name || '',
+      delivery_address: so.shipTo || so.customer_address || '',
+      vehicle_number: so.sentBy || '',
+      items: items.length ? items : [{ part_number: '', description: '-', qty_sent: 1, unit: 'PCS' }],
+    }));
   };
 
   const handleItemChange = (index, field, value) => {
@@ -98,7 +108,7 @@ export default function DeliveryOrder() {
   const handleAddItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { part_number: '', description: '-', qty_sent: 1, unit: 'SET' }],
+      items: [...formData.items, { part_number: '', description: '-', qty_sent: 1, unit: 'PCS' }],
     });
   };
 
@@ -134,30 +144,37 @@ export default function DeliveryOrder() {
     setSaving(true);
     setError('');
     try {
-      await createDeliveryOrder(formData);
+      const newDO = {
+        id: Date.now(),
+        ...formData,
+        status: 'Shipped',
+        so_number: formData.sales_order_id
+      };
+
+      const existing = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
+      localStorage.setItem('aldigens_delivery_orders', JSON.stringify([newDO, ...existing]));
+
+      try {
+        await createDeliveryOrder(formData);
+      } catch (err) {
+        // Backend opsional
+      }
+
       setSuccessMsg('Surat Jalan (Delivery Order) berhasil dibuat!');
       setIsCreating(false);
       resetForm();
       fetchDOs();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (e) {
-      setError(e.response?.data?.message || 'Gagal menyimpan Delivery Order.');
+      setError('Gagal menyimpan Delivery Order.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleViewDetail = async (id) => {
-    try {
-      const res = await getDeliveryOrder(id);
-      setSelectedDO(res.data.data || res.data);
-    } catch (e) {
-      swalError('Gagal Memuat', 'Gagal mengambil detail Delivery Order.');
-    }
+  const handleViewDetail = (item) => {
+    setSelectedDO(item);
   };
-
-  const formatRupiah = (n) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 
   const statusBadge = (status) => {
     const map = {
@@ -168,7 +185,7 @@ export default function DeliveryOrder() {
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  // ---------------- CETAK SURAT JALAN (Format Accurate 4) ----------------
+  // ---------------- CETAK SURAT JALAN ----------------
   const printSuratJalan = (doData) => {
     if (!doData) return;
     const win = window.open('', '_blank', 'width=900,height=700');
@@ -181,7 +198,7 @@ export default function DeliveryOrder() {
         <td align="center">${i + 1}</td>
         <td>${escapeHtml(it.part_number || '-')}</td>
         <td>${escapeHtml(it.description || '-')}</td>
-        <td align="center"><strong>${it.qty_sent} ${escapeHtml(it.unit || 'SET')}</strong></td>
+        <td align="center"><strong>${it.qty_sent} ${escapeHtml(it.unit || 'PCS')}</strong></td>
       </tr>`).join('');
 
     win.document.write(`
@@ -212,9 +229,8 @@ export default function DeliveryOrder() {
           <table class="header-table">
             <tr>
               <td class="logo-area">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
-                  <img src="${logoPerusahaan}" alt="Logo" style="height: 40px; border-radius: 4px;" />
-                  <span style="font-weight: 900; font-size: 16px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</span>
+                <div style="margin-bottom: 4px;">
+                  <img src="/LOGO ALDIGENS2.jpeg" alt="Logo Aldigens" style="height: 45px; width: auto; object-fit: contain;" />
                 </div>
                 <div class="company-address">
                   Ruko Bekasi Mas Blok C-25<br/>
@@ -241,7 +257,7 @@ export default function DeliveryOrder() {
                 <table style="width: 100%; font-size: 10px;">
                   <tr><td style="width: 40%;"><strong>D.O Number</strong></td><td>: ${escapeHtml(doData.do_number || '-')}</td></tr>
                   <tr><td><strong>Date</strong></td><td>: ${escapeHtml(doData.do_date || '-')}</td></tr>
-                  <tr><td><strong>SO Ref</strong></td><td>: ${escapeHtml(doData.so_number || doData.sales_order?.so_number || '-')}</td></tr>
+                  <tr><td><strong>SO Ref</strong></td><td>: ${escapeHtml(doData.so_number || '-')}</td></tr>
                   <tr><td><strong>Vehicle No.</strong></td><td>: ${escapeHtml(doData.vehicle_number || '-')}</td></tr>
                 </table>
               </td>
@@ -306,7 +322,7 @@ export default function DeliveryOrder() {
             </div>
             <div>
               <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Delivery Order (DO)</h1>
-              <p className="text-sm text-slate-500 mt-1">Terbitkan Surat Jalan dari SO/SPK untuk mengawal pengiriman fisik barang.</p>
+              <p className="text-sm text-slate-500 mt-1">Terbitkan Surat Jalan dari SO untuk mengawal pengiriman fisik barang.</p>
             </div>
           </div>
           <button
@@ -328,7 +344,6 @@ export default function DeliveryOrder() {
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>
       )}
 
-      {/* ---------- FORM BUAT DO ---------- */}
       {isCreating ? (
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
@@ -360,7 +375,9 @@ export default function DeliveryOrder() {
               >
                 <option value="">-- Pilih SO --</option>
                 {salesOrders.map((so) => (
-                  <option key={so.id} value={so.id}>{so.so_number} - {so.customer_name}</option>
+                  <option key={so.id || so.soNo} value={so.soNo || so.so_number || so.id}>
+                    {so.soNo || so.so_number} - {so.customer || so.customer_name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -419,7 +436,7 @@ export default function DeliveryOrder() {
                 {formData.items.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 items-center">
                     <div className="md:col-span-3">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER</label>
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER / KODE</label>
                       <input type="text" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500" value={item.part_number} onChange={(e) => handleItemChange(index, 'part_number', e.target.value)} />
                     </div>
                     <div className="md:col-span-5">
@@ -449,7 +466,6 @@ export default function DeliveryOrder() {
         </form>
       ) : selectedDO ? (
 
-        /* ---------- DETAIL DO ---------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
             <div className="flex items-center gap-4">
@@ -491,7 +507,7 @@ export default function DeliveryOrder() {
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Referensi SO</p>
-              <p className="font-semibold text-slate-800">{selectedDO.so_number || selectedDO.sales_order?.so_number || '-'}</p>
+              <p className="font-semibold text-slate-800">{selectedDO.so_number || '-'}</p>
             </div>
           </div>
 
@@ -523,7 +539,6 @@ export default function DeliveryOrder() {
 
       ) : (
 
-        /* ---------- LIST DO ---------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden w-full">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -550,18 +565,18 @@ export default function DeliveryOrder() {
                       <p className="font-medium">Belum ada Surat Jalan yang diterbitkan.</p>
                     </div>
                   </td></tr>
-                ) : deliveryOrders.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-50/80 transition text-sm">
+                ) : deliveryOrders.map((d, index) => (
+                  <tr key={d.id || index} className="hover:bg-slate-50/80 transition text-sm">
                     <td className="p-5 font-bold text-slate-800">{d.do_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{d.customer_name}</td>
-                    <td className="p-5 text-slate-500">{d.so_number || d.sales_order?.so_number || '-'}</td>
+                    <td className="p-5 text-slate-500">{d.so_number || '-'}</td>
                     <td className="p-5 text-slate-500">{d.do_date}</td>
                     <td className="p-5 text-slate-500">{d.vehicle_number || '-'}</td>
                     <td className="p-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(d.status)}`}>{d.status}</span>
                     </td>
                     <td className="p-5 text-center">
-                      <button onClick={() => handleViewDetail(d.id)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
+                      <button onClick={() => handleViewDetail(d)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
                         Lihat Detail
                       </button>
                     </td>

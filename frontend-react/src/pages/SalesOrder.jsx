@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2, Truck } from 'lucide-react';
 
 export default function SalesOrder() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,9 +21,12 @@ export default function SalesOrder() {
       {
         id: 1,
         soNo: 'SO-26090021',
+        so_number: 'SO-26090021',
         date: '2026-09-28',
         customer: 'PT. UNITED TRACTORS Tbk',
+        customer_name: 'PT. UNITED TRACTORS Tbk',
         shipTo: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
+        customer_address: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
         refPo: '990621159',
         terms: 'Net 30',
         estDate: '2026-09-21',
@@ -31,7 +34,7 @@ export default function SalesOrder() {
         salesman: 'FIKHAY',
         status: 'Disetujui',
         items: [
-          { id: 101, code: 'OPT-PRTR-KCMS-P400', name: 'HANDRAIL PC400', qty: 1, unit: 'PCS', price: 1500000, disc: 0, tax: 11 }
+          { id: 101, code: 'OPT-PRTR-KCMS-P400', part_number: 'OPT-PRTR-KCMS-P400', name: 'HANDRAIL PC400', description: 'HANDRAIL PC400', qty: 1, qty_sent: 1, unit: 'PCS', price: 1500000, disc: 0, tax: 11 }
         ]
       }
     ];
@@ -114,10 +117,23 @@ export default function SalesOrder() {
       return;
     }
 
+    const payload = {
+      ...formData,
+      so_number: formData.soNo,
+      customer_name: formData.customer,
+      customer_address: formData.shipTo,
+      items: formData.items.map(it => ({
+        ...it,
+        part_number: it.code || it.part_number,
+        description: it.name || it.description,
+        qty_sent: it.qty || 1
+      }))
+    };
+
     if (editingId) {
-      setSalesOrders(salesOrders.map(item => item.id === editingId ? { ...item, ...formData } : item));
+      setSalesOrders(salesOrders.map(item => item.id === editingId ? { ...item, ...payload } : item));
     } else {
-      setSalesOrders([{ id: Date.now(), ...formData }, ...salesOrders]);
+      setSalesOrders([{ id: Date.now(), ...payload }, ...salesOrders]);
     }
     setViewMode('list');
   };
@@ -127,6 +143,40 @@ export default function SalesOrder() {
       setSalesOrders(salesOrders.filter(item => item.id !== id));
       setActiveMenuId(null);
     }
+  };
+
+  // --- FUNGSI PROSES KE DELIVERY ORDER (DO) ---
+  const handleConvertToDO = (item) => {
+    setActiveMenuId(null);
+    const soNumber = item.soNo || item.so_number || 'SO-UNKNOWN';
+    
+    const newDO = {
+      id: Date.now(),
+      do_number: 'DO-' + Math.floor(1000 + Math.random() * 9000),
+      so_number: soNumber,
+      do_date: new Date().toISOString().split('T')[0],
+      customer_name: item.customer || item.customer_name || 'Pelanggan',
+      delivery_address: item.shipTo || item.customer_address || 'Jakarta',
+      vehicle_number: item.sentBy || 'B 1234 XYZ',
+      driver_name: 'Driver Ekspedisi',
+      notes: 'Barang dikirim berdasarkan SO: ' + soNumber,
+      status: 'Shipped',
+      items: (item.items || []).map(i => ({
+        part_number: i.code || i.part_number || '-',
+        description: i.name || i.description || '-',
+        qty_sent: i.qty || i.qty_sent || 1,
+        unit: i.unit || 'PCS'
+      }))
+    };
+
+    // Simpan ke localStorage agar langsung terbaca di halaman DeliveryOrder.jsx
+    ['aldigens_delivery_orders', 'delivery_orders'].forEach(storageKey => {
+      const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const filtered = existing.filter(d => d.so_number !== soNumber);
+      localStorage.setItem(storageKey, JSON.stringify([newDO, ...filtered]));
+    });
+
+    alert(`Sales Order ${soNumber} berhasil diproses ke Delivery Order (DO)!`);
   };
 
   // --- TEMPLATE CETAK STANDARD ACCURATE 4 ---
@@ -202,7 +252,7 @@ export default function SalesOrder() {
               </td>
               <td>
                 <strong>Dikirim Ke :</strong><br/>
-                <span>${item.shipTo || 'Jakarta'}</span>
+                <span>${item.shipTo || item.customer_address || 'Jakarta'}</span>
               </td>
             </tr>
           </table>
@@ -225,10 +275,10 @@ export default function SalesOrder() {
                   <td align="center">${idx + 1}</td>
                   <td>${i.code || i.part_number || '-'}</td>
                   <td>${i.name || i.description || '-'}</td>
-                  <td align="center">${i.qty || 1}</td>
+                  <td align="center">${i.qty || i.qty_sent || 1}</td>
                   <td align="center">${i.unit || 'PCS'}</td>
                   <td align="right">${Number(i.price || i.unit_price || 0).toLocaleString()}</td>
-                  <td align="right">${(Number(i.qty || 1) * Number(i.price || i.unit_price || 0)).toLocaleString()}</td>
+                  <td align="right">${(Number(i.qty || i.qty_sent || 1) * Number(i.price || i.unit_price || 0)).toLocaleString()}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -352,7 +402,7 @@ export default function SalesOrder() {
                           <input required type="text" placeholder="Nama barang..." value={item.name || item.description || ''} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
                         </td>
                         <td className="px-4 py-3">
-                          <input required type="number" min="1" value={item.qty || 1} onChange={(e) => handleItemChange(item.id, 'qty', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <input required type="number" min="1" value={item.qty || item.qty_sent || 1} onChange={(e) => handleItemChange(item.id, 'qty', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
                         </td>
                         <td className="px-4 py-3">
                           <select value={item.unit || 'PCS'} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
@@ -448,7 +498,13 @@ export default function SalesOrder() {
                     </button>
 
                     {activeMenuId === item.id && (
-                      <div className="absolute right-12 top-10 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
+                      <div className="absolute right-12 top-10 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
+                        <button 
+                          onClick={() => handleConvertToDO(item)}
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400"
+                        >
+                          <Truck className="h-4 w-4" /> Proses ke DO
+                        </button>
                         <button 
                           onClick={() => handleOpenEditForm(item)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"

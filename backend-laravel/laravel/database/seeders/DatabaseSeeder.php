@@ -34,5 +34,13 @@ class DatabaseSeeder extends Seeder
                 'role'      => 'Staff Gudang',
             ]
         );
+
+        $this->call([
+            CustomerSeeder::class,
+        ]);
+
+        $this->call([
+            ImportExcelMasterSeeder::class,
+        ]);
     }
 }

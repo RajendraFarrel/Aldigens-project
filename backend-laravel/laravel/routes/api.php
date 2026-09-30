@@ -7,7 +7,7 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\DeliveryOrderController;
 use App\Http\Controllers\Api\PurchaseOrderController;
-use App\Http\Controllers\ProductController;
+use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\InventoryTransactionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
@@ -16,7 +16,7 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\SalesReturnController;
 use App\Http\Controllers\SalesReceiptController;
 use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\MasterDataController;
+use App\Http\Controllers\Api\MasterDataController;
 use App\Http\Controllers\InventoryWarehouseController;
 use App\Http\Controllers\StockOpnameController;
 use App\Http\Controllers\PurchaseRequestController;
@@ -25,6 +25,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\Api\ReceiveItemController;
 use App\Http\Controllers\CustomerPartNumberController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -64,6 +65,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory/products/import-template', [ProductController::class, 'downloadTemplate']);
     Route::post('/inventory/products/import', [ProductController::class, 'import']);
     Route::apiResource('/inventory/products', ProductController::class);
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::post('/products', [ProductController::class, 'store']);
 
     // Warehouse berada di dalam Inventory
     Route::apiResource('/inventory/warehouses', WarehouseController::class)->except(['show']);
@@ -78,17 +81,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inventory/stock-opnames/{stockOpname}/complete', [StockOpnameController::class, 'complete']);
 
     // Master Data
-    Route::get('/customers', [MasterDataController::class, 'customers']);
+    // Customers
+    Route::get('/customers', [MasterDataController::class, 'getCustomers']);
     Route::post('/customers', [MasterDataController::class, 'storeCustomer']);
+<<<<<<< HEAD
     Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
     Route::get('/customer-part-numbers', [CustomerPartNumberController::class, 'index']);
     Route::post('/customer-part-numbers/import', [CustomerPartNumberController::class, 'import']);
     Route::get('/customer-part-numbers/export', [CustomerPartNumberController::class, 'export']);
     Route::get('/suppliers', [MasterDataController::class, 'suppliers']);
+=======
+    Route::put('/customers/{id}', [MasterDataController::class, 'updateCustomer']);
+    Route::delete('/customers/{id}', [MasterDataController::class, 'deleteCustomer']);
+
+    // Suppliers
+    Route::get('/suppliers', [MasterDataController::class, 'getSuppliers']);
+>>>>>>> 30ec74ac8681bc9ae6f01a3f557bed0763093354
     Route::post('/suppliers', [MasterDataController::class, 'storeSupplier']);
-    Route::put('/suppliers/{supplier}', [MasterDataController::class, 'updateSupplier']);
-    Route::delete('/suppliers/{supplier}', [MasterDataController::class, 'deleteSupplier']);
+    Route::put('/suppliers/{id}', [MasterDataController::class, 'updateSupplier']);
+    Route::delete('/suppliers/{id}', [MasterDataController::class, 'deleteSupplier']);
 
     // Inventory Transactions
     Route::get('/inventory/transactions', [InventoryTransactionController::class, 'index']);

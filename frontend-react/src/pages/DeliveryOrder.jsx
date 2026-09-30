@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Truck, Plus, ArrowLeft, Save, Trash2, Printer, Package, RefreshCw,
-  FileText, MapPin, Calendar, User, CheckCircle2, X
+  Calendar, CheckCircle2
 } from 'lucide-react';
 import {
   getDeliveryOrders, getDeliveryOrder, createDeliveryOrder, getSalesOrders, getSalesOrder
 } from '../services/api';
-import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 import { swalError } from '../utils/swal';
 
 export default function DeliveryOrder() {
@@ -34,9 +33,17 @@ export default function DeliveryOrder() {
   const fetchDOs = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getDeliveryOrders();
-      const raw = res.data.data || res.data;
-      setDeliveryOrders(Array.isArray(raw) ? raw : []);
+      let apiData = [];
+      try {
+        const res = await getDeliveryOrders();
+        apiData = res.data.data || res.data || [];
+      } catch (err) {
+        console.warn("API DO tidak aktif, menggunakan localStorage.");
+      }
+
+      const localSaved = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]');
+      const combined = [...localSaved, ...(Array.isArray(apiData) ? apiData : [])];
+      setDeliveryOrders(combined);
     } catch (e) {
       console.error('Gagal memuat DO:', e);
       setDeliveryOrders([]);
@@ -47,9 +54,17 @@ export default function DeliveryOrder() {
 
   const fetchSOs = useCallback(async () => {
     try {
-      const res = await getSalesOrders();
-      const raw = res.data.data || res.data;
-      setSalesOrders(Array.isArray(raw) ? raw : []);
+      let apiSOs = [];
+      try {
+        const res = await getSalesOrders();
+        apiSOs = res.data.data || res.data || [];
+      } catch (err) {
+        console.warn("API SO tidak aktif.");
+      }
+
+      const localSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
+      const combinedSOs = [...localSOs, ...(Array.isArray(apiSOs) ? apiSOs : [])];
+      setSalesOrders(combinedSOs);
     } catch (e) {
       console.error('Gagal memuat SO:', e);
     }
@@ -60,33 +75,28 @@ export default function DeliveryOrder() {
     fetchSOs();
   }, [fetchDOs, fetchSOs]);
 
-  // Pilih SO -> tarik jadwal & item untuk Surat Jalan
   const handleSelectSO = async (soId) => {
     setFormData((prev) => ({ ...prev, sales_order_id: soId, items: [] }));
     if (!soId) return;
 
-    const so = salesOrders.find((s) => String(s.id) === String(soId));
-    try {
-      const res = await getSalesOrder(soId);
-      const detail = res.data.data || res.data;
-      const items = (detail.items || []).map((it) => ({
-        part_number: it.part_number || it.product_id || '',
-        description: it.description || '-',
-        qty_sent: it.qty || 1,
-        unit: it.unit || 'SET',
-      }));
+    const so = salesOrders.find((s) => String(s.id) === String(soId) || String(s.soNo) === String(soId));
+    if (!so) return;
 
-      setFormData((prev) => ({
-        ...prev,
-        sales_order_id: soId,
-        customer_name: detail.customer_name || so?.customer_name || '',
-        delivery_address: detail.customer_address || so?.customer_address || '',
-        items: items.length ? items : [{ part_number: '', description: '-', qty_sent: 1, unit: 'SET' }],
-      }));
-    } catch (e) {
-      console.error('Gagal ambil detail SO:', e);
-      setError('Gagal mengambil detail SO.');
-    }
+    const items = (so.items || []).map((it) => ({
+      part_number: it.code || it.part_number || '',
+      description: it.name || it.description || '-',
+      qty_sent: it.qty || it.qty_sent || 1,
+      unit: it.unit || 'PCS',
+    }));
+
+    setFormData((prev) => ({
+      ...prev,
+      sales_order_id: soId,
+      customer_name: so.customer || so.customer_name || '',
+      delivery_address: so.shipTo || so.customer_address || '',
+      vehicle_number: so.sentBy || '',
+      items: items.length ? items : [{ part_number: '', description: '-', qty_sent: 1, unit: 'PCS' }],
+    }));
   };
 
   const handleItemChange = (index, field, value) => {
@@ -98,7 +108,7 @@ export default function DeliveryOrder() {
   const handleAddItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { part_number: '', description: '-', qty_sent: 1, unit: 'SET' }],
+      items: [...formData.items, { part_number: '', description: '-', qty_sent: 1, unit: 'PCS' }],
     });
   };
 
@@ -134,30 +144,37 @@ export default function DeliveryOrder() {
     setSaving(true);
     setError('');
     try {
-      await createDeliveryOrder(formData);
+      const newDO = {
+        id: Date.now(),
+        ...formData,
+        status: 'Shipped',
+        so_number: formData.sales_order_id
+      };
+
+      const existing = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
+      localStorage.setItem('aldigens_delivery_orders', JSON.stringify([newDO, ...existing]));
+
+      try {
+        await createDeliveryOrder(formData);
+      } catch (err) {
+        // Backend opsional
+      }
+
       setSuccessMsg('Surat Jalan (Delivery Order) berhasil dibuat!');
       setIsCreating(false);
       resetForm();
       fetchDOs();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (e) {
-      setError(e.response?.data?.message || 'Gagal menyimpan Delivery Order.');
+      setError('Gagal menyimpan Delivery Order.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleViewDetail = async (id) => {
-    try {
-      const res = await getDeliveryOrder(id);
-      setSelectedDO(res.data.data || res.data);
-    } catch (e) {
-      swalError('Gagal Memuat', 'Gagal mengambil detail Delivery Order.');
-    }
+  const handleViewDetail = (item) => {
+    setSelectedDO(item);
   };
-
-  const formatRupiah = (n) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 
   const statusBadge = (status) => {
     const map = {
@@ -178,71 +195,119 @@ export default function DeliveryOrder() {
     }
     const rows = (doData.items || []).map((it, i) => `
       <tr>
-        <td class="c">${i + 1}</td>
+        <td align="center">${i + 1}</td>
         <td>${escapeHtml(it.part_number || '-')}</td>
         <td>${escapeHtml(it.description || '-')}</td>
-        <td class="c">${it.qty_sent}</td>
-        <td class="c">${escapeHtml(it.unit || 'SET')}</td>
+        <td align="center"><strong>${it.qty_sent} ${escapeHtml(it.unit || 'PCS')}</strong></td>
       </tr>`).join('');
 
     win.document.write(`
-      <!DOCTYPE html><html><head><meta charset="utf-8"><title>Surat Jalan ${escapeHtml(doData.do_number)}</title>
-      <style>
-        * { box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-        .header { display:flex; align-items:center; gap:16px; border-bottom:3px solid #0f172a; padding-bottom:14px; }
-        .header img { width:64px; height:64px; object-fit:cover; border-radius:8px; }
-        .header h1 { margin:0; font-size:18px; }
-        .header p { margin:2px 0 0; font-size:12px; color:#475569; }
-        .title { text-align:center; margin:22px 0 6px; font-size:20px; font-weight:bold; text-decoration:underline; }
-        .subtitle { text-align:center; font-size:12px; color:#475569; margin-bottom:20px; }
-        .meta { display:flex; justify-content:space-between; font-size:13px; margin-bottom:16px; }
-        .meta div { line-height:1.7; }
-        table { width:100%; border-collapse:collapse; font-size:13px; }
-        th, td { border:1px solid #cbd5e1; padding:8px 10px; }
-        th { background:#f1f5f9; text-align:left; }
-        td.c, th.c { text-align:center; }
-        .sign { display:flex; justify-content:space-between; margin-top:56px; font-size:13px; }
-        .sign div { text-align:center; width:30%; }
-        .sign .line { margin-top:64px; border-top:1px solid #0f172a; }
-        .notes { margin-top:18px; font-size:12px; color:#475569; }
-        @media print { body { padding:0; } }
-      </style></head>
-      <body>
-        <div class="header">
-          <img src="${logoPerusahaan}" alt="logo" />
-          <div>
-            <h1>PT. ALDIGENS PUTERA PERSADA</h1>
-            <p>Sistem Terintegrasi PO &amp; Inventory</p>
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Surat Jalan - ${escapeHtml(doData.do_number)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; margin: 0; }
+            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
+            .logo-area { width: 60%; vertical-align: top; }
+            .company-address { font-size: 9px; line-height: 1.3; color: #333; margin-top: 4px; }
+            .title-area { width: 40%; text-align: right; vertical-align: top; }
+            .doc-title { font-size: 18px; font-weight: bold; margin: 0 0 4px 0; letter-spacing: 0.5px; }
+            .meta-table { width: 100%; font-size: 10px; margin-bottom: 12px; }
+            .meta-table td { vertical-align: top; padding: 2px; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .items-table th, .items-table td { border: 1px solid #000; padding: 6px; font-size: 10px; }
+            .items-table th { background: #f0f0f0; text-align: center; }
+            .sign-container { margin-top: 50px; page-break-inside: avoid; }
+            .sign-table { width: 100%; text-align: center; font-size: 10px; }
+            .sign-box { height: 70px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <table class="header-table">
+            <tr>
+              <td class="logo-area">
+                <div style="margin-bottom: 4px;">
+                  <img src="/LOGO ALDIGENS2.jpeg" alt="Logo Aldigens" style="height: 45px; width: auto; object-fit: contain;" />
+                </div>
+                <div class="company-address">
+                  Ruko Bekasi Mas Blok C-25<br/>
+                  Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
+                </div>
+              </td>
+              <td class="title-area">
+                <div class="doc-title">DELIVERY ORDER</div>
+                <div style="font-size: 11px;"><strong>Surat Jalan</strong></div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="meta-table">
+            <tr>
+              <td style="width: 60%;">
+                <table style="width: 100%; font-size: 10px;">
+                  <tr><td style="width: 20%;"><strong>Deliver To</strong></td><td>: ${escapeHtml(doData.customer_name || '-')}</td></tr>
+                  <tr><td><strong>Address</strong></td><td>: ${escapeHtml(doData.delivery_address || '-')}</td></tr>
+                  <tr><td><strong>Driver</strong></td><td>: ${escapeHtml(doData.driver_name || '-')}</td></tr>
+                </table>
+              </td>
+              <td style="width: 40%;">
+                <table style="width: 100%; font-size: 10px;">
+                  <tr><td style="width: 40%;"><strong>D.O Number</strong></td><td>: ${escapeHtml(doData.do_number || '-')}</td></tr>
+                  <tr><td><strong>Date</strong></td><td>: ${escapeHtml(doData.do_date || '-')}</td></tr>
+                  <tr><td><strong>SO Ref</strong></td><td>: ${escapeHtml(doData.so_number || '-')}</td></tr>
+                  <tr><td><strong>Vehicle No.</strong></td><td>: ${escapeHtml(doData.vehicle_number || '-')}</td></tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="width: 5%;">No</th>
+                <th style="width: 25%;">Item No.</th>
+                <th style="width: 55%;">Description</th>
+                <th style="width: 15%;">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="4" align="center">Tidak ada item</td></tr>'}
+            </tbody>
+          </table>
+
+          <div style="font-size: 10px; margin-bottom: 20px;">
+            <strong>Keterangan:</strong><br/>
+            ${escapeHtml(doData.notes || 'Barang diterima dalam kondisi baik dan lengkap sesuai pesanan.')}
           </div>
-        </div>
-        <div class="title">SURAT JALAN</div>
-        <div class="subtitle">No. ${escapeHtml(doData.do_number)}</div>
-        <div class="meta">
-          <div>
-            <strong>Kepada:</strong><br/>
-            ${escapeHtml(doData.customer_name || '-')}<br/>
-            ${escapeHtml(doData.delivery_address || '-')}
+
+          <div class="sign-container">
+            <table class="sign-table">
+              <tr>
+                <td style="width: 33%;">
+                  Dibuat Oleh,<br/>
+                  <div class="sign-box"></div>
+                  <strong>( WAREHOUSE )</strong>
+                </td>
+                <td style="width: 33%;">
+                  Pengirim / Supir,<br/>
+                  <div class="sign-box"></div>
+                  <strong>( LOGISTIK )</strong>
+                </td>
+                <td style="width: 33%;">
+                  Diterima Oleh,<br/>
+                  <div class="sign-box"></div>
+                  <strong>( CUSTOMER )</strong><br/>
+                  <span style="font-size: 8px; color: #666;">Tgl / Cap Perusahaan</span>
+                </td>
+              </tr>
+            </table>
           </div>
-          <div style="text-align:right">
-            <strong>Tanggal:</strong> ${escapeHtml(doData.do_date || '-')}<br/>
-            <strong>No. SO:</strong> ${escapeHtml(doData.so_number || doData.sales_order?.so_number || '-')}<br/>
-            <strong>Kendaraan:</strong> ${escapeHtml(doData.vehicle_number || '-')}<br/>
-            <strong>Driver:</strong> ${escapeHtml(doData.driver_name || '-')}
-          </div>
-        </div>
-        <table>
-          <thead><tr><th class="c" style="width:40px">No</th><th>Part Number</th><th>Deskripsi Barang</th><th class="c" style="width:70px">Qty</th><th class="c" style="width:70px">Unit</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" class="c">Tidak ada item</td></tr>'}</tbody>
-        </table>
-        ${doData.notes ? `<div class="notes"><strong>Catatan:</strong> ${escapeHtml(doData.notes)}</div>` : ''}
-        <div class="sign">
-          <div><p>Pengirim</p><div class="line"></div></div>
-          <div><p>Pengemudi</p><div class="line"></div></div>
-          <div><p>Penerima</p><div class="line"></div></div>
-        </div>
-        <script>window.onload = function(){ window.focus(); window.print(); };<\/script>
-      </body></html>
+          <script>window.onload = function(){ window.focus(); window.print(); };</script>
+        </body>
+      </html>
     `);
     win.document.close();
   };
@@ -257,7 +322,7 @@ export default function DeliveryOrder() {
             </div>
             <div>
               <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Delivery Order (DO)</h1>
-              <p className="text-sm text-slate-500 mt-1">Terbitkan Surat Jalan dari SO/SPK untuk mengawal pengiriman fisik barang.</p>
+              <p className="text-sm text-slate-500 mt-1">Terbitkan Surat Jalan dari SO untuk mengawal pengiriman fisik barang.</p>
             </div>
           </div>
           <button
@@ -279,7 +344,6 @@ export default function DeliveryOrder() {
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>
       )}
 
-      {/* ---------- FORM BUAT DO ---------- */}
       {isCreating ? (
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
@@ -311,7 +375,9 @@ export default function DeliveryOrder() {
               >
                 <option value="">-- Pilih SO --</option>
                 {salesOrders.map((so) => (
-                  <option key={so.id} value={so.id}>{so.so_number} - {so.customer_name}</option>
+                  <option key={so.id || so.soNo} value={so.soNo || so.so_number || so.id}>
+                    {so.soNo || so.so_number} - {so.customer || so.customer_name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -370,7 +436,7 @@ export default function DeliveryOrder() {
                 {formData.items.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 items-center">
                     <div className="md:col-span-3">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER</label>
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER / KODE</label>
                       <input type="text" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500" value={item.part_number} onChange={(e) => handleItemChange(index, 'part_number', e.target.value)} />
                     </div>
                     <div className="md:col-span-5">
@@ -400,7 +466,6 @@ export default function DeliveryOrder() {
         </form>
       ) : selectedDO ? (
 
-        /* ---------- DETAIL DO ---------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
             <div className="flex items-center gap-4">
@@ -442,7 +507,7 @@ export default function DeliveryOrder() {
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Referensi SO</p>
-              <p className="font-semibold text-slate-800">{selectedDO.so_number || selectedDO.sales_order?.so_number || '-'}</p>
+              <p className="font-semibold text-slate-800">{selectedDO.so_number || '-'}</p>
             </div>
           </div>
 
@@ -474,7 +539,6 @@ export default function DeliveryOrder() {
 
       ) : (
 
-        /* ---------- LIST DO ---------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden w-full">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -501,18 +565,18 @@ export default function DeliveryOrder() {
                       <p className="font-medium">Belum ada Surat Jalan yang diterbitkan.</p>
                     </div>
                   </td></tr>
-                ) : deliveryOrders.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-50/80 transition text-sm">
+                ) : deliveryOrders.map((d, index) => (
+                  <tr key={d.id || index} className="hover:bg-slate-50/80 transition text-sm">
                     <td className="p-5 font-bold text-slate-800">{d.do_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{d.customer_name}</td>
-                    <td className="p-5 text-slate-500">{d.so_number || d.sales_order?.so_number || '-'}</td>
+                    <td className="p-5 text-slate-500">{d.so_number || '-'}</td>
                     <td className="p-5 text-slate-500">{d.do_date}</td>
                     <td className="p-5 text-slate-500">{d.vehicle_number || '-'}</td>
                     <td className="p-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(d.status)}`}>{d.status}</span>
                     </td>
                     <td className="p-5 text-center">
-                      <button onClick={() => handleViewDetail(d.id)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
+                      <button onClick={() => handleViewDetail(d)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
                         Lihat Detail
                       </button>
                     </td>

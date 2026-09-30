@@ -4,14 +4,13 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Customer;
-use App\Models\Product; // Model Part Number/Product Anda
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ImportExcelMasterSeeder extends Seeder
 {
     public function run(): void
     {
-        // Path lokasi file Excel Anda di storage
         $path = storage_path('app/PARTNUMBER_APP.xlsx');
 
         if (!file_exists($path)) {
@@ -23,7 +22,7 @@ class ImportExcelMasterSeeder extends Seeder
         $sheetNames = $spreadsheet->getSheetNames();
 
         foreach ($sheetNames as $sheetName) {
-            // Lewati sheet 'ALL CUSTOMER' jika hanya rangkuman
+            // Lewati sheet 'ALL CUSTOMER'
             if (trim($sheetName) === 'ALL CUSTOMER') continue;
 
             $sheet = $spreadsheet->getSheetByName($sheetName);
@@ -31,7 +30,6 @@ class ImportExcelMasterSeeder extends Seeder
 
             $this->command->info("Memproses Sheet: " . $sheetName);
 
-            // 1. Masukkan nama sheet sebagai Master Customer (jika belum ada)
             $customerName = 'PT. ' . trim($sheetName);
             $customerCode = 'CUST-' . strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $sheetName), 0, 5));
             
@@ -46,30 +44,33 @@ class ImportExcelMasterSeeder extends Seeder
                 ]
             );
 
-            // 2. Looping baris data part number di bawahnya (mulai dari baris ke-3 / index 3)
-            // Sesuaikan struktur kolom berdasarkan file Excel Anda: Kolom Part Number & Deskripsi
+            // Looping baris data part number
             foreach ($rows as $index => $row) {
                 if ($index < 3) continue; // Lewati baris header
 
-                // Kolom di Excel biasanya: [No, Part Number, Description, Harga Jual]
                 $partNumber = $row[1] ?? null;
                 $description = $row[2] ?? null;
+                $price = isset($row[3]) && is_numeric($row[3]) ? $row[3] : 0;
 
                 if (!empty($partNumber) && $partNumber !== 'PART NUMBER') {
-                    // Masukkan ke tabel Products / Part Number yang berelasi dengan Customer
-                    Product::updateOrCreate(
-                        ['part_number' => trim($partNumber)],
+                    // Masukkan ke tabel customer_part_numbers dengan nama kolom yang benar
+                    DB::table('customer_part_numbers')->updateOrInsert(
                         [
-                            'name' => trim($description ?? 'Item Barang'),
                             'customer_id' => $customer->id,
-                            'unit' => 'PCS',
-                            'price' => isset($row[3]) && is_numeric($row[3]) ? $row[3] : 0,
+                            'part_number' => trim($partNumber)
+                        ],
+                        [
+                            'item_description' => trim($description ?? '-'),
+                            'selling_price' => $price, // <-- Bagian ini yang kita sesuaikan
+                            'status' => 'AKTIF',
+                            'created_at' => now(),
+                            'updated_at' => now(),
                         ]
                     );
                 }
             }
         }
 
-        $this->command->info("Semua data Customer dan Part Number dari Excel berhasil diimpor ke database!");
+        $this->command->info("Semua data Part Number berhasil masuk ke Master Data Customer!");
     }
 }

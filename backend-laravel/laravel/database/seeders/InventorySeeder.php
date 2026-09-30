@@ -3,54 +3,67 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Inventory;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class InventorySeeder extends Seeder
 {
     public function run(): void
     {
-        $filePath = database_path('seeders/Persediaan Aldigens 2026.xlsx'); 
+        // Pastikan nama file sesuai dengan yang Anda letakkan di folder storage/app/
+        $path = storage_path('app/Persediaan Aldigens 2026.xlsx');
 
-        if (!file_exists($filePath)) {
-            $this->command->error("File Excel tidak ditemukan di path: {$filePath}");
+        if (!file_exists($path)) {
+            $this->command->error("File Excel tidak ditemukan di: " . $path);
             return;
         }
 
-        $spreadsheet = IOFactory::load($filePath);
-        $sheet = $spreadsheet->getActiveSheet();
+        $spreadsheet = IOFactory::load($path);
+        
+        // Membaca sheet Inven-Mei
+        $sheet = $spreadsheet->getSheetByName('Inven-Mei');
+        if (!$sheet) {
+            $this->command->error("Sheet 'Inven-Mei' tidak ditemukan.");
+            return;
+        }
+
         $rows = $sheet->toArray();
+        $this->command->info("Memproses Data Persediaan Inventory...");
 
-        $autoInc = 1;
+        // Looping data (mulai dari index 5 karena baris 1-4 adalah judul & header)
+        foreach ($rows as $index => $row) {
+            if ($index < 5) continue;
 
-        for ($i = 4; $i < count($rows); $i++) {
-            $row = $rows[$i];
-            
-            $category = $row[1] ?? 'UMUM';
+            $kategori = $row[1] ?? '-';
             $partNumber = $row[2] ?? null;
-            $itemName = $row[3] ?? null;
-            $unit = $row[5] ?? 'Pcs';
-            $price = is_numeric($row[6]) ? $row[6] : 0;
+            $namaBarang = $row[3] ?? null;
+            $satuan = $row[5] ?? 'Pcs';
+            $stockAkhir = (int) ($row[10] ?? 0); 
 
-            if (!$itemName) continue;
+            // Lewati jika nama barang kosong
+            if (empty($namaBarang)) continue;
 
-            // Jika part_number kosong di Excel, buatkan kode otomatis agar tidak null
-            if (empty($partNumber)) {
-                $partNumber = 'AUTO-' . str_pad($autoInc++, 4, '0', STR_PAD_LEFT);
+            // Jika part number kosong dari Excel, kita buatkan part number otomatis
+            if (empty(trim($partNumber))) {
+                $partNumber = 'INV-' . strtoupper(uniqid());
             }
 
-            Inventory::updateOrCreate(
-                ['part_number' => $partNumber],
+            // Masukkan ke tabel products menggunakan DB Facade agar aman
+            // Masukkan ke tabel products menggunakan DB Facade agar aman
+            DB::table('products')->updateOrInsert(
+                ['part_number' => trim($partNumber)],
                 [
-                    'item_name' => $itemName,
-                    'category' => $category,
-                    'unit' => $unit,
-                    'selling_price' => $price,
-                    'stock_quantity' => 0
+                    'product_code' => trim($partNumber), // <-- Tambahkan baris ini
+                    'name' => trim($namaBarang),
+                    'category' => trim($kategori), 
+                    'unit' => trim($satuan), 
+                    'stock' => $stockAkhir,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]
             );
         }
 
-        $this->command->info('Data inventaris berhasil diimpor!');
+        $this->command->info("Data Persediaan berhasil masuk ke Inventory!");
     }
 }

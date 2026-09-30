@@ -41,12 +41,10 @@ export default function MasterData({ type = 'customer' }) {
           if (apiData.length > 0) {
             setRows(apiData);
           } else {
-            // Jika API kosong, ambil dari localStorage atau default excel
             const local = JSON.parse(localStorage.getItem('aldigens_master_customers') || JSON.stringify(DEFAULT_CUSTOMERS));
             setRows(local);
           }
         } catch (err) {
-          // Fallback jika API gagal/tidak aktif
           const local = JSON.parse(localStorage.getItem('aldigens_master_customers') || JSON.stringify(DEFAULT_CUSTOMERS));
           setRows(local);
         }
@@ -66,7 +64,6 @@ export default function MasterData({ type = 'customer' }) {
     load(); 
   }, [load]);
 
-  // Simpan perubahan customer ke localStorage agar persisten
   useEffect(() => {
     if (isCustomer && rows.length > 0) {
       localStorage.setItem('aldigens_master_customers', JSON.stringify(rows));
@@ -133,33 +130,36 @@ export default function MasterData({ type = 'customer' }) {
     }
   };
 
-<<<<<<< HEAD
-  if (isCustomer && customerView === CUSTOMER_VIEWS.DATA) return <div className="p-6 max-w-7xl mx-auto w-full"><div className="flex gap-2 mb-4"><button onClick={() => setCustomerView(CUSTOMER_VIEWS.MASTER)} className="px-4 py-2 rounded-xl border text-sm">Master Customer</button><button className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm">Data Customer</button></div><CustomerPartNumbers /></div>;
+  // Tampilan Tabel Part Number
+  if (isCustomer && customerView === CUSTOMER_VIEWS.DATA) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto w-full">
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setCustomerView(CUSTOMER_VIEWS.MASTER)} className="px-4 py-2 rounded-xl border text-sm hover:bg-slate-50 transition">Master Customer</button>
+          <button className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm shadow-sm">Data Customer</button>
+        </div>
+        <CustomerPartNumbers />
+      </div>
+    );
+  }
 
-  return <div className="p-6 space-y-6 max-w-7xl mx-auto w-full">
-    {isCustomer && <div className="flex gap-2"><button className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm">Master Customer</button><button onClick={() => setCustomerView(CUSTOMER_VIEWS.DATA)} className="px-4 py-2 rounded-xl border text-sm">Data Customer</button></div>}
-    <div className="flex justify-between items-center"><div><h2 className="text-2xl font-bold text-slate-800">Master {label}</h2><p className="text-sm text-slate-500">Kelola data {label.toLowerCase()} sebagai master terpusat.</p></div><button onClick={load} className="p-2 border rounded-lg"><RefreshCw className="w-4 h-4" /></button></div>
-    {error && <div className="p-3 rounded-lg bg-red-50 border-red-200 text-red-700 text-sm">{error}</div>}
-    {message && <div className="p-3 rounded-lg bg-emerald-50 border-emerald-200 text-emerald-700 text-sm">{message}</div>}
-    <form onSubmit={submit} className="bg-white rounded-2xl border-slate-200 p-5 shadow-sm space-y-4">
-      <h3 className="font-semibold flex items-center gap-2">{isCustomer ? <Users className="w-5 h-5 text-blue-600" /> : <Building2 className="w-5 h-5 text-blue-600" />}{editingId ? `Edit ${label}` : `Tambah ${label}`}</h3>
-      <div className="grid md:grid-cols-3 gap-3">
-        <input required placeholder={`Kode ${label}`} value={form[codeKey]} onChange={e => setForm({ ...form, [codeKey]: e.target.value.toUpperCase() })} className="border rounded-lg px-3 py-2 text-sm" />
-        <input required placeholder={`Nama ${label}`} value={form[nameKey]} onChange={e => setForm({ ...form, [nameKey]: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
-        <input placeholder="Telepon" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
-        <input placeholder="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
-        <input placeholder="Alamat" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="border rounded-lg px-3 py-2 text-sm md:col-span-2" />
-        <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="border rounded-lg px-3 py-2 text-sm"><option value="AKTIF">AKTIF</option><option value="NONAKTIF">NONAKTIF</option></select>
-=======
+  // Tampilan Form Master Customer/Supplier
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto w-full">
+      {/* Tab Switcher Customer */}
+      {isCustomer && (
+        <div className="flex gap-2">
+          <button className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm shadow-sm">Master Customer</button>
+          <button onClick={() => setCustomerView(CUSTOMER_VIEWS.DATA)} className="px-4 py-2 rounded-xl border text-sm hover:bg-slate-50 transition">Data Customer</button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Master {label}</h2>
           <p className="text-sm text-slate-500">Kelola data {label.toLowerCase()} sebagai master terpusat.</p>
         </div>
         <button onClick={load} className="p-2 border rounded-lg hover:bg-slate-50 transition"><RefreshCw className="w-4 h-4" /></button>
->>>>>>> 30ec74ac8681bc9ae6f01a3f557bed0763093354
       </div>
 
       {error && <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}

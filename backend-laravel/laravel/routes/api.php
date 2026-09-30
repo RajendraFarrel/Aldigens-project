@@ -84,20 +84,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // Customers
     Route::get('/customers', [MasterDataController::class, 'getCustomers']);
     Route::post('/customers', [MasterDataController::class, 'storeCustomer']);
-<<<<<<< HEAD
+
     Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
     Route::get('/customer-part-numbers', [CustomerPartNumberController::class, 'index']);
     Route::post('/customer-part-numbers/import', [CustomerPartNumberController::class, 'import']);
     Route::get('/customer-part-numbers/export', [CustomerPartNumberController::class, 'export']);
     Route::get('/suppliers', [MasterDataController::class, 'suppliers']);
-=======
     Route::put('/customers/{id}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{id}', [MasterDataController::class, 'deleteCustomer']);
 
     // Suppliers
     Route::get('/suppliers', [MasterDataController::class, 'getSuppliers']);
->>>>>>> 30ec74ac8681bc9ae6f01a3f557bed0763093354
     Route::post('/suppliers', [MasterDataController::class, 'storeSupplier']);
     Route::put('/suppliers/{id}', [MasterDataController::class, 'updateSupplier']);
     Route::delete('/suppliers/{id}', [MasterDataController::class, 'deleteSupplier']);

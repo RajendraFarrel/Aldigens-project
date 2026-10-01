@@ -4,7 +4,6 @@ import {
 } from 'lucide-react';
 import { getProducts } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
-import { swalError } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 

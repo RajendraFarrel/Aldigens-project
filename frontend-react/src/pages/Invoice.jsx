@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  FileText, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, DollarSign
-} from 'lucide-react';
+import { FileText, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, DollarSign } from 'lucide-react';
 import api from '../services/api';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
-import { swalError } from '../utils/swal';
 import { swalError, swalSuccess } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
@@ -241,7 +238,7 @@ export default function Invoice() {
             <tr>
               <td class="logo-area">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
-                  <img src="${logoPerusahaan}" alt="Logo" style="height: 45px; border-radius: 4px;" />
+                  <img src="${logoPerusahaan}" alt="Logo" style="height: 45px; border-radius: 4px;" onerror="this.style.display='none'" />
                   <span style="font-weight: 900; font-size: 16px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</span>
                 </div>
                 <div class="company-address">
@@ -398,7 +395,9 @@ export default function Invoice() {
               >
                 <option value="">-- Pilih D.O --</option>
                 {deliveryOrders.map((d) => (
-                  <option key={d.id} value={d.do_number}>{d.do_number} - {d.customer_name}</option>
+                  <option key={d.id || d.do_number} value={d.do_number}>
+                    {d.do_number} - {d.customer_name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -586,7 +585,6 @@ export default function Invoice() {
             </table>
           </div>
 
-          {/* Pagination Controller */}
           <Pagination
             currentPage={pagination.currentPage}
             totalItems={pagination.totalItems}

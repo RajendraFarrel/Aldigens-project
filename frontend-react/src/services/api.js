@@ -116,6 +116,7 @@ export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data);
 export const deleteCustomer = (id) => api.delete(`/customers/${id}`);
 export const getCustomerPartNumbers = (params = {}) => api.get('/customer-part-numbers', { params });
 export const importCustomerPartNumbers = (file) => { const formData = new FormData(); formData.append('file', file); return api.post('/customer-part-numbers/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); };
+export const downloadCustomerPartNumbersTemplate = () => api.get('/customer-part-numbers/import-template', { responseType: 'blob' });
 export const exportCustomerPartNumbers = () => api.get('/customer-part-numbers/export', { responseType: 'blob' });
 export const getSuppliers = (params = {}) => api.get('/suppliers', { params });
 export const createSupplier = (data) => api.post('/suppliers', data);

@@ -7,7 +7,8 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\DeliveryOrderController;
 use App\Http\Controllers\Api\PurchaseOrderController;
-use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProductController as ApiProductController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\InventoryTransactionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
@@ -65,8 +66,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory/products/import-template', [ProductController::class, 'downloadTemplate']);
     Route::post('/inventory/products/import', [ProductController::class, 'import']);
     Route::apiResource('/inventory/products', ProductController::class);
-    Route::get('/products', [ProductController::class, 'index']);
-    Route::post('/products', [ProductController::class, 'store']);
+    Route::get('/products', [ApiProductController::class, 'index']);
+    Route::post('/products', [ApiProductController::class, 'store']);
 
     // Warehouse berada di dalam Inventory
     Route::apiResource('/inventory/warehouses', WarehouseController::class)->except(['show']);
@@ -87,6 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
     Route::get('/customer-part-numbers', [CustomerPartNumberController::class, 'index']);
+    Route::get('/customer-part-numbers/import-template', [CustomerPartNumberController::class, 'downloadTemplate']);
     Route::post('/customer-part-numbers/import', [CustomerPartNumberController::class, 'import']);
     Route::get('/customer-part-numbers/export', [CustomerPartNumberController::class, 'export']);
     Route::get('/suppliers', [MasterDataController::class, 'suppliers']);

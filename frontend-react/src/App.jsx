@@ -35,6 +35,7 @@ import InventoryReports from './pages/InventoryReports';
 import NetworkMonitoring from './pages/NetworkMonitoring';
 import SecurityStatus from './pages/SecurityStatus';
 import ActivityLog from './pages/ActivityLog';
+import Commissioning from './pages/Commissioning';
 import { Menu, Moon, Sun } from 'lucide-react';
 import axios from 'axios';
 import { useTheme } from './context/ThemeContext';
@@ -78,6 +79,7 @@ const PAGE_TITLES = {
   'network-monitoring':     'Network Monitoring',
   'security-status':        'Security Status',
   'activity-log':           'Activity Log',
+  'commissioning':              'Komisioning & BAST',
 };
 
 export default function App() {
@@ -192,6 +194,7 @@ export default function App() {
       case 'network-monitoring':     return <NetworkMonitoring />;
       case 'security-status':        return <SecurityStatus />;
       case 'activity-log':           return <ActivityLog />;
+      case 'commissioning':              return <Commissioning />;
       default:                       return <Dashboard />;
     }
   };

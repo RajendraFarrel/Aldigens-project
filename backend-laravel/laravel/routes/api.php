@@ -26,6 +26,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\Api\ReceiveItemController;
 use App\Http\Controllers\CustomerPartNumberController;
+use App\Http\Controllers\CommissioningController;
 
 
 /*
@@ -148,4 +149,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('sales-returns', SalesReturnController::class);
     Route::apiResource('sales-receipts', SalesReceiptController::class);
     Route::apiResource('receive-items', ReceiveItemController::class);
+
+    Route::get('/commissionings', [CommissioningController::class, 'index']);
+    Route::post('/commissionings', [CommissioningController::class, 'store']);
+    Route::patch('/commissionings/{id}/status', [CommissioningController::class, 'updateStatus']);
 });

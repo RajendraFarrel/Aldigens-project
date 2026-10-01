@@ -21,11 +21,12 @@ import {
     PackagePlus,
     PackageX,
     CreditCard,
-    Factory, // Ikon menu Manufaktur
-    ListTree, // Ikon Bill of Materials
-    FileCog, // Ikon Work Order
-    ArrowUpRight, // Ikon Material Release
-    PackageCheck // Ikon Product Result
+    Factory,
+    ListTree,
+    FileCog,
+    ArrowUpRight,
+    PackageCheck,
+    CheckSquare // <-- Cukup tulis seperti ini saja tanpa komentar di belakangnya
 } from 'lucide-react';
 
 /**
@@ -102,6 +103,7 @@ export const MENU_GROUPS = [{
                 { key: 'inventory-scan', label: 'Scanner Barcode', icon: ScanLine },
                 { key: 'inventory-transactions', label: 'Riwayat Transaksi', icon: History },
                 { key: 'inventory-reports', label: 'Laporan Stok', icon: BarChart3 },
+                { key: 'commissioning', label: 'Komisioning & BAST', icon: CheckSquare },
             ],
         }],
     },

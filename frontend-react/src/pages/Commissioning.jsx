@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function Commissioning() {
     const [commissionings, setCommissionings] = useState([]);
     const [customersList, setCustomersList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+
+    const pagination = usePagination(commissionings, 10);
     
     // State untuk Cetak BAST
     const [selectedBast, setSelectedBast] = useState(null);
@@ -142,10 +146,10 @@ export default function Commissioning() {
                         <tbody className="divide-y divide-slate-100 text-sm">
                             {loading ? (
                                 <tr><td colSpan="7" className="p-4 text-center text-slate-400">Memuat data...</td></tr>
-                            ) : commissionings.length === 0 ? (
+                            ) : pagination.paginatedItems.length === 0 ? (
                                 <tr><td colSpan="7" className="p-4 text-center text-slate-400">Belum ada data komisioning.</td></tr>
                             ) : (
-                                commissionings.map((comm) => (
+                                pagination.paginatedItems.map((comm) => (
                                     <tr key={comm.id} className="hover:bg-slate-50">
                                         <td className="p-4 font-semibold text-slate-700">{comm.commissioning_code}</td>
                                         <td className="p-4">{comm.customer?.customer_name || '-'}</td>
@@ -191,6 +195,15 @@ export default function Commissioning() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controller */}
+                <Pagination
+                    currentPage={pagination.currentPage}
+                    totalItems={pagination.totalItems}
+                    pageSize={pagination.pageSize}
+                    onPageChange={pagination.setCurrentPage}
+                    onPageSizeChange={pagination.setPageSize}
+                />
             </div>
 
             {/* Template Khusus Cetak BAST */}

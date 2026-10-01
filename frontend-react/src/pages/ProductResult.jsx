@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Plus, Filter, MoreVertical, PackageCheck } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function ProductResult() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -8,6 +10,15 @@ export default function ProductResult() {
     { id: 1, date: '25 Sep 2026', prNo: 'PRST-202609-001', refWO: 'WO-202609-002', product: 'Kursi Kantor Ergonomis', qtyIn: '100 Unit', status: 'Disetujui' },
     { id: 2, date: '26 Sep 2026', prNo: 'PRST-202609-002', refWO: 'WO-202609-001', product: 'Meja Belajar Kayu', qtyIn: '25 Unit', status: 'Draft' },
   ];
+
+  const filteredResult = dummyResult.filter(
+    (item) =>
+      item.prNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.refWO.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.product.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const pagination = usePagination(filteredResult, 10);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -41,7 +52,7 @@ export default function ProductResult() {
             </button>
           </div>
           
-          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm">
+          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm cursor-pointer">
             <Plus className="h-4 w-4" />
             Catat Hasil Produksi
           </button>
@@ -61,30 +72,45 @@ export default function ProductResult() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {dummyResult.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                  <td className="px-6 py-4">{item.date}</td>
-                  <td className="px-6 py-4 font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">
-                    {item.prNo}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{item.refWO}</td>
-                  <td className="px-6 py-4 font-medium">{item.product}</td>
-                  <td className="px-6 py-4">{item.qtyIn}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${getStatusBadge(item.status)}`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                      <MoreVertical className="h-5 w-5 inline" />
-                    </button>
+              {pagination.totalItems === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400">
+                    Tidak ada data hasil produksi.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                pagination.paginatedItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                    <td className="px-6 py-4">{item.date}</td>
+                    <td className="px-6 py-4 font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">
+                      {item.prNo}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{item.refWO}</td>
+                    <td className="px-6 py-4 font-medium">{item.product}</td>
+                    <td className="px-6 py-4">{item.qtyIn}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${getStatusBadge(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                        <MoreVertical className="h-5 w-5 inline" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

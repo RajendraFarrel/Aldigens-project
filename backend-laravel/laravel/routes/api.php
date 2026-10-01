@@ -27,6 +27,7 @@ use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\Api\ReceiveItemController;
 use App\Http\Controllers\CustomerPartNumberController;
 use App\Http\Controllers\CommissioningController;
+use App\Http\Controllers\RoleController;
 
 
 /*
@@ -92,6 +93,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/customer-part-numbers/import-template', [CustomerPartNumberController::class, 'downloadTemplate']);
     Route::post('/customer-part-numbers/import', [CustomerPartNumberController::class, 'import']);
     Route::get('/customer-part-numbers/export', [CustomerPartNumberController::class, 'export']);
+    Route::post('/customer-part-numbers', [CustomerPartNumberController::class, 'store']);
+    Route::put('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'update']);
+    Route::delete('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'destroy']);
     Route::get('/suppliers', [MasterDataController::class, 'suppliers']);
     Route::put('/customers/{id}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{id}', [MasterDataController::class, 'deleteCustomer']);
@@ -111,9 +115,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory/reports/weekly', [ReportController::class, 'weekly']);
     Route::get('/exports/{type}', [ExportController::class, 'csv']);
 
-    // Users
+    // Users & Roles
     Route::put('users/{user}/menu-access', [UserController::class, 'updateMenuAccess']);
     Route::apiResource('users', UserController::class)->except(['show']);
+    Route::apiResource('roles', RoleController::class)->except(['show']);
 
     // Purchase Request dan BOM
     Route::apiResource('/purchase-requests', PurchaseRequestController::class)->only(['index', 'store', 'show', 'update', 'destroy']);

@@ -115,6 +115,9 @@ export const createCustomer = (data) => api.post('/customers', data);
 export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data);
 export const deleteCustomer = (id) => api.delete(`/customers/${id}`);
 export const getCustomerPartNumbers = (params = {}) => api.get('/customer-part-numbers', { params });
+export const createCustomerPartNumber = (data) => api.post('/customer-part-numbers', data);
+export const updateCustomerPartNumber = (id, data) => api.put(`/customer-part-numbers/${id}`, data);
+export const deleteCustomerPartNumber = (id) => api.delete(`/customer-part-numbers/${id}`);
 export const importCustomerPartNumbers = (file) => { const formData = new FormData(); formData.append('file', file); return api.post('/customer-part-numbers/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); };
 export const downloadCustomerPartNumbersTemplate = () => api.get('/customer-part-numbers/import-template', { responseType: 'blob' });
 export const exportCustomerPartNumbers = () => api.get('/customer-part-numbers/export', { responseType: 'blob' });
@@ -147,7 +150,7 @@ export const getWeeklyReport = (week = '') =>
 export const downloadExport = (type) => api.get(`/exports/${type}`, { responseType: 'blob' });
 
 // -----------------------------------------------
-// Users
+// Users & Roles
 // -----------------------------------------------
 export const getUsers = () =>
     api.get('/users');
@@ -163,6 +166,18 @@ export const deleteUser = (id) =>
 
 export const updateUserMenuAccess = (id, menuAccess) =>
     api.put(`/users/${id}/menu-access`, { menu_access: menuAccess });
+
+export const getRoles = () =>
+    api.get('/roles');
+
+export const createRole = (data) =>
+    api.post('/roles', data);
+
+export const updateRole = (id, data) =>
+    api.put(`/roles/${id}`, data);
+
+export const deleteRole = (id) =>
+    api.delete(`/roles/${id}`);
 
 // -----------------------------------------------
 // Delivery Order (DO) & Invoice

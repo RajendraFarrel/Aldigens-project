@@ -41,7 +41,7 @@ class UserController extends Controller
             'full_name' => 'nullable|string|max:255',
             'email'     => 'required|email|unique:users,email',
             'password'  => 'required|string|min:6',
-            'role'      => 'nullable|in:Administrator,Staff Gudang',
+            'role'      => 'nullable|string|max:100',
             'menu_access'   => 'nullable|array',
             'menu_access.*' => ['string', Rule::in(self::MENU_KEYS)],
         ]);
@@ -49,7 +49,7 @@ class UserController extends Controller
         $validated['password'] = Hash::make($validated['password']);
         $validated['role']     = $validated['role'] ?? 'Staff Gudang';
 
-        // Staff biasa tidak boleh diberi akses ke menu Pengaturan Sistem.
+        // Non-Administrator tidak boleh diberi akses ke menu Pengaturan Sistem (users)
         if ($validated['role'] !== 'Administrator' && isset($validated['menu_access'])) {
             $validated['menu_access'] = array_values(array_diff($validated['menu_access'], ['users']));
         }
@@ -69,7 +69,7 @@ class UserController extends Controller
             'full_name' => 'nullable|string|max:255',
             'email'     => "sometimes|required|email|unique:users,email,{$user->id}",
             'password'  => 'nullable|string|min:6',
-            'role'      => 'nullable|in:Administrator,Staff Gudang',
+            'role'      => 'nullable|string|max:100',
             'menu_access'   => 'nullable|array',
             'menu_access.*' => ['string', Rule::in(self::MENU_KEYS)],
         ]);

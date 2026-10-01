@@ -3,11 +3,15 @@ import {
   History, RefreshCw, ArrowDownCircle, ArrowUpCircle, Filter
 } from 'lucide-react';
 import { getTransactions } from '../services/api';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function InventoryTransactions() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading]           = useState(false);
   const [filterType, setFilterType]     = useState('');
+
+  const pagination = usePagination(transactions, 10);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -109,13 +113,13 @@ export default function InventoryTransactions() {
                     Memuat data...
                   </td>
                 </tr>
-              ) : transactions.length === 0 ? (
+              ) : pagination.totalItems === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-10 text-slate-400">
                     Tidak ada data transaksi.
                   </td>
                 </tr>
-              ) : transactions.map((t) => (
+              ) : pagination.paginatedItems.map((t) => (
                 <tr key={t.id} className="hover:bg-slate-50 transition">
                   <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                     {formatDate(t.transaction_time)}
@@ -153,6 +157,13 @@ export default function InventoryTransactions() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

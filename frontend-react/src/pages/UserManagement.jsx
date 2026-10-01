@@ -274,11 +274,41 @@ export default function UserManagement() {
     setAccessDraft(getAllowedMenus(user));
   };
 
-  const toggleAccess = (key) => {
+  const toggleAccess = (key, item = null) => {
     if (key === 'dashboard' || key === 'users') return;
-    setAccessDraft((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
+
+    if (item && item.subItems && item.subItems.length > 0) {
+      const subKeys = item.subItems.map((s) => s.key);
+      const allKeys = [item.key, ...subKeys];
+      const allChecked = subKeys.every((k) => accessDraft.includes(k));
+
+      if (allChecked) {
+        setAccessDraft((prev) => prev.filter((k) => !allKeys.includes(k)));
+      } else {
+        setAccessDraft((prev) => Array.from(new Set([...prev, ...allKeys])));
+      }
+      return;
+    }
+
+    setAccessDraft((prev) => {
+      const exists = prev.includes(key);
+      let updated = exists ? prev.filter((k) => k !== key) : [...prev, key];
+
+      // Sinkronkan parent key jika salah satu sub-item dicentang
+      MENU_GROUPS.forEach((g) => {
+        g.items.forEach((pItem) => {
+          if (pItem.subItems && pItem.subItems.some((s) => s.key === key)) {
+            const hasAnySub = pItem.subItems.some((s) => updated.includes(s.key));
+            if (hasAnySub) {
+              if (!updated.includes(pItem.key)) updated.push(pItem.key);
+            } else {
+              updated = updated.filter((k) => k !== pItem.key);
+            }
+          }
+        });
+      });
+      return updated;
+    });
   };
 
   const setAllAccess = (on) => {
@@ -875,14 +905,79 @@ export default function UserManagement() {
 
             <div className="space-y-4">
               {MENU_GROUPS.map((group) => (
-                <div key={group.group}>
-                  <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
+                <div key={group.group} className="space-y-2">
+                  <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                     {group.group}
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     {group.items.map((item) => {
                       const Icon = item.icon;
+                      const hasSubItems = item.subItems && item.subItems.length > 0;
                       const locked = item.key === 'dashboard' || item.key === 'users';
+
+                      if (hasSubItems) {
+                        const subKeys = item.subItems.map((s) => s.key);
+                        const allSubChecked = subKeys.every((k) => accessDraft.includes(k));
+                        const someSubChecked = subKeys.some((k) => accessDraft.includes(k));
+
+                        return (
+                          <div
+                            key={item.key}
+                            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 p-3 space-y-2.5"
+                          >
+                            {/* Parent Module Header */}
+                            <div className="flex items-center justify-between">
+                              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 accent-indigo-600 rounded"
+                                  checked={allSubChecked}
+                                  ref={(el) => {
+                                    if (el) el.indeterminate = someSubChecked && !allSubChecked;
+                                  }}
+                                  onChange={() => toggleAccess(item.key, item)}
+                                />
+                                <Icon className="h-4 w-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                                <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                  {item.label}
+                                </span>
+                              </label>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {subKeys.filter((k) => accessDraft.includes(k)).length}/{subKeys.length} aktif
+                              </span>
+                            </div>
+
+                            {/* Granular Sub-Items */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 pl-4 border-l-2 border-indigo-200 dark:border-indigo-900/50 ml-2">
+                              {item.subItems.map((sub) => {
+                                const SubIcon = sub.icon;
+                                const isChecked = accessDraft.includes(sub.key);
+                                return (
+                                  <label
+                                    key={sub.key}
+                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs transition cursor-pointer select-none ${
+                                      isChecked
+                                        ? 'border-indigo-300 dark:border-indigo-500/50 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-900 dark:text-indigo-200 font-medium'
+                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="h-3.5 w-3.5 accent-indigo-600 rounded"
+                                      checked={isChecked}
+                                      onChange={() => toggleAccess(sub.key)}
+                                    />
+                                    <SubIcon className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                                    <span className="truncate">{sub.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Standalone item (e.g. dashboard, users)
                       const checked = accessDraft.includes(item.key);
                       return (
                         <label
@@ -891,21 +986,25 @@ export default function UserManagement() {
                             locked
                               ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 cursor-not-allowed opacity-70'
                               : checked
-                                ? 'border-indigo-300 dark:border-indigo-500/50 bg-indigo-50 dark:bg-indigo-500/15 cursor-pointer'
-                                : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer'
+                              ? 'border-indigo-300 dark:border-indigo-500/50 bg-indigo-50 dark:bg-indigo-500/15 cursor-pointer'
+                              : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer'
                           }`}
                         >
                           <input
                             type="checkbox"
-                            className="h-4 w-4 accent-indigo-600"
+                            className="h-4 w-4 accent-indigo-600 rounded"
                             checked={checked}
                             disabled={locked}
                             onChange={() => toggleAccess(item.key)}
                           />
                           <Icon className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                          <span className="text-slate-700 dark:text-slate-200 truncate">{item.label}</span>
+                          <span className="text-slate-700 dark:text-slate-200 font-medium text-xs truncate">
+                            {item.label}
+                          </span>
                           {locked && (
-                            <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500 font-mono">wajib</span>
+                            <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                              wajib
+                            </span>
                           )}
                         </label>
                       );

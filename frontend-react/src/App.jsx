@@ -122,6 +122,12 @@ export default function App() {
     }
   }, [isAuthenticated, currentUser]);
 
+  /* Judul tab browser mengikuti halaman aktif. */
+  useEffect(() => {
+    const page = PAGE_TITLES[activeTab];
+    document.title = page ? `${page} | PT. Aldigens Putera Persada` : 'PT. Aldigens Putera Persada';
+  }, [activeTab]);
+
   /* Navigasi antar-halaman lewat event (dipakai modul Akuntansi). */
   useEffect(() => {
     const handleGoto = (e) => {

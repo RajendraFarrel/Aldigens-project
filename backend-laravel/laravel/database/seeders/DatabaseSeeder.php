@@ -25,16 +25,6 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        User::updateOrCreate(
-            ['email' => 'gudang@aldigens.co.id'],
-            [
-                'name'      => 'gudang',
-                'full_name' => 'Staff Gudang',
-                'password'  => Hash::make('password'),
-                'role'      => 'Staff Gudang',
-            ]
-        );
-
         $this->call([
             CustomerSeeder::class,
         ]);

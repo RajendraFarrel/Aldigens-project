@@ -4,7 +4,6 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
-import { swalError } from '../utils/swal';
 import { swalError, swalSuccess } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';

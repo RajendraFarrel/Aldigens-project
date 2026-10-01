@@ -27,14 +27,12 @@ export default function POList() {
     const fetchPurchaseOrders = async () => {
         setLoading(true);
         try {
-            // Coba ambil dari backend jika tersedia
             const response = await api.get('/purchase-orders').catch(() => null);
             const apiData = response?.data?.data || response?.data;
             
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setPurchaseOrders(apiData);
             } else {
-                // Fallback / ambil sinkronisasi dari localStorage (dari Quotation Deal atau input manual PO)
                 const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
                 setPurchaseOrders(localData);
             }
@@ -85,7 +83,7 @@ export default function POList() {
                     part_number: 'PART-' + Math.floor(Math.random() * 1000),
                     description: item.description,
                     qty: Number(item.qty),
-                    unit: 'SET',
+                    unit: 'PCS',
                     unit_price: Number(item.unit_price),
                     amount: amount,
                 };
@@ -115,7 +113,6 @@ export default function POList() {
                 status: 'Pending'
             };
 
-            // Simpan ke database jika API siap, dan selalu simpan ke localStorage agar aman
             try {
                 await api.post('/purchase-orders', newPOItem);
             } catch (err) {
@@ -147,11 +144,9 @@ export default function POList() {
         if (!ok) return;
 
         try {
-            // Cari data PO yang akan diproses berdasarkan id atau nomor PO
             const targetPO = purchaseOrders.find(po => po.id === id || po.quotation_number === id || po.po_number === id);
 
             if (targetPO) {
-                // Buat objek Sales Order baru dari data PO
                 const newSO = {
                     id: Date.now(),
                     so_number: `SO-${Math.floor(10000000 + Math.random() * 90000000)}`,
@@ -164,7 +159,6 @@ export default function POList() {
                     items: targetPO.items || []
                 };
 
-                // Simpan ke localStorage untuk Sales Order (mendukung key umum yang biasa dibaca modul SO)
                 ['aldigens_sales_orders', 'sales_orders'].forEach(storageKey => {
                     const existingSOs = JSON.parse(localStorage.getItem(storageKey) || '[]');
                     const filtered = existingSOs.filter(so => so.reff_po !== newSO.reff_po);
@@ -174,7 +168,6 @@ export default function POList() {
 
             await api.post(`/purchase-orders/${id}/convert-to-so`).catch(() => {});
             
-            // Update status PO lokal menjadi processed_to_so
             const updated = purchaseOrders.map(po => {
                 if (po.id === id || po.quotation_number === id) {
                     return { ...po, status: 'processed_to_so' };
@@ -191,64 +184,88 @@ export default function POList() {
         }
     };
 
+    // --- TEMPLATE CETAK PURCHASE ORDER SESUAI REFERENSI ACCURATE 4 & LOGO ALDIGENS 2 ---
     const handlePrintPO = (po) => {
         const itemsList = po.items || [];
         const subTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || curr.price || 0)), 0);
-        const taxTotal = subTotal * 0.11;
-        const grandTotal = subTotal + taxTotal;
+        const discountTotal = itemsList.reduce((acc, curr) => acc + ((Number(curr.qty || 1) * Number(curr.unit_price || curr.price || 0)) * (curr.disc || 0) / 100), 0);
+        const taxTotal = subTotal * 0.11; // PPN 11%
+        const grandTotal = (subTotal - discountTotal) + taxTotal;
 
         const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Purchase Order - ${po.customer_po_number || po.quotation_number}</title>
+                    <title>Purchase Order - ${po.customer_po_number || po.quotation_number || 'PO'}</title>
                     <style>
-                        body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; margin: 0; }
-                        .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
-                        .logo-area { width: 50%; vertical-align: top; }
-                        .company-address { font-size: 9px; line-height: 1.3; color: #333; margin-top: 4px; }
-                        .title-area { width: 50%; text-align: right; vertical-align: top; }
-                        .doc-title { font-size: 18px; font-weight: bold; margin: 0 0 4px 0; letter-spacing: 0.5px; }
-                        .meta-table { width: 100%; font-size: 10px; margin-bottom: 12px; }
-                        .meta-table td { padding: 2px 4px; vertical-align: top; }
-                        .info-box-table { width: 100%; margin-bottom: 12px; border: 1px solid #999; border-collapse: collapse; }
-                        .info-box-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #999; font-size: 10px; }
-                        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-                        .items-table th, .items-table td { border: 1px solid #000; padding: 5px 6px; font-size: 10px; }
-                        .items-table th { background: #f0f0f0; text-align: center; }
-                        .sign-container { margin-top: 90px; page-break-inside: avoid; }
-                        .sign-table { width: 100%; text-align: center; font-size: 10px; }
-                        .sign-box { height: 60px; }
+                        @page { size: A4 portrait; margin: 10mm; }
+                        body { font-family: Arial, sans-serif; font-size: 10px; color: #000; padding: 0; margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
+                        .logo-area { width: 55%; vertical-align: top; }
+                        .company-address { font-size: 8.5px; line-height: 1.2; color: #222; margin-top: 3px; }
+                        .title-area { width: 45%; text-align: right; vertical-align: top; }
+                        .doc-title { font-size: 16px; font-weight: bold; margin: 0 0 2px 0; letter-spacing: 0.5px; }
+                        .recipient-table { width: 100%; margin-bottom: 10px; border: 1px solid #000; border-collapse: collapse; }
+                        .recipient-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #000; font-size: 9.5px; line-height: 1.3; }
+                        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 0; border: 1px solid #000; }
+                        .items-table th, .items-table td { border: 1px solid #000; padding: 4px 6px; font-size: 9.5px; }
+                        .items-table th { background-color: #f1f5f9 !important; text-align: center; font-weight: bold; }
+                        .middle-container { width: 100%; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000; display: table; }
+                        .terbilang-box { display: table-cell; width: 60%; padding: 8px; vertical-align: top; font-size: 9.5px; border-right: 1px solid #000; }
+                        .summary-box { display: table-cell; width: 40%; vertical-align: top; }
+                        .summary-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+                        .summary-table td { padding: 4px 8px; border-bottom: 1px solid #000; }
+                        .summary-table tr:last-child td { border-bottom: none; }
+                        .summary-table .total-row { background-color: #f1f5f9 !important; font-weight: bold; font-size: 11px; }
+                        .sign-container { margin-top: 15px; width: 100%; border: 1px solid #000; border-collapse: collapse; page-break-inside: avoid; }
+                        .sign-container td { border: 1px solid #000; padding: 5px; vertical-align: top; text-align: center; font-size: 9.5px; width: 50%; }
+                        .sign-space { height: 45px; }
+                        .footer-info { margin-top: 5px; font-size: 8px; text-align: right; color: #555; }
                     </style>
                 </head>
                 <body>
                     <table class="header-table">
                         <tr>
                             <td class="logo-area">
-                                <div style="font-weight: 900; font-size: 15px; margin-bottom: 3px;">PT. ALDIGENS PUTERA PERSADA</div>
+                                <div>
+                                    <img src="/LOGO ALDIGENS2.jpeg" alt="Logo" style="height: 38px; border-radius: 3px;" onerror="this.style.display='none'" />
+                                </div>
                                 <div class="company-address">
-                                    Ruko Bekasi Mas Blok C-25<br/>
-                                    Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
+                                    <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/>
+                                    Ruko Bekasi Mas Blok C-25, Jl. Jend. Ahmad Yani, Margajaya<br/>
+                                    Bekasi Selatan - 17141
                                 </div>
                             </td>
                             <td class="title-area">
                                 <div class="doc-title">Purchase Order</div>
-                                <div><strong>PO Number :</strong> ${po.customer_po_number || po.quotation_number || '-'}</div>
+                                <div><strong>No :</strong> ${po.customer_po_number || po.quotation_number || '-'}</div>
                             </td>
                         </tr>
                     </table>
 
-                    <table class="info-box-table">
+                    <table class="recipient-table">
                         <tr>
                             <td>
-                                <strong>Vendor / Customer :</strong><br/>
-                                <span style="font-size: 12px; font-weight: bold;">${po.customer_name || 'Vendor Umum'}</span><br/>
+                                <strong>Vendor :</strong><br/>
+                                <span style="font-weight: bold; font-size: 10.5px;">${po.customer_name || 'Vendor Umum'}</span><br/>
                                 <span>${po.customer_address || '-'}</span>
                             </td>
                             <td>
-                                <strong>Ship To :</strong><br/>
-                                <span>Ruko Bekasi Mas Blok C-25, Bekasi Selatan</span>
+                                <table style="width: 100%; font-size: 9.5px; border-collapse: collapse;">
+                                    <tr><td style="padding: 2px 0;"><strong>PO Date</strong> : ${po.po_date || po.date || '-'}</td><td style="padding: 2px 0;"><strong>PO Number</strong> : ${po.customer_po_number || po.quotation_number || '-'}</td></tr>
+                                    <tr><td style="padding: 2px 0;"><strong>Terms</strong> : C.O.D</td><td style="padding: 2px 0;"><strong>FOB</strong> : F.O.B</td></tr>
+                                    <tr><td style="padding: 2px 0;"><strong>Ship Via</strong> : Kurir</td><td style="padding: 2px 0;"><strong>Shipping Point</strong> : -</td></tr>
+                                    <tr><td style="padding: 2px 0;"><strong>Vendor in Taxable</strong> : No</td><td style="padding: 2px 0;"><strong>Expected Date</strong> : ${po.po_date || po.date || '-'}</td></tr>
+                                </table>
                             </td>
+                        </tr>
+                    </table>
+
+                    <table style="width: 100%; margin-bottom: 8px; border: 1px solid #000; border-collapse: collapse; font-size: 9.5px;">
+                        <tr>
+                            <td style="padding: 5px 8px;"><strong>Ship To :</strong><br/><span>Ruko Bekasi Mas Blok C-25, Bekasi Selatan</span></td>
                         </tr>
                     </table>
 
@@ -268,46 +285,81 @@ export default function POList() {
                                     <td align="center">${idx + 1}</td>
                                     <td>${item.description || item.part_number || '-'}</td>
                                     <td align="center">${item.qty}</td>
-                                    <td align="right">${Number(item.unit_price || 0).toLocaleString()}</td>
-                                    <td align="right">${(Number(item.qty) * Number(item.unit_price || 0)).toLocaleString()}</td>
+                                    <td align="right">${Number(item.unit_price || 0).toLocaleString('id-ID')}</td>
+                                    <td align="right">${(Number(item.qty) * Number(item.unit_price || 0)).toLocaleString('id-ID')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
 
-                    <table style="width: 100%; margin-top: 25px;">
+                    <table class="middle-container" cellpadding="0" cellspacing="0">
                         <tr>
-                            <td style="width: 55%; vertical-align: top;">
+                            <td class="terbilang-box">
                                 <strong>Description :</strong><br/>
-                                <span>${po.subject || 'Pengadaan barang operasional perusahaan.'}</span>
+                                <span>${po.subject || 'Pengadaan barang operasional perusahaan.'}</span><br/>
+                                <span style="font-size: 8.5px; color: #444; margin-top: 6px; display:block;">
+                                    - Harap cantumkan No. PO pada surat jalan & faktur tagihan.<br/>
+                                    - Barang dikirim sesuai alamat Ship To di atas.
+                                </span>
                             </td>
-                            <td style="width: 45%; vertical-align: top;">
-                                <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
-                                    <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Sub Total</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${subTotal.toLocaleString()}</td></tr>
-                                    <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>PPN 11%</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${taxTotal.toLocaleString()}</td></tr>
-                                    <tr><td style="padding: 6px; font-size: 11px; font-weight: bold;">Total Order</td><td align="right" style="padding: 6px; font-size: 11px; font-weight: bold;">${grandTotal.toLocaleString()}</td></tr>
+                            <td class="summary-box">
+                                <table class="summary-table">
+                                    <tr>
+                                        <td>Sub Total</td>
+                                        <td align="right"><strong>${subTotal.toLocaleString('id-ID')}</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Discount</td>
+                                        <td align="right">${discountTotal.toLocaleString('id-ID')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>PPN 11%</td>
+                                        <td align="right">${taxTotal.toLocaleString('id-ID')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Estimated Freight</td>
+                                        <td align="right">0</td>
+                                    </tr>
+                                    <tr class="total-row">
+                                        <td>Total Order</td>
+                                        <td align="right">IDR ${grandTotal.toLocaleString('id-ID')}</td>
+                                    </tr>
                                 </table>
                             </td>
                         </tr>
                     </table>
 
-                    <div class="sign-container">
-                        <table class="sign-table">
-                            <tr>
-                                <td style="width: 50%;">
-                                    Prepared By,<br/><div class="sign-box"></div><strong>( PURCHASING )</strong>
-                                </td>
-                                <td style="width: 50%;">
-                                    Approved By,<br/><div class="sign-box"></div><strong>( DIRECTOR )</strong>
-                                </td>
-                            </tr>
-                        </table>
+                    <table class="sign-container">
+                        <tr>
+                            <td>
+                                Prepared By,<br/>
+                                <div class="sign-space"></div>
+                                <strong>( PURCHASING )</strong><br/>
+                                <span style="font-size: 7.5px; color: #666;">Date: ${po.po_date || po.date || '-'}</span>
+                            </td>
+                            <td>
+                                Approved By,<br/>
+                                <div class="sign-space"></div>
+                                <strong>( DIRECTOR )</strong><br/>
+                                <span style="font-size: 7.5px; color: #666;">Date: ${po.po_date || po.date || '-'}</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div class="footer-info">
+                        Dibuat oleh: ADMIN | ${new Date().toLocaleDateString('id-ID')} | Powered by Aldigens ERP
                     </div>
+
+                    <script>
+                        window.onload = function() { 
+                            window.focus(); 
+                            setTimeout(() => { window.print(); }, 500); 
+                        };
+                    </script>
                 </body>
             </html>
         `);
         printWindow.document.close();
-        printWindow.print();
     };
 
     if (loading) return <div className="p-6 text-slate-600">Memuat data Purchase Order...</div>;

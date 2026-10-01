@@ -15,7 +15,8 @@ return new class extends Migration
             $table->string('project_name')->nullable();
             $table->date('commissioning_date');
             $table->string('technician_name'); // Nama teknisi yang bertugas
-            $table->enum('status', ['DRAFT', 'PROSES_PENGUJIAN', 'SELESAI_LOLOS', 'REVISI'])->default('DRAFT');
+            // Status disesuaikan dengan Controller dan React
+            $table->enum('status', ['DRAFT', 'APPROVED', 'COMPLETED', 'REJECTED'])->default('DRAFT');
             $table->text('notes')->nullable();
             $table->timestamps();
         });

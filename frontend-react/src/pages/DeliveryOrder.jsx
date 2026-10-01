@@ -3,9 +3,7 @@ import {
   Truck, Plus, ArrowLeft, Save, Trash2, Printer, Package, RefreshCw,
   Calendar, CheckCircle2
 } from 'lucide-react';
-import {
-  getDeliveryOrders, getDeliveryOrder, createDeliveryOrder, getSalesOrders, getSalesOrder
-} from '../services/api';
+import api from '../services/api';
 import { swalError } from '../utils/swal';
 
 export default function DeliveryOrder() {
@@ -35,10 +33,10 @@ export default function DeliveryOrder() {
     try {
       let apiData = [];
       try {
-        const res = await getDeliveryOrders();
+        const res = await api.get('/delivery-orders');
         apiData = res.data.data || res.data || [];
       } catch (err) {
-        console.warn("API DO tidak aktif, menggunakan localStorage.");
+        console.warn("API DO offline, menggunakan localStorage.");
       }
 
       const localSaved = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]');
@@ -56,10 +54,10 @@ export default function DeliveryOrder() {
     try {
       let apiSOs = [];
       try {
-        const res = await getSalesOrders();
+        const res = await api.get('/sales-orders');
         apiSOs = res.data.data || res.data || [];
       } catch (err) {
-        console.warn("API SO tidak aktif.");
+        console.warn("API SO offline.");
       }
 
       const localSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
@@ -75,11 +73,11 @@ export default function DeliveryOrder() {
     fetchSOs();
   }, [fetchDOs, fetchSOs]);
 
-  const handleSelectSO = async (soId) => {
+  const handleSelectSO = (soId) => {
     setFormData((prev) => ({ ...prev, sales_order_id: soId, items: [] }));
     if (!soId) return;
 
-    const so = salesOrders.find((s) => String(s.id) === String(soId) || String(s.soNo) === String(soId));
+    const so = salesOrders.find((s) => String(s.id) === String(soId) || String(s.soNo) === String(soId) || String(s.so_number) === String(soId));
     if (!so) return;
 
     const items = (so.items || []).map((it) => ({
@@ -94,7 +92,7 @@ export default function DeliveryOrder() {
       sales_order_id: soId,
       customer_name: so.customer || so.customer_name || '',
       delivery_address: so.shipTo || so.customer_address || '',
-      vehicle_number: so.sentBy || '',
+      vehicle_number: so.sentBy || so.delivery_by || '',
       items: items.length ? items : [{ part_number: '', description: '-', qty_sent: 1, unit: 'PCS' }],
     }));
   };
@@ -155,7 +153,7 @@ export default function DeliveryOrder() {
       localStorage.setItem('aldigens_delivery_orders', JSON.stringify([newDO, ...existing]));
 
       try {
-        await createDeliveryOrder(formData);
+        await api.post('/delivery-orders', formData);
       } catch (err) {
         // Backend opsional
       }
@@ -172,10 +170,6 @@ export default function DeliveryOrder() {
     }
   };
 
-  const handleViewDetail = (item) => {
-    setSelectedDO(item);
-  };
-
   const statusBadge = (status) => {
     const map = {
       Shipped: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -185,10 +179,10 @@ export default function DeliveryOrder() {
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  // ---------------- CETAK SURAT JALAN ----------------
+  // --- TEMPLATE CETAK DELIVERY ORDER STANDARD ACCURATE 4 & LOGO ALDIGENS 2 ---
   const printSuratJalan = (doData) => {
     if (!doData) return;
-    const win = window.open('', '_blank', 'width=900,height=700');
+    const win = window.open('', '_blank', 'width=950,height=800');
     if (!win) {
       swalError('Popup Diblokir', 'Izinkan popup untuk mencetak Surat Jalan.');
       return;
@@ -198,7 +192,8 @@ export default function DeliveryOrder() {
         <td align="center">${i + 1}</td>
         <td>${escapeHtml(it.part_number || '-')}</td>
         <td>${escapeHtml(it.description || '-')}</td>
-        <td align="center"><strong>${it.qty_sent} ${escapeHtml(it.unit || 'PCS')}</strong></td>
+        <td align="center"><strong>${it.qty_sent}</strong></td>
+        <td align="center">${escapeHtml(it.unit || 'PCS')}</td>
       </tr>`).join('');
 
     win.document.write(`
@@ -206,60 +201,85 @@ export default function DeliveryOrder() {
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Surat Jalan - ${escapeHtml(doData.do_number)}</title>
+          <title>Delivery Order - ${escapeHtml(doData.do_number)}</title>
           <style>
-            body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; margin: 0; }
-            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
-            .logo-area { width: 60%; vertical-align: top; }
-            .company-address { font-size: 9px; line-height: 1.3; color: #333; margin-top: 4px; }
-            .title-area { width: 40%; text-align: right; vertical-align: top; }
-            .doc-title { font-size: 18px; font-weight: bold; margin: 0 0 4px 0; letter-spacing: 0.5px; }
-            .meta-table { width: 100%; font-size: 10px; margin-bottom: 12px; }
-            .meta-table td { vertical-align: top; padding: 2px; }
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            .items-table th, .items-table td { border: 1px solid #000; padding: 6px; font-size: 10px; }
-            .items-table th { background: #f0f0f0; text-align: center; }
-            .sign-container { margin-top: 50px; page-break-inside: avoid; }
-            .sign-table { width: 100%; text-align: center; font-size: 10px; }
-            .sign-box { height: 70px; }
-            @media print { body { padding: 0; } }
+            @page { size: A4 portrait; margin: 10mm; }
+            body { 
+              font-family: Arial, sans-serif; 
+              font-size: 10px; 
+              color: #000; 
+              margin: 0;
+              padding: 0; 
+              -webkit-print-color-adjust: exact !important; 
+              print-color-adjust: exact !important; 
+            }
+            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
+            .logo-area { width: 55%; vertical-align: top; }
+            .company-address { font-size: 8.5px; line-height: 1.2; color: #222; margin-top: 3px; }
+            .title-area { width: 45%; text-align: right; vertical-align: top; }
+            .doc-title { font-size: 16px; font-weight: bold; margin: 0 0 2px 0; letter-spacing: 0.5px; }
+            
+            .meta-table { width: 100%; font-size: 9.5px; margin-bottom: 8px; }
+            .meta-table td { vertical-align: top; padding: 2px 0; }
+            
+            .recipient-table { width: 100%; margin-bottom: 10px; border: 1px solid #000; border-collapse: collapse; }
+            .recipient-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #000; font-size: 9.5px; line-height: 1.3; }
+
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 0; border: 1px solid #000; }
+            .items-table th, .items-table td { border: 1px solid #000; padding: 4px 6px; font-size: 9.5px; }
+            .items-table th { background-color: #f1f5f9 !important; text-align: center; font-weight: bold; }
+            
+            .middle-container { width: 100%; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000; display: table; }
+            .notes-box { display: table-cell; width: 100%; padding: 8px; vertical-align: top; font-size: 9.5px; }
+
+            .sign-container { margin-top: 15px; width: 100%; border: 1px solid #000; border-collapse: collapse; page-break-inside: avoid; }
+            .sign-container td { border: 1px solid #000; padding: 5px; vertical-align: top; text-align: center; font-size: 9.5px; width: 33.33%; }
+            .sign-space { height: 45px; }
+            
+            .footer-info { margin-top: 5px; font-size: 8px; text-align: right; color: #555; }
           </style>
         </head>
         <body>
           <table class="header-table">
             <tr>
               <td class="logo-area">
-                <div style="margin-bottom: 4px;">
-                  <img src="/LOGO ALDIGENS2.jpeg" alt="Logo Aldigens" style="height: 45px; width: auto; object-fit: contain;" />
+                <div>
+                  <img src="/LOGO ALDIGENS2.jpeg" alt="Logo" style="height: 38px; border-radius: 3px;" onerror="this.style.display='none'" />
                 </div>
                 <div class="company-address">
-                  Ruko Bekasi Mas Blok C-25<br/>
-                  Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
+                  <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/>
+                  Ruko Bekasi Mas Blok C-25, Jl. Jend. Ahmad Yani, Margajaya<br/>
+                  Bekasi Selatan - 17141
                 </div>
               </td>
               <td class="title-area">
                 <div class="doc-title">DELIVERY ORDER</div>
-                <div style="font-size: 11px;"><strong>Surat Jalan</strong></div>
+                <div><strong>No :</strong> ${escapeHtml(doData.do_number || '-')}</div>
               </td>
             </tr>
           </table>
 
           <table class="meta-table">
             <tr>
-              <td style="width: 60%;">
-                <table style="width: 100%; font-size: 10px;">
-                  <tr><td style="width: 20%;"><strong>Deliver To</strong></td><td>: ${escapeHtml(doData.customer_name || '-')}</td></tr>
-                  <tr><td><strong>Address</strong></td><td>: ${escapeHtml(doData.delivery_address || '-')}</td></tr>
-                  <tr><td><strong>Driver</strong></td><td>: ${escapeHtml(doData.driver_name || '-')}</td></tr>
-                </table>
+              <td></td>
+              <td align="right" style="width: 45%;">
+                Tanggal : ${escapeHtml(doData.do_date || '-')}<br/>
+                No. SO : ${escapeHtml(doData.so_number || '-')}<br/>
+                Kendaraan : ${escapeHtml(doData.vehicle_number || '-')}<br/>
+                Driver / Kurir : ${escapeHtml(doData.driver_name || '-')}
               </td>
-              <td style="width: 40%;">
-                <table style="width: 100%; font-size: 10px;">
-                  <tr><td style="width: 40%;"><strong>D.O Number</strong></td><td>: ${escapeHtml(doData.do_number || '-')}</td></tr>
-                  <tr><td><strong>Date</strong></td><td>: ${escapeHtml(doData.do_date || '-')}</td></tr>
-                  <tr><td><strong>SO Ref</strong></td><td>: ${escapeHtml(doData.so_number || '-')}</td></tr>
-                  <tr><td><strong>Vehicle No.</strong></td><td>: ${escapeHtml(doData.vehicle_number || '-')}</td></tr>
-                </table>
+            </tr>
+          </table>
+
+          <table class="recipient-table">
+            <tr>
+              <td>
+                <strong>Pelanggan :</strong><br/>
+                <span style="font-weight: bold;">${escapeHtml(doData.customer_name || '-')}</span>
+              </td>
+              <td>
+                <strong>Dikirim Ke (Delivery Address) :</strong><br/>
+                <span>${escapeHtml(doData.delivery_address || '-')}</span>
               </td>
             </tr>
           </table>
@@ -267,45 +287,60 @@ export default function DeliveryOrder() {
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 5%;">No</th>
-                <th style="width: 25%;">Item No.</th>
-                <th style="width: 55%;">Description</th>
-                <th style="width: 15%;">Qty</th>
+                <th style="width: 6%;">No.</th>
+                <th style="width: 25%;">Kode Barang / Part No</th>
+                <th style="width: 45%;">Nama Barang / Deskripsi</th>
+                <th style="width: 12%;">Qty Dikirim</th>
+                <th style="width: 12%;">Satuan</th>
               </tr>
             </thead>
             <tbody>
-              ${rows || '<tr><td colspan="4" align="center">Tidak ada item</td></tr>'}
+              ${rows || '<tr><td colspan="5" align="center">Tidak ada item pengiriman</td></tr>'}
             </tbody>
           </table>
 
-          <div style="font-size: 10px; margin-bottom: 20px;">
-            <strong>Keterangan:</strong><br/>
-            ${escapeHtml(doData.notes || 'Barang diterima dalam kondisi baik dan lengkap sesuai pesanan.')}
+          <table class="middle-container" cellpadding="0" cellspacing="0">
+            <tr>
+              <td class="notes-box">
+                <strong>Catatan / Keterangan :</strong><br/>
+                <span>${escapeHtml(doData.notes || 'Barang diterima dalam kondisi baik dan lengkap sesuai pesanan.')}</span>
+              </td>
+            </tr>
+          </table>
+
+          <table class="sign-container">
+            <tr>
+              <td>
+                Dibuat Oleh,<br/>
+                <div class="sign-space"></div>
+                <strong>( WAREHOUSE )</strong><br/>
+                <span style="font-size: 7.5px; color: #666;">Warehouse Staff</span>
+              </td>
+              <td>
+                Pengirim / Supir,<br/>
+                <div class="sign-space"></div>
+                <strong>( ${escapeHtml(doData.driver_name || 'LOGISTIK')} )</strong><br/>
+                <span style="font-size: 7.5px; color: #666;">Driver / Kurir</span>
+              </td>
+              <td>
+                Diterima Oleh,<br/>
+                <div class="sign-space"></div>
+                <strong>( ........................................ )</strong><br/>
+                <span style="font-size: 7.5px; color: #666;">Pelanggan / Penerima</span>
+              </td>
+            </tr>
+          </table>
+
+          <div class="footer-info">
+            Dibuat oleh: ADMIN | ${new Date().toLocaleDateString('id-ID')} | Powered by Aldigens ERP
           </div>
 
-          <div class="sign-container">
-            <table class="sign-table">
-              <tr>
-                <td style="width: 33%;">
-                  Dibuat Oleh,<br/>
-                  <div class="sign-box"></div>
-                  <strong>( WAREHOUSE )</strong>
-                </td>
-                <td style="width: 33%;">
-                  Pengirim / Supir,<br/>
-                  <div class="sign-box"></div>
-                  <strong>( LOGISTIK )</strong>
-                </td>
-                <td style="width: 33%;">
-                  Diterima Oleh,<br/>
-                  <div class="sign-box"></div>
-                  <strong>( CUSTOMER )</strong><br/>
-                  <span style="font-size: 8px; color: #666;">Tgl / Cap Perusahaan</span>
-                </td>
-              </tr>
-            </table>
-          </div>
-          <script>window.onload = function(){ window.focus(); window.print(); };</script>
+          <script>
+            window.onload = function() { 
+              window.focus(); 
+              setTimeout(() => { window.print(); }, 400); 
+            };
+          </script>
         </body>
       </html>
     `);
@@ -374,11 +409,15 @@ export default function DeliveryOrder() {
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500 transition"
               >
                 <option value="">-- Pilih SO --</option>
-                {salesOrders.map((so) => (
-                  <option key={so.id || so.soNo} value={so.soNo || so.so_number || so.id}>
-                    {so.soNo || so.so_number} - {so.customer || so.customer_name}
-                  </option>
-                ))}
+                {salesOrders.map((so) => {
+                  const soNum = so.soNo || so.so_number || so.id;
+                  const custName = so.customer || so.customer_name || '';
+                  return (
+                    <option key={so.id || soNum} value={soNum}>
+                      {soNum} - {custName}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -465,7 +504,6 @@ export default function DeliveryOrder() {
           </div>
         </form>
       ) : selectedDO ? (
-
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
             <div className="flex items-center gap-4">
@@ -536,9 +574,7 @@ export default function DeliveryOrder() {
             </table>
           </div>
         </div>
-
       ) : (
-
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden w-full">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -576,7 +612,7 @@ export default function DeliveryOrder() {
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(d.status)}`}>{d.status}</span>
                     </td>
                     <td className="p-5 text-center">
-                      <button onClick={() => handleViewDetail(d)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
+                      <button onClick={() => setSelectedDO(d)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
                         Lihat Detail
                       </button>
                     </td>

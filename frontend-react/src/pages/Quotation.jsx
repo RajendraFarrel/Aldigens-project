@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
   FileSignature, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, Package, ArrowRightCircle, XCircle
 } from 'lucide-react';
-import { swalError } from '../utils/swal';
+import { getProducts } from '../services/api';
+import { swalError, swalToast } from '../utils/swal';
 
 export default function Quotation() {
   const [quotations, setQuotations] = useState([]);
+  const [masterProducts, setMasterProducts] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const [formData, setFormData] = useState({
     quotation_number: `AQ-${Math.floor(10000000 + Math.random() * 90000000)}`,
@@ -19,18 +22,52 @@ export default function Quotation() {
     customer_address: '',
     attention_person: '',
     subject: 'FABRICATION',
+    model_unit: 'SY215H',
+    admin_sales: 'Diah Ayu Komala',
     items: [],
   });
 
-  // Load data dari localStorage saat komponen dimuat
   useEffect(() => {
+    fetchMasterProducts();
     const savedData = JSON.parse(localStorage.getItem('aldigens_quotations') || '[]');
     setQuotations(savedData);
   }, []);
 
+  const fetchMasterProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const res = await getProducts('');
+      const dataProducts = res.data.data || res.data || [];
+      setMasterProducts(dataProducts);
+    } catch (e) {
+      console.error("Gagal memuat produk dari API", e);
+      // Fallback ke localStorage jika API gagal
+      const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
+      setMasterProducts(fallback);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
   const handleItemChange = (index, field, value) => {
     const items = [...formData.items];
     items[index][field] = value;
+
+    if (field === 'part_number') {
+      const matched = masterProducts.find(
+        (p) => 
+          (p.part_number && p.part_number.toLowerCase() === value.toLowerCase()) || 
+          (p.code && p.code.toLowerCase() === value.toLowerCase()) ||
+          (p.name && p.name.toLowerCase() === value.toLowerCase())
+      );
+
+      if (matched) {
+        items[index].part_number = matched.part_number || matched.code || value;
+        items[index].description = matched.name || matched.description || '';
+        items[index].unit = matched.unit || 'SET';
+      }
+    }
+
     setFormData({ ...formData, items });
   };
 
@@ -54,6 +91,8 @@ export default function Quotation() {
       customer_address: '',
       attention_person: '',
       subject: 'FABRICATION',
+      model_unit: 'SY215H',
+      admin_sales: 'Diah Ayu Komala',
       items: [],
     });
   };
@@ -79,19 +118,17 @@ export default function Quotation() {
       
       setSaving(false);
       setSuccessMsg('Quotation berhasil disimpan!');
+      swalToast('Quotation berhasil disimpan', 'success');
       setIsCreating(false);
       resetForm();
       setTimeout(() => setSuccessMsg(''), 3000);
     }, 400);
   };
 
-  // Handler Status Deal / Not Deal
-  // Handler Status Deal / Not Deal
   const handleActionStatus = (q, newStatus, e) => {
     e.stopPropagation();
     
     if (newStatus === 'Deal') {
-      // Ambil data PO yang ada, lalu pastikan tidak ada duplikasi berdasarkan nomor penawaran
       const existingPOs = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
       const filteredPOs = existingPOs.filter(po => po.quotation_number !== q.quotation_number);
       
@@ -103,9 +140,9 @@ export default function Quotation() {
       };
       
       localStorage.setItem('aldigens_purchase_orders', JSON.stringify([newPO, ...filteredPOs]));
-      setSuccessMsg(`Penawaran ${q.quotation_number} berstatus Deal dan berhasil dialihkan ke Purchase Order (PO)!`);
+      setSuccessMsg(`Penawaran ${q.quotation_number} berstatus Deal dan dialihkan ke PO!`);
     } else {
-      setSuccessMsg(`Penawaran ${q.quotation_number} ditandai Not Deal (Tidak Dilanjutkan).`);
+      setSuccessMsg(`Penawaran ${q.quotation_number} ditandai Not Deal.`);
     }
 
     const updated = quotations.map(item => {
@@ -136,7 +173,6 @@ export default function Quotation() {
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  // ---------------- CETAK QUOTATION (ACCURATE 4 TEMPLATE) ----------------
   const printQuotation = (qData) => {
     if (!qData) return;
     const win = window.open('', '_blank', 'width=900,height=700');
@@ -155,7 +191,8 @@ export default function Quotation() {
         <td align="center">${i + 1}</td>
         <td align="center">${escapeHtml(it.part_number || '-')}</td>
         <td>${escapeHtml(it.description || '-')}</td>
-        <td align="center">${it.qty} ${escapeHtml(it.unit || 'SET')}</td>
+        <td align="center">${it.qty}</td>
+        <td align="center">${escapeHtml(it.unit || 'SET')}</td>
         <td align="right">${Number(it.unit_price || 0).toLocaleString('id-ID')}</td>
         <td align="right">${(Number(it.qty) * Number(it.unit_price || 0)).toLocaleString('id-ID')}</td>
       </tr>`).join('');
@@ -168,15 +205,7 @@ export default function Quotation() {
           <title>Quotation - ${escapeHtml(qData.quotation_number)}</title>
           <style>
             @page { size: A4 portrait; margin: 0; }
-            body { 
-              font-family: Arial, sans-serif; 
-              font-size: 11px; 
-              color: #000; 
-              margin: 0;
-              padding: 15mm; 
-              -webkit-print-color-adjust: exact !important; 
-              print-color-adjust: exact !important; 
-            }
+            body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 0; padding: 15mm; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
             .logo-area { width: 60%; vertical-align: top; }
             .company-address { font-size: 9px; line-height: 1.3; color: #333; margin-top: 4px; }
@@ -225,9 +254,10 @@ export default function Quotation() {
               <td style="vertical-align: middle; padding: 0;">
                 <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
                   <tr><td style="width: 35%; padding: 4px 8px; border-bottom: 1px solid #000; border-right: 1px solid #000;"><strong>Date</strong></td><td style="padding: 4px 8px; border-bottom: 1px solid #000;">${escapeHtml(qData.date || '-')}</td></tr>
-                  <tr><td style="padding: 4px 8px; border-bottom: 1px solid #000; border-right: 1px solid #000;"><strong>Valid Until</strong></td><td style="padding: 4px 8px; border-bottom: 1px solid #000;">${escapeHtml(qData.valid_until || '-')}</td></tr>
-                  <tr><td style="padding: 4px 8px; border-bottom: 1px solid #000; border-right: 1px solid #000;"><strong>Terms</strong></td><td style="padding: 4px 8px; border-bottom: 1px solid #000;">Full payment 30 days</td></tr>
-                  <tr><td style="padding: 4px 8px; border-right: 1px solid #000;"><strong>Currency</strong></td><td style="padding: 4px 8px;">IDR (Rupiah)</td></tr>
+                  <tr><td style="width: 35%; padding: 4px 8px; border-bottom: 1px solid #000; border-right: 1px solid #000;"><strong>Valid Until</strong></td><td style="padding: 4px 8px; border-bottom: 1px solid #000;">${escapeHtml(qData.valid_until || '-')}</td></tr>
+                  <tr><td style="width: 35%; padding: 4px 8px; border-bottom: 1px solid #000; border-right: 1px solid #000;"><strong>Model Unit</strong></td><td style="padding: 4px 8px; border-bottom: 1px solid #000;">${escapeHtml(qData.model_unit || 'SY215H')}</td></tr>
+                  <tr><td style="width: 35%; padding: 4px 8px; border-bottom: 1px solid #000; border-right: 1px solid #000;"><strong>Admin Sales</strong></td><td style="padding: 4px 8px; border-bottom: 1px solid #000;">${escapeHtml(qData.admin_sales || 'Diah Ayu Komala')}</td></tr>
+                  <tr><td style="width: 35%; padding: 4px 8px; border-right: 1px solid #000;"><strong>Currency</strong></td><td style="padding: 4px 8px;">IDR (Rupiah)</td></tr>
                 </table>
               </td>
             </tr>
@@ -243,13 +273,14 @@ export default function Quotation() {
                 <th style="width: 5%;">NO.</th>
                 <th style="width: 20%;">PART NUMBER</th>
                 <th style="width: 35%;">DESCRIPTION</th>
-                <th style="width: 10%;">QTY</th>
-                <th style="width: 15%;">UNIT PRICE</th>
-                <th style="width: 15%;">AMOUNT</th>
+                <th style="width: 8%;">QTY</th>
+                <th style="width: 7%;">UNIT</th>
+                <th style="width: 12%;">UNIT PRICE</th>
+                <th style="width: 13%;">AMOUNT</th>
               </tr>
             </thead>
             <tbody>
-              ${rows || '<tr><td colspan="6" align="center">Tidak ada item</td></tr>'}
+              ${rows || '<tr><td colspan="7" align="center">Tidak ada item</td></tr>'}
             </tbody>
           </table>
 
@@ -258,6 +289,7 @@ export default function Quotation() {
               <strong>GENERAL SALES TERMS & CONDITION:</strong><br/>
               - Place of Delivery: Franco Jakarta<br/>
               - Terms of Delivery: Indent 3-5 days<br/>
+              - Terms of Payment: Full payment 30 days after invoice received<br/>
               - Terms of Warranty: 1 Year<br/>
               <em>* Harga di atas sudah termasuk PPN 11%.<br/>* Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada.</em>
             </div>
@@ -291,18 +323,13 @@ export default function Quotation() {
                   Hormat Kami,<br/>
                   <div class="sign-box"></div>
                   <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/><br/>
-                  <strong>( Diah Ayu Komala )</strong><br/>
+                  <strong>( ${escapeHtml(qData.admin_sales || 'Diah Ayu Komala')} )</strong><br/>
                   <span style="font-size: 8px; color: #666;">Admin Sales</span>
                 </td>
               </tr>
             </table>
           </div>
-          <script>
-            window.onload = function() { 
-              window.focus(); 
-              setTimeout(() => { window.print(); }, 500); 
-            };
-          </script>
+          <script>window.onload = function() { window.focus(); setTimeout(() => { window.print(); }, 500); };</script>
         </body>
       </html>
     `);
@@ -348,7 +375,7 @@ export default function Quotation() {
               </button>
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Formulir Penawaran Harga</h2>
-                <p className="text-sm text-slate-500">Isi data prospek / klien untuk penawaran.</p>
+                <p className="text-sm text-slate-500">Sesuaikan dengan standar format penawaran Sany.</p>
               </div>
             </div>
             <button type="submit" disabled={saving} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition cursor-pointer">
@@ -357,7 +384,7 @@ export default function Quotation() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">No. Penawaran (Reff)</label>
               <input type="text" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition" value={formData.quotation_number} onChange={(e) => setFormData({ ...formData, quotation_number: e.target.value })} />
@@ -370,9 +397,13 @@ export default function Quotation() {
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Berlaku Sampai (Valid Until)</label>
               <input type="date" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition" value={formData.valid_until} onChange={(e) => setFormData({ ...formData, valid_until: e.target.value })} />
             </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Model Unit</label>
+              <input type="text" required placeholder="SY215H" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition" value={formData.model_unit} onChange={(e) => setFormData({ ...formData, model_unit: e.target.value })} />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Nama Customer / Perusahaan <span className="text-red-500">*</span></label>
               <input type="text" required placeholder="PT Sany Perkasa" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} />
@@ -380,6 +411,10 @@ export default function Quotation() {
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Nama Kontak (Up) <span className="text-red-500">*</span></label>
               <input type="text" required placeholder="Bapak Yanuar" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition" value={formData.attention_person} onChange={(e) => setFormData({ ...formData, attention_person: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Admin Sales</label>
+              <input type="text" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition" value={formData.admin_sales} onChange={(e) => setFormData({ ...formData, admin_sales: e.target.value })} />
             </div>
           </div>
 
@@ -413,11 +448,30 @@ export default function Quotation() {
                 {formData.items.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 items-center">
                     <div className="md:col-span-3">
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">PART NUMBER</label>
-                      <input type="text" placeholder="19-RFB-001" className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500" value={item.part_number} onChange={(e) => handleItemChange(index, 'part_number', e.target.value)} />
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">PART NUMBER (Ketik / Pilih)</label>
+                      <input
+                        type="text"
+                        list={`master-parts-${index}`}
+                        placeholder={loadingProducts ? "Memuat produk..." : "Ketik atau pilih Part No..."}
+                        value={item.part_number}
+                        onChange={(e) => handleItemChange(index, 'part_number', e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                        required
+                      />
+                      <datalist id={`master-parts-${index}`}>
+                        {masterProducts.map((prod, idx) => {
+                          const pNo = prod.part_number || prod.code || '';
+                          const pName = prod.name || prod.description || '';
+                          return (
+                            <option key={idx} value={pNo}>
+                              {pName}
+                            </option>
+                          );
+                        })}
+                      </datalist>
                     </div>
                     <div className="md:col-span-4">
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">DESCRIPTION</label>
+                      <label className="block text-[10px] font-bold text-slate-400 mb-1">DESCRIPTION (Auto-filled)</label>
                       <input type="text" required placeholder="REINFORCE MODIFICATION..." className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
                     </div>
                     <div className="md:col-span-1">
@@ -445,7 +499,6 @@ export default function Quotation() {
             )}
           </div>
         </form>
-
       ) : selectedQuotation ? (
 
         /* ---------- DETAIL QUOTATION ---------- */
@@ -458,7 +511,7 @@ export default function Quotation() {
               <div>
                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">Penawaran: {selectedQuotation.quotation_number}</h2>
                 <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
-                  <Calendar className="w-4 h-4" /> Dibuat: {selectedQuotation.date}
+                  <Calendar className="w-4 h-4" /> Dibuat: {selectedQuotation.date} | Model Unit: {selectedQuotation.model_unit || 'SY215H'}
                 </p>
               </div>
             </div>
@@ -483,9 +536,9 @@ export default function Quotation() {
               <p className="font-medium text-slate-600 text-sm">{selectedQuotation.customer_address}</p>
             </div>
             <div className="col-span-2">
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Masa Berlaku & Subjek</p>
+              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Masa Berlaku, Unit & Admin</p>
               <p className="font-semibold text-rose-600">Berlaku s/d: {selectedQuotation.valid_until || '-'}</p>
-              <p className="font-medium text-slate-800 text-sm mt-1">Subject: {selectedQuotation.subject}</p>
+              <p className="font-medium text-slate-800 text-sm mt-1">Subject: {selectedQuotation.subject} | Admin: {selectedQuotation.admin_sales}</p>
             </div>
           </div>
 
@@ -518,7 +571,6 @@ export default function Quotation() {
             </table>
           </div>
         </div>
-
       ) : (
 
         /* ---------- LIST QUOTATION ---------- */
@@ -529,7 +581,7 @@ export default function Quotation() {
                 <tr className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider border-b border-slate-200">
                   <th className="p-5 font-bold">No. Reff</th>
                   <th className="p-5 font-bold">Customer</th>
-                  <th className="p-5 font-bold">Subject</th>
+                  <th className="p-5 font-bold">Subject / Unit</th>
                   <th className="p-5 font-bold">Tanggal</th>
                   <th className="p-5 font-bold text-center">Status</th>
                   <th className="p-5 font-bold text-center">Aksi / Keputusan</th>
@@ -551,7 +603,7 @@ export default function Quotation() {
                     <tr key={uniqueKey} className="hover:bg-slate-50/80 transition text-sm">
                       <td className="p-5 font-bold text-slate-800">{q.quotation_number}</td>
                       <td className="p-5 text-slate-700 font-medium">{q.customer_name}</td>
-                      <td className="p-5 text-slate-600">{q.subject}</td>
+                      <td className="p-5 text-slate-600">{q.subject} ({q.model_unit || 'SY215H'})</td>
                       <td className="p-5 text-slate-500">{q.date}</td>
                       <td className="p-5 text-center">
                         <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(q.status || 'Pending')}`}>{q.status || 'Pending'}</span>

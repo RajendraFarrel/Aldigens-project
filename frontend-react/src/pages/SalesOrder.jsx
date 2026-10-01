@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2, Truck } from 'lucide-react';
+import { getProducts } from '../services/api';
+import { swalError, swalToast } from '../utils/swal';
 
 export default function SalesOrder() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  const [masterProducts, setMasterProducts] = useState([]);
 
   // Data Sales Order (SO) - Diinisialisasi dari localStorage atau data bawaan
   const [salesOrders, setSalesOrders] = useState(() => {
@@ -40,6 +43,20 @@ export default function SalesOrder() {
     ];
   });
 
+  // Ambil data master produk dari API/localStorage untuk auto-fill part number
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await getProducts('');
+        setMasterProducts(res.data.data || res.data || []);
+      } catch (e) {
+        const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
+        setMasterProducts(fallback);
+      }
+    };
+    fetchProducts();
+  }, []);
+
   // Sinkronisasi otomatis dengan localStorage setiap kali salesOrders berubah
   useEffect(() => {
     localStorage.setItem('aldigens_sales_orders', JSON.stringify(salesOrders));
@@ -55,7 +72,7 @@ export default function SalesOrder() {
     terms: 'Net 30',
     estDate: new Date().toISOString().split('T')[0],
     sentBy: 'Kurir Perusahaan',
-    salesman: 'Administrator',
+    salesman: 'FIKHAY',
     status: 'Disetujui',
     items: [{ id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
   });
@@ -71,7 +88,7 @@ export default function SalesOrder() {
       terms: 'Net 30',
       estDate: new Date().toISOString().split('T')[0],
       sentBy: 'Kurir Perusahaan',
-      salesman: 'Administrator',
+      salesman: 'FIKHAY',
       status: 'Disetujui',
       items: [{ id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
     });
@@ -80,7 +97,24 @@ export default function SalesOrder() {
 
   const handleOpenEditForm = (item) => {
     setEditingId(item.id);
-    setFormData({ ...item });
+    setFormData({
+      ...item,
+      soNo: item.soNo || item.so_number || 'SO-' + Math.floor(10000000 + Math.random() * 90000000),
+      customer: item.customer || item.customer_name || '',
+      shipTo: item.shipTo || item.customer_address || '',
+      refPo: item.refPo || item.reff_po || '',
+      salesman: item.salesman || item.admin_sales || 'FIKHAY',
+      items: (item.items || []).map(i => ({
+        id: i.id || Date.now() + Math.random(),
+        code: i.code || i.part_number || '',
+        name: i.name || i.description || '',
+        qty: i.qty || i.qty_sent || 1,
+        unit: i.unit || 'PCS',
+        price: i.price || i.unit_price || 0,
+        disc: i.disc || 0,
+        tax: i.tax || 11
+      }))
+    });
     setViewMode('form');
     setActiveMenuId(null);
   };
@@ -94,7 +128,7 @@ export default function SalesOrder() {
 
   const handleRemoveItemRow = (id) => {
     if (formData.items.length === 1) {
-      alert('Sales Order minimal harus memiliki 1 item barang!');
+      swalError('Perhatian', 'Sales Order minimal harus memiliki 1 item barang!');
       return;
     }
     setFormData({
@@ -106,20 +140,40 @@ export default function SalesOrder() {
   const handleItemChange = (id, field, value) => {
     setFormData({
       ...formData,
-      items: formData.items.map(i => i.id === id ? { ...i, [field]: value } : i)
+      items: formData.items.map(i => {
+        if (i.id === id) {
+          const updated = { ...i, [field]: value };
+          if (field === 'code' || field === 'part_number') {
+            const matched = masterProducts.find(
+              p => (p.part_number && p.part_number.toLowerCase() === value.toLowerCase()) || 
+                   (p.code && p.code.toLowerCase() === value.toLowerCase()) ||
+                   (p.name && p.name.toLowerCase() === value.toLowerCase())
+            );
+            if (matched) {
+              updated.code = matched.part_number || matched.code || value;
+              updated.name = matched.name || matched.description || '';
+              updated.unit = matched.unit || 'PCS';
+            }
+          }
+          return updated;
+        }
+        return i;
+      })
     });
   };
 
   const handleSave = (e) => {
     e.preventDefault();
     if (!formData.customer.trim()) {
-      alert('Nama Pelanggan wajib diisi!');
+      swalError('Perhatian', 'Nama Pelanggan wajib diisi!');
       return;
     }
 
+    const currentSoNo = formData.soNo || 'SO-' + Math.floor(10000000 + Math.random() * 90000000);
     const payload = {
       ...formData,
-      so_number: formData.soNo,
+      soNo: currentSoNo,
+      so_number: currentSoNo,
       customer_name: formData.customer,
       customer_address: formData.shipTo,
       items: formData.items.map(it => ({
@@ -132,8 +186,10 @@ export default function SalesOrder() {
 
     if (editingId) {
       setSalesOrders(salesOrders.map(item => item.id === editingId ? { ...item, ...payload } : item));
+      swalToast('Sales Order berhasil diperbarui', 'success');
     } else {
       setSalesOrders([{ id: Date.now(), ...payload }, ...salesOrders]);
+      swalToast('Sales Order berhasil disimpan', 'success');
     }
     setViewMode('list');
   };
@@ -142,6 +198,7 @@ export default function SalesOrder() {
     if (window.confirm('Apakah Anda yakin ingin menghapus Sales Order ini?')) {
       setSalesOrders(salesOrders.filter(item => item.id !== id));
       setActiveMenuId(null);
+      swalToast('Sales Order dihapus', 'success');
     }
   };
 
@@ -157,8 +214,8 @@ export default function SalesOrder() {
       do_date: new Date().toISOString().split('T')[0],
       customer_name: item.customer || item.customer_name || 'Pelanggan',
       delivery_address: item.shipTo || item.customer_address || 'Jakarta',
-      vehicle_number: item.sentBy || 'B 1234 XYZ',
-      driver_name: 'Driver Ekspedisi',
+      vehicle_number: item.sentBy || 'B 1234 SZT',
+      driver_name: 'Kurir Perusahaan',
       notes: 'Barang dikirim berdasarkan SO: ' + soNumber,
       status: 'Shipped',
       items: (item.items || []).map(i => ({
@@ -169,17 +226,16 @@ export default function SalesOrder() {
       }))
     };
 
-    // Simpan ke localStorage agar langsung terbaca di halaman DeliveryOrder.jsx
     ['aldigens_delivery_orders', 'delivery_orders'].forEach(storageKey => {
       const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
       const filtered = existing.filter(d => d.so_number !== soNumber);
       localStorage.setItem(storageKey, JSON.stringify([newDO, ...filtered]));
     });
 
-    alert(`Sales Order ${soNumber} berhasil diproses ke Delivery Order (DO)!`);
+    swalToast(`Sales Order ${soNumber} berhasil diproses ke Delivery Order (DO)!`, 'success');
   };
 
-  // --- TEMPLATE CETAK STANDARD ACCURATE 4 ---
+  // --- TEMPLATE CETAK STANDARD ACCURATE 4 DENGAN LOGO ALDIGENS 2 ---
   const handlePrint = (item) => {
     setActiveMenuId(null);
     const rawItems = item.items || [];
@@ -196,31 +252,44 @@ export default function SalesOrder() {
         <head>
           <title>Sales Order - ${item.soNo || item.so_number || 'SO'}</title>
           <style>
-            body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 20px; margin: 0; }
-            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+            @page { size: A4 portrait; margin: 10mm; }
+            body { font-family: Arial, sans-serif; font-size: 10px; color: #000; padding: 0; margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
             .logo-area { width: 55%; vertical-align: top; }
-            .company-address { font-size: 10px; line-height: 1.3; color: #333; margin-top: 6px; }
+            .company-address { font-size: 8.5px; line-height: 1.2; color: #222; margin-top: 3px; }
             .title-area { width: 45%; text-align: right; vertical-align: top; }
-            .doc-title { font-size: 20px; font-weight: bold; margin: 0 0 5px 0; letter-spacing: 1px; }
-            .meta-table { width: 100%; font-size: 11px; margin-bottom: 15px; }
-            .meta-table td { padding: 2px 5px; vertical-align: top; }
-            .info-box-table { width: 100%; margin-bottom: 15px; border: 1px solid #999; border-collapse: collapse; }
-            .info-box-table td { padding: 6px 10px; vertical-align: top; width: 50%; border: 1px solid #999; font-size: 11px; }
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            .items-table th, .items-table td { border: 1px solid #000; padding: 6px 8px; font-size: 11px; }
-            .items-table th { background: #f0f0f0; text-align: center; }
-            .sign-table { width: 100%; margin-top: 30px; text-align: center; }
-            .sign-box { height: 60px; }
+            .doc-title { font-size: 16px; font-weight: bold; margin: 0 0 2px 0; letter-spacing: 0.5px; }
+            .meta-table { width: 100%; font-size: 9.5px; margin-bottom: 8px; }
+            .meta-table td { padding: 2px 0; vertical-align: top; }
+            .recipient-table { width: 100%; margin-bottom: 10px; border: 1px solid #000; border-collapse: collapse; }
+            .recipient-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #000; font-size: 9.5px; line-height: 1.3; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 0; border: 1px solid #000; }
+            .items-table th, .items-table td { border: 1px solid #000; padding: 4px 6px; font-size: 9.5px; }
+            .items-table th { background-color: #f1f5f9 !important; text-align: center; font-weight: bold; }
+            .middle-container { width: 100%; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000; display: table; }
+            .keterangan-box { display: table-cell; width: 60%; padding: 8px; vertical-align: top; font-size: 9.5px; border-right: 1px solid #000; }
+            .summary-box { display: table-cell; width: 40%; vertical-align: top; }
+            .summary-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+            .summary-table td { padding: 4px 8px; border-bottom: 1px solid #000; }
+            .summary-table tr:last-child td { border-bottom: none; }
+            .summary-table .total-row { background-color: #f1f5f9 !important; font-weight: bold; font-size: 11px; }
+            .sign-container { margin-top: 15px; width: 100%; border: 1px solid #000; border-collapse: collapse; page-break-inside: avoid; }
+            .sign-container td { border: 1px solid #000; padding: 5px; vertical-align: top; text-align: center; font-size: 9.5px; width: 50%; }
+            .sign-space { height: 45px; }
+            .footer-info { margin-top: 5px; font-size: 8px; text-align: right; color: #555; }
           </style>
         </head>
         <body>
           <table class="header-table">
             <tr>
               <td class="logo-area">
-                <div style="font-weight: 900; font-size: 18px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</div>
+                <div>
+                  <img src="/LOGO ALDIGENS2.jpeg" alt="Logo" style="height: 38px; border-radius: 3px;" onerror="this.style.display='none'" />
+                </div>
                 <div class="company-address">
-                  Ruko Bekasi Mas Blok C-25<br/>
-                  Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
+                  <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/>
+                  Ruko Bekasi Mas Blok C-25, Jl. Jend. Ahmad Yani, Margajaya<br/>
+                  Bekasi Selatan - 17141
                 </div>
               </td>
               <td class="title-area">
@@ -232,27 +301,28 @@ export default function SalesOrder() {
 
           <table class="meta-table">
             <tr>
-              <td style="width: 55%;"></td>
-              <td style="width: 45%;">
-                <table style="width: 100%; font-size: 11px;">
-                  <tr><td><strong>Tanggal</strong></td><td>: ${item.date || '-'}</td></tr>
-                  <tr><td><strong>Reff. PO. No</strong></td><td>: ${item.refPo || item.reff_po || '-'}</td></tr>
-                  <tr><td><strong>Term Pembayaran</strong></td><td>: ${item.terms || 'Net 30'}</td></tr>
-                  <tr><td><strong>Salesman</strong></td><td>: ${item.salesman || 'Administrator'}</td></tr>
-                </table>
+              <td></td>
+              <td align="right" style="width: 45%;">
+                Tanggal : ${item.date || '-'}<br/>
+                Reff. PO. No : ${item.refPo || item.reff_po || '-'}<br/>
+                Term Pembayaran : ${item.terms || 'Net 30'}<br/>
+                Est. Tgl Kirim : ${item.estDate || item.est_delivery_date || '-'}<br/>
+                Dikirim Oleh : ${item.sentBy || 'Kurir Perusahaan'}<br/>
+                Salesman : ${item.salesman || 'FIKHAY'}
               </td>
             </tr>
           </table>
 
-          <table class="info-box-table">
+          <table class="recipient-table">
             <tr>
               <td>
                 <strong>Pelanggan :</strong><br/>
-                <span style="font-size: 13px; font-weight: bold;">${item.customer || item.customer_name || '-'}</span>
+                <span style="font-weight: bold;">${item.customer || item.customer_name || '-'}</span><br/>
+                <span>${item.shipTo || item.customer_address || '-'}</span>
               </td>
               <td>
                 <strong>Dikirim Ke :</strong><br/>
-                <span>${item.shipTo || item.customer_address || 'Jakarta'}</span>
+                <span>${item.shipTo || item.customer_address || '-'}</span>
               </td>
             </tr>
           </table>
@@ -260,13 +330,15 @@ export default function SalesOrder() {
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 5%;">No</th>
-                <th style="width: 20%;">Kode Barang</th>
-                <th style="width: 35%;">Nama Barang</th>
-                <th style="width: 8%;">Qty</th>
-                <th style="width: 8%;">Satuan</th>
-                <th style="width: 12%;">Harga</th>
-                <th style="width: 12%;">Jumlah</th>
+                <th style="width: 5%;">No.</th>
+                <th style="width: 18%;">Kode Barang</th>
+                <th style="width: 32%;">Nama Barang</th>
+                <th style="width: 6%;">Qty</th>
+                <th style="width: 7%;">Satuan</th>
+                <th style="width: 12%;">Harga @</th>
+                <th style="width: 6%;">Disc %</th>
+                <th style="width: 6%;">PPN</th>
+                <th style="width: 14%;">Jumlah</th>
               </tr>
             </thead>
             <tbody>
@@ -277,42 +349,79 @@ export default function SalesOrder() {
                   <td>${i.name || i.description || '-'}</td>
                   <td align="center">${i.qty || i.qty_sent || 1}</td>
                   <td align="center">${i.unit || 'PCS'}</td>
-                  <td align="right">${Number(i.price || i.unit_price || 0).toLocaleString()}</td>
-                  <td align="right">${(Number(i.qty || i.qty_sent || 1) * Number(i.price || i.unit_price || 0)).toLocaleString()}</td>
+                  <td align="right">${Number(i.price || i.unit_price || 0).toLocaleString('id-ID')}</td>
+                  <td align="center">${i.disc || 0}</td>
+                  <td align="center">11%</td>
+                  <td align="right">${(Number(i.qty || i.qty_sent || 1) * Number(i.price || i.unit_price || 0)).toLocaleString('id-ID')}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
 
-          <table style="width: 100%; margin-top: 10px;">
+          <table class="middle-container" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="width: 60%; vertical-align: top;">
-                <div style="border: 1px solid #999; padding: 8px; min-height: 50px;">
-                  <strong>Keterangan :</strong><br/>
-                  <span>${item.subject || 'Pesanan penjualan sistem terintegrasi ERP.'}</span>
-                </div>
+              <td class="keterangan-box">
+                <strong>Keterangan :</strong><br/>
+                <span>${item.subject || 'Pesanan penjualan sistem terintegrasi ERP.'}</span><br/>
+                <span style="font-size: 8.5px; color: #444; margin-top: 4px; display:block;">
+                  - Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada.<br/>
+                  - Harga sudah termasuk PPN 11%.
+                </span>
               </td>
-              <td style="width: 40%; vertical-align: top;">
-                <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
-                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Sub Total</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${subTotal.toLocaleString()}</td></tr>
-                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>PPN 11%</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${taxTotal.toLocaleString()}</td></tr>
-                  <tr><td style="padding: 6px; font-size: 12px; font-weight: bold;">Total</td><td align="right" style="padding: 6px; font-size: 12px; font-weight: bold;">${grandTotal.toLocaleString()}</td></tr>
+              <td class="summary-box">
+                <table class="summary-table">
+                  <tr>
+                    <td>Sub Total</td>
+                    <td align="right"><strong>${subTotal.toLocaleString('id-ID')}</strong></td>
+                  </tr>
+                  <tr>
+                    <td>Discount</td>
+                    <td align="right">${discountTotal.toLocaleString('id-ID')}</td>
+                  </tr>
+                  <tr>
+                    <td>PPN 11%</td>
+                    <td align="right">${taxTotal.toLocaleString('id-ID')}</td>
+                  </tr>
+                  <tr class="total-row">
+                    <td>Total</td>
+                    <td align="right">IDR ${grandTotal.toLocaleString('id-ID')}</td>
+                  </tr>
                 </table>
               </td>
             </tr>
           </table>
 
-          <table class="sign-table">
+          <table class="sign-container">
             <tr>
-              <td style="width: 50%;">Dibuat Oleh,<br/><div class="sign-box"></div><strong>( ADMIN )</strong></td>
-              <td style="width: 50%;">Disetujui Oleh,<br/><div class="sign-box"></div><strong>( MANAGER )</strong></td>
+              <td>
+                Dibuat Oleh,<br/>
+                <div class="sign-space"></div>
+                <strong>( ADMIN )</strong><br/>
+                <span style="font-size: 7.5px; color: #666;">Administrator</span>
+              </td>
+              <td>
+                Disetujui Oleh,<br/>
+                <div class="sign-space"></div>
+                <strong>( ........................................ )</strong><br/>
+                <span style="font-size: 7.5px; color: #666;">Pelanggan / Customer</span>
+              </td>
             </tr>
           </table>
+
+          <div class="footer-info">
+            Dibuat oleh: ADMIN | ${new Date().toLocaleDateString('id-ID')} | Powered by Aldigens ERP
+          </div>
+
+          <script>
+            window.onload = function() { 
+              window.focus(); 
+              setTimeout(() => { window.print(); }, 500); 
+            };
+          </script>
         </body>
       </html>
     `);
     printWindow.document.close();
-    printWindow.print();
   };
 
   if (viewMode === 'form') {
@@ -340,7 +449,13 @@ export default function SalesOrder() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">No. SO</label>
-                <input type="text" value={formData.soNo} disabled className="w-full px-4 py-2.5 bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 cursor-not-allowed" />
+                <input 
+                  type="text" 
+                  value={formData.soNo} 
+                  onChange={(e) => setFormData({...formData, soNo: e.target.value})}
+                  readOnly 
+                  className="w-full px-4 py-2.5 bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 cursor-not-allowed" 
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Tanggal</label>
@@ -383,7 +498,7 @@ export default function SalesOrder() {
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-xs uppercase font-semibold">
                     <tr>
                       <th className="px-4 py-3 w-12 text-center">#</th>
-                      <th className="px-4 py-3">Kode Barang</th>
+                      <th className="px-4 py-3">Kode Barang / Part No</th>
                       <th className="px-4 py-3">Nama Barang</th>
                       <th className="px-4 py-3 w-24">Qty</th>
                       <th className="px-4 py-3 w-28">Satuan</th>
@@ -396,7 +511,20 @@ export default function SalesOrder() {
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
                         <td className="px-4 py-3">
-                          <input required type="text" placeholder="Kode..." value={item.code || item.part_number || ''} onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <input 
+                            required 
+                            type="text" 
+                            list={`master-parts-list-${item.id}`}
+                            placeholder="Ketik Part No..." 
+                            value={item.code || item.part_number || ''} 
+                            onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} 
+                            className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" 
+                          />
+                          <datalist id={`master-parts-list-${item.id}`}>
+                            {masterProducts.map((p, idx) => (
+                              <option key={idx} value={p.part_number || p.code}>{p.name || p.description}</option>
+                            ))}
+                          </datalist>
                         </td>
                         <td className="px-4 py-3">
                           <input required type="text" placeholder="Nama barang..." value={item.name || item.description || ''} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />

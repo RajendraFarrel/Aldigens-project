@@ -48,7 +48,7 @@ class CommissioningController extends Controller
                 'notes' => $request->notes,
             ]);
 
-            // Simpan item checklist lapangan
+            // Simpan item checklist lapangan   
             foreach ($request->items as $item) {
                 CommissioningItem::create([
                     'commissioning_id' => $commissioning->id,
@@ -75,7 +75,7 @@ class CommissioningController extends Controller
         }
     }
 
-    // Memperbarui status komisioning (Contoh: APPROVED, COMPLETED, DRAFT)
+    // Memperbarui status komisioning
     public function updateStatus(Request $request, $id)
     {
         $request->validate([

@@ -2,11 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   FileText, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, DollarSign
 } from 'lucide-react';
-import api, { getDeliveryOrders } from '../services/api';
+import api from '../services/api';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
-import { swalError, swalSuccess } from '../utils/swal';
+import { swalError } from '../utils/swal';
 
-// Fungsi helper "Terbilang" (Rupiah ke Kata-kata)
 const terbilang = (angka) => {
   const bilangan = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
   if (angka < 12) return bilangan[angka];
@@ -34,7 +33,7 @@ export default function Invoice() {
   const [formData, setFormData] = useState({
     invoice_number: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
     date: new Date().toISOString().split('T')[0],
-    due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default net 30
+    due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     do_reference: '',
     customer_name: '',
     customer_address: '',
@@ -45,10 +44,16 @@ export default function Invoice() {
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
-      // Gunakan api.get('/invoices') atau sesuaikan dengan endpoint Laravel Anda
-      const res = await api.get('/invoices').catch(() => ({ data: { data: [] } }));
-      const raw = res.data?.data || res.data || [];
-      setInvoices(Array.isArray(raw) ? raw : []);
+      let apiInvoices = [];
+      try {
+        const res = await api.get('/invoices');
+        apiInvoices = res.data?.data || res.data || [];
+      } catch (err) {
+        console.warn("API Invoice offline, menggunakan localStorage.");
+      }
+      const localInvoices = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
+      const combined = [...localInvoices, ...(Array.isArray(apiInvoices) ? apiInvoices : [])];
+      setInvoices(combined);
     } catch (e) {
       console.error('Gagal memuat Invoice:', e);
       setInvoices([]);
@@ -59,9 +64,16 @@ export default function Invoice() {
 
   const fetchDOs = useCallback(async () => {
     try {
-      const res = await getDeliveryOrders();
-      const raw = res.data?.data || res.data || [];
-      setDeliveryOrders(Array.isArray(raw) ? raw : []);
+      let apiDOs = [];
+      try {
+        const res = await api.get('/delivery-orders');
+        apiDOs = res.data?.data || res.data || [];
+      } catch (err) {
+        console.warn("API DO offline.");
+      }
+      const localDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]');
+      const combinedDOs = [...localDOs, ...(Array.isArray(apiDOs) ? apiDOs : [])];
+      setDeliveryOrders(combinedDOs);
     } catch (e) {
       console.error('Gagal memuat DO:', e);
     }
@@ -72,7 +84,6 @@ export default function Invoice() {
     fetchDOs();
   }, [fetchInvoices, fetchDOs]);
 
-  // Simulasi tarik data DO ke Invoice (Biasanya harganya ditarik ulang dari relasi SO)
   const handleSelectDO = (doNumber) => {
     setFormData((prev) => ({ ...prev, do_reference: doNumber, items: [] }));
     if (!doNumber) return;
@@ -84,9 +95,9 @@ export default function Invoice() {
         customer_name: selDO.customer_name || '',
         customer_address: selDO.delivery_address || '',
         items: (selDO.items || []).map(it => ({
-          description: it.description,
-          qty: it.qty_sent,
-          unit_price: 0 // Admin finance isi harga (atau tarik otomatis via relasi backend)
+          description: it.description || '-',
+          qty: it.qty_sent || 1,
+          unit_price: 0
         }))
       }));
     }
@@ -132,18 +143,28 @@ export default function Invoice() {
     setSaving(true);
     setError('');
     try {
-      await api.post('/invoices', formData);
+      const newInvoice = {
+        id: Date.now(),
+        ...formData,
+        status: 'Unpaid'
+      };
+
+      const existing = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
+      localStorage.setItem('aldigens_invoices', JSON.stringify([newInvoice, ...existing]));
+
+      try {
+        await api.post('/invoices', formData);
+      } catch (err) {
+        // Backend opsional
+      }
+
       setSuccessMsg('Invoice berhasil dibuat!');
       setIsCreating(false);
       resetForm();
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (e) {
-      // Simulasi sukses lokal jika endpoint belum ada
-      console.warn('Endpoint mungkin belum siap, simulasi sukses lokal.');
-      setSuccessMsg('Invoice berhasil dibuat! (Simulasi)');
-      setIsCreating(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      setError('Gagal menyimpan Invoice.');
     } finally {
       setSaving(false);
     }
@@ -161,7 +182,6 @@ export default function Invoice() {
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  // ---------------- CETAK INVOICE (Format Accurate 4) ----------------
   const printInvoice = (invData) => {
     if (!invData) return;
     const win = window.open('', '_blank', 'width=900,height=700');
@@ -293,8 +313,7 @@ export default function Invoice() {
           <div class="sign-container">
             <table class="sign-table">
               <tr>
-                <td style="width: 50%;">
-                </td>
+                <td style="width: 50%;"></td>
                 <td style="width: 50%;">
                   Bekasi, ${escapeHtml(invData.date)}<br/>
                   Hormat Kami,<br/>
@@ -344,7 +363,6 @@ export default function Invoice() {
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>
       )}
 
-      {/* ---------- FORM BUAT INVOICE ---------- */}
       {isCreating ? (
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
@@ -447,10 +465,7 @@ export default function Invoice() {
             )}
           </div>
         </form>
-
       ) : selectedInvoice ? (
-
-        /* ---------- DETAIL INVOICE ---------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-5 gap-4">
             <div className="flex items-center gap-4">
@@ -520,10 +535,7 @@ export default function Invoice() {
             </table>
           </div>
         </div>
-
       ) : (
-
-        /* ---------- LIST INVOICE ---------- */
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden w-full">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">

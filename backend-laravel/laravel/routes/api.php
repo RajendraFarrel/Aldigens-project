@@ -7,7 +7,8 @@ use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\DeliveryOrderController;
 use App\Http\Controllers\Api\PurchaseOrderController;
-use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProductController as ApiProductController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\InventoryTransactionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReportController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\Api\ReceiveItemController;
 use App\Http\Controllers\CustomerPartNumberController;
 use App\Http\Controllers\CommissioningController;
+use App\Http\Controllers\RoleController;
 
 
 /*
@@ -66,8 +68,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory/products/import-template', [ProductController::class, 'downloadTemplate']);
     Route::post('/inventory/products/import', [ProductController::class, 'import']);
     Route::apiResource('/inventory/products', ProductController::class);
-    Route::get('/products', [ProductController::class, 'index']);
-    Route::post('/products', [ProductController::class, 'store']);
+    Route::get('/products', [ApiProductController::class, 'index']);
+    Route::post('/products', [ApiProductController::class, 'store']);
 
     // Warehouse berada di dalam Inventory
     Route::apiResource('/inventory/warehouses', WarehouseController::class)->except(['show']);
@@ -88,8 +90,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
     Route::get('/customer-part-numbers', [CustomerPartNumberController::class, 'index']);
+    Route::get('/customer-part-numbers/import-template', [CustomerPartNumberController::class, 'downloadTemplate']);
     Route::post('/customer-part-numbers/import', [CustomerPartNumberController::class, 'import']);
     Route::get('/customer-part-numbers/export', [CustomerPartNumberController::class, 'export']);
+    Route::post('/customer-part-numbers', [CustomerPartNumberController::class, 'store']);
+    Route::put('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'update']);
+    Route::delete('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'destroy']);
     Route::get('/suppliers', [MasterDataController::class, 'suppliers']);
     Route::put('/customers/{id}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{id}', [MasterDataController::class, 'deleteCustomer']);
@@ -109,9 +115,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inventory/reports/weekly', [ReportController::class, 'weekly']);
     Route::get('/exports/{type}', [ExportController::class, 'csv']);
 
-    // Users
+    // Users & Roles
     Route::put('users/{user}/menu-access', [UserController::class, 'updateMenuAccess']);
     Route::apiResource('users', UserController::class)->except(['show']);
+    Route::apiResource('roles', RoleController::class)->except(['show']);
 
     // Purchase Request dan BOM
     Route::apiResource('/purchase-requests', PurchaseRequestController::class)->only(['index', 'store', 'show', 'update', 'destroy']);

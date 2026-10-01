@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function PurchasePayment() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,6 +14,15 @@ export default function PurchasePayment() {
     { id: 1, paymentNo: 'PP-202609-001', date: '2026-09-28', vendorName: 'PT. Plastikindo', paymentMethod: 'Transfer Bank (BCA)', amount: 25000000, notes: 'Pelunasan PI-202609-001' },
     { id: 2, paymentNo: 'PP-202609-002', date: '2026-09-25', vendorName: 'CV. Komputer Jaya', paymentMethod: 'Kas Kecil', amount: 5000000, notes: 'DP Pembelian Perangkat IT' },
   ]);
+
+  const filteredPayments = useMemo(() => {
+    return dummyPayments.filter(item =>
+      item.paymentNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.vendorName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [dummyPayments, searchTerm]);
+
+  const pagination = usePagination(filteredPayments, 10);
 
   const [formData, setFormData] = useState({
     paymentNo: '', date: '', vendorName: '', paymentMethod: 'Transfer Bank (BCA)', amount: '', notes: ''
@@ -120,16 +131,22 @@ export default function PurchasePayment() {
               <tr><th className="px-6 py-3">Tanggal</th><th className="px-6 py-3">No. Pembayaran</th><th className="px-6 py-3">Vendor</th><th className="px-6 py-3">Metode / Bank</th><th className="px-6 py-3 text-right">Total Dibayar</th><th className="px-6 py-3 text-center">Aksi</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 dark:text-slate-300">
-              {dummyPayments.map((item) => (
+              {pagination.paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                    Tidak ada Bukti Pembayaran Pembelian ditemukan.
+                  </td>
+                </tr>
+              ) : pagination.paginatedItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 relative">
                   <td className="px-6 py-3">{item.date}</td><td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400">{item.paymentNo}</td><td className="px-6 py-3">{item.vendorName}</td><td className="px-6 py-3 text-slate-500">{item.paymentMethod}</td><td className="px-6 py-3 text-right font-medium">Rp {item.amount.toLocaleString('id-ID')}</td>
                   <td className="px-6 py-3 text-center">
-                    <button onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"><MoreVertical className="h-4 w-4" /></button>
+                    <button onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md cursor-pointer"><MoreVertical className="h-4 w-4" /></button>
                     {activeMenuId === item.id && (
                       <div className="absolute right-12 top-8 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 text-left">
-                        <button onClick={() => handleOpenEditForm(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700"><Edit3 className="h-3.5 w-3.5 text-blue-500" /> Edit</button>
-                        <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
-                        <button onClick={() => handleDelete(item.id)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 text-red-600"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
+                        <button onClick={() => handleOpenEditForm(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Edit3 className="h-3.5 w-3.5 text-blue-500" /> Edit</button>
+                        <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
+                        <button onClick={() => handleDelete(item.id)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 text-red-600 cursor-pointer"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
                       </div>
                     )}
                   </td>
@@ -138,6 +155,15 @@ export default function PurchasePayment() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controller */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

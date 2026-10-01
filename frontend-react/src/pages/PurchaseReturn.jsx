@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function PurchaseReturn() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -11,6 +13,15 @@ export default function PurchaseReturn() {
   const [dummyReturns, setDummyReturns] = useState([
     { id: 1, returnNo: 'PR-202609-001', date: '2026-09-28', vendorName: 'PT. Plastikindo', invoiceRef: 'PI-202609-001', amount: 500000, description: 'Barang reject pabrik, kemasan rusak' },
   ]);
+
+  const filteredReturns = useMemo(() => {
+    return dummyReturns.filter(item =>
+      item.returnNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.vendorName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [dummyReturns, searchTerm]);
+
+  const pagination = usePagination(filteredReturns, 10);
 
   const [formData, setFormData] = useState({
     returnNo: '', date: '', vendorName: '', invoiceRef: '', amount: '', description: ''
@@ -111,16 +122,22 @@ export default function PurchaseReturn() {
               <tr><th className="px-6 py-3">Tanggal</th><th className="px-6 py-3">No. Retur</th><th className="px-6 py-3">Vendor</th><th className="px-6 py-3">Ref. PI</th><th className="px-6 py-3 text-right">Nilai Retur</th><th className="px-6 py-3 text-center">Aksi</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 dark:text-slate-300">
-              {dummyReturns.map((item) => (
+              {pagination.paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                    Tidak ada Retur Pembelian ditemukan.
+                  </td>
+                </tr>
+              ) : pagination.paginatedItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 relative">
                   <td className="px-6 py-3">{item.date}</td><td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400">{item.returnNo}</td><td className="px-6 py-3">{item.vendorName}</td><td className="px-6 py-3 text-slate-500">{item.invoiceRef || '-'}</td><td className="px-6 py-3 text-right font-medium">Rp {item.amount.toLocaleString('id-ID')}</td>
                   <td className="px-6 py-3 text-center">
-                    <button onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"><MoreVertical className="h-4 w-4" /></button>
+                    <button onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md cursor-pointer"><MoreVertical className="h-4 w-4" /></button>
                     {activeMenuId === item.id && (
                       <div className="absolute right-12 top-8 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 text-left">
-                        <button onClick={() => handleOpenEditForm(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700"><Edit3 className="h-3.5 w-3.5 text-blue-500" /> Edit</button>
-                        <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
-                        <button onClick={() => handleDelete(item.id)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 text-red-600"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
+                        <button onClick={() => handleOpenEditForm(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Edit3 className="h-3.5 w-3.5 text-blue-500" /> Edit</button>
+                        <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
+                        <button onClick={() => handleDelete(item.id)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 text-red-600 cursor-pointer"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
                       </div>
                     )}
                   </td>
@@ -129,6 +146,15 @@ export default function PurchaseReturn() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controller */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

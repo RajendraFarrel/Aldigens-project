@@ -26,7 +26,14 @@ import {
     FileCog,
     ArrowUpRight,
     PackageCheck,
-    CheckSquare // <-- Cukup tulis seperti ini saja tanpa komentar di belakangnya
+    CheckSquare, // <-- Cukup tulis seperti ini saja tanpa komentar di belakangnya
+    // Modul Akuntansi
+    BookMarked,
+    NotebookPen,
+    BookOpen,
+    Scale,
+    FileStack,
+    FileBarChart
 } from 'lucide-react';
 
 /**
@@ -86,6 +93,22 @@ export const MENU_GROUPS = [{
                 { key: 'product-result', label: 'Hasil Produksi', icon: PackageCheck },
             ],
         }, ]
+    },
+    {
+        group: 'Akuntansi',
+        items: [{
+            key: 'accounting-menu',
+            label: 'Akuntansi',
+            icon: BookMarked,
+            subItems: [
+                { key: 'accounting-coa', label: 'Chart of Account', icon: BookMarked },
+                { key: 'accounting-journal', label: 'Jurnal Umum', icon: NotebookPen },
+                { key: 'accounting-ledger', label: 'Buku Besar', icon: BookOpen },
+                { key: 'accounting-trial-balance', label: 'Neraca Saldo', icon: Scale },
+                { key: 'accounting-adjustment', label: 'Jurnal Penyesuaian', icon: FileStack },
+                { key: 'accounting-reports', label: 'Laporan Keuangan', icon: FileBarChart },
+            ],
+        }],
     },
     {
         group: 'Inventory',

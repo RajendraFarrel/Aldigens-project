@@ -5,6 +5,9 @@ import {
 import api from '../services/api';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 import { swalError } from '../utils/swal';
+import { swalError, swalSuccess } from '../utils/swal';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 const terbilang = (angka) => {
   const bilangan = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
@@ -29,6 +32,8 @@ export default function Invoice() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const pagination = usePagination(invoices, 10);
 
   const [formData, setFormData] = useState({
     invoice_number: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -561,7 +566,7 @@ export default function Invoice() {
                       <p className="font-medium">Belum ada Invoice yang diterbitkan.</p>
                     </div>
                   </td></tr>
-                ) : invoices.map((inv) => (
+                ) : pagination.paginatedItems.map((inv) => (
                   <tr key={inv.id || inv.invoice_number} className="hover:bg-slate-50/80 transition text-sm">
                     <td className="p-5 font-bold text-slate-800">{inv.invoice_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{inv.customer_name}</td>
@@ -580,6 +585,15 @@ export default function Invoice() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controller */}
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalItems={pagination.totalItems}
+            pageSize={pagination.pageSize}
+            onPageChange={pagination.setCurrentPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
         </div>
       )}
     </div>

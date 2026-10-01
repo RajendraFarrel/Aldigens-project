@@ -5,24 +5,59 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
     /**
-     * Daftar key menu yang valid (harus sinkron dengan config/menus.js di frontend).
+     * Daftar key menu yang valid (sinkron dengan config/menus.js di frontend).
      */
     private const MENU_KEYS = [
         'dashboard',
-        'quotation',
+        // Pembelian
+        'purchases-menu',
+        'purchase-requisition',
         'purchase-order',
+        'receive-item',
+        'purchase-invoice',
+        'purchase-return',
+        'purchase-payment',
+        // Penjualan
+        'sales-menu',
+        'quotation',
         'sales-order',
         'delivery-order',
         'invoice',
+        'sales-return',
+        'sales-receipt',
+        // Manufaktur
+        'manufactures-menu',
+        'bill-of-materials',
+        'work-order',
+        'material-release',
+        'production',
+        'product-result',
+        // Inventory
+        'inventory-menu',
         'inventory-products',
+        'inventory-warehouses',
+        'inventory-receive',
+        'inventory-issue',
+        'inventory-transfer',
+        'inventory-opname',
         'inventory-scan',
         'inventory-transactions',
         'inventory-reports',
+        'commissioning',
+        // Master Data
+        'master-data-menu',
+        'master-customers',
+        'master-suppliers',
+        // Network & Security
+        'network-security-menu',
+        'network-monitoring',
+        'security-status',
+        'activity-log',
+        // Pengaturan
         'users',
     ];
 
@@ -37,19 +72,19 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'      => 'required|string|max:255',
-            'full_name' => 'nullable|string|max:255',
-            'email'     => 'required|email|unique:users,email',
-            'password'  => 'required|string|min:6',
-            'role'      => 'nullable|in:Administrator,Staff Gudang',
+            'name'          => 'required|string|max:255',
+            'full_name'     => 'nullable|string|max:255',
+            'email'         => 'required|email|unique:users,email',
+            'password'      => 'required|string|min:6',
+            'role'          => 'nullable|string|max:100',
             'menu_access'   => 'nullable|array',
-            'menu_access.*' => ['string', Rule::in(self::MENU_KEYS)],
+            'menu_access.*' => 'string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
         $validated['role']     = $validated['role'] ?? 'Staff Gudang';
 
-        // Staff biasa tidak boleh diberi akses ke menu Pengaturan Sistem.
+        // Non-Administrator tidak boleh diberi akses ke menu Pengaturan Sistem (users)
         if ($validated['role'] !== 'Administrator' && isset($validated['menu_access'])) {
             $validated['menu_access'] = array_values(array_diff($validated['menu_access'], ['users']));
         }
@@ -65,13 +100,13 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name'      => 'sometimes|required|string|max:255',
-            'full_name' => 'nullable|string|max:255',
-            'email'     => "sometimes|required|email|unique:users,email,{$user->id}",
-            'password'  => 'nullable|string|min:6',
-            'role'      => 'nullable|in:Administrator,Staff Gudang',
+            'name'          => 'sometimes|required|string|max:255',
+            'full_name'     => 'nullable|string|max:255',
+            'email'         => "sometimes|required|email|unique:users,email,{$user->id}",
+            'password'      => 'nullable|string|min:6',
+            'role'          => 'nullable|string|max:100',
             'menu_access'   => 'nullable|array',
-            'menu_access.*' => ['string', Rule::in(self::MENU_KEYS)],
+            'menu_access.*' => 'string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
         ]);
 
         if (!empty($validated['password'])) {
@@ -100,7 +135,7 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'menu_access'   => 'present|array',
-            'menu_access.*' => ['string', Rule::in(self::MENU_KEYS)],
+            'menu_access.*' => 'string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
         ]);
 
         $menus = $validated['menu_access'];

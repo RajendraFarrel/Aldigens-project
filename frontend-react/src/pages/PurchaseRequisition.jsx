@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function PurchaseRequisition() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,6 +37,15 @@ export default function PurchaseRequisition() {
       ]
     }
   ]);
+
+  const filteredPRs = useMemo(() => {
+    return dummyPRs.filter(item =>
+      item.prNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.department.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [dummyPRs, searchTerm]);
+
+  const pagination = usePagination(filteredPRs, 10);
 
   // State Form Input
   const [formData, setFormData] = useState({
@@ -297,7 +308,13 @@ export default function PurchaseRequisition() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {dummyPRs.filter(item => item.prNo.toLowerCase().includes(searchTerm.toLowerCase()) || item.department.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+              {pagination.paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
+                    Tidak ada data Permintaan Pembelian (PR) ditemukan.
+                  </td>
+                </tr>
+              ) : pagination.paginatedItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition relative">
                   <td className="px-6 py-4">{item.date}</td>
                   <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">{item.prNo}</td>
@@ -313,7 +330,7 @@ export default function PurchaseRequisition() {
                   <td className="px-6 py-4 text-center relative">
                     <button 
                       onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                     >
                       <MoreVertical className="h-4 w-4 inline" />
                     </button>
@@ -346,6 +363,15 @@ export default function PurchaseRequisition() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controller */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

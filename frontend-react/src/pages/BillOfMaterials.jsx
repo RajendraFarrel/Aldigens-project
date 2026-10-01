@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, Layers, Box, CheckCircle2, XCircle } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function BillOfMaterials() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,6 +39,15 @@ export default function BillOfMaterials() {
       ]
     },
   ]);
+
+  const filteredBOMs = useMemo(() => {
+    return dummyBOMs.filter(item =>
+      item.bomNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.productName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [dummyBOMs, searchTerm]);
+
+  const pagination = usePagination(filteredBOMs, 10);
 
   // Helper untuk format material awal
   function onMaterial(name, qty, unit) {
@@ -304,7 +315,13 @@ export default function BillOfMaterials() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {dummyBOMs.filter(item => item.bomNo.toLowerCase().includes(searchTerm.toLowerCase()) || item.productName.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+              {pagination.paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
+                    Tidak ada Formula Produk (BOM) ditemukan.
+                  </td>
+                </tr>
+              ) : pagination.paginatedItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition relative">
                   <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400 flex items-center gap-2">
                     <Box className="h-4 w-4 text-slate-400" />
@@ -329,7 +346,7 @@ export default function BillOfMaterials() {
                   <td className="px-6 py-4 text-center relative">
                     <button 
                       onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                     >
                       <MoreVertical className="h-4 w-4 inline" />
                     </button>
@@ -338,19 +355,19 @@ export default function BillOfMaterials() {
                       <div className="absolute right-12 top-10 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
                         <button 
                           onClick={() => handleOpenEditForm(item)}
-                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Edit3 className="h-4 w-4 text-blue-500" /> Edit Formula
                         </button>
                         <button 
                           onClick={() => handlePrint(item)}
-                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Printer className="h-4 w-4 text-emerald-500" /> Cetak Dokumen
                         </button>
                         <button 
                           onClick={() => handleDelete(item.id)}
-                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700"
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700 cursor-pointer"
                         >
                           <Trash2 className="h-4 w-4" /> Hapus BOM
                         </button>
@@ -362,6 +379,15 @@ export default function BillOfMaterials() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controller */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

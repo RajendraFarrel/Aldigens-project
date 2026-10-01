@@ -85,7 +85,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Customers
     Route::get('/customers', [MasterDataController::class, 'getCustomers']);
     Route::post('/customers', [MasterDataController::class, 'storeCustomer']);
-
     Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
     Route::get('/customer-part-numbers', [CustomerPartNumberController::class, 'index']);

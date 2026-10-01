@@ -2,10 +2,14 @@ import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 import { PlusCircle, X, Trash2, Plus, Printer } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function POList() {
     const [purchaseOrders, setPurchaseOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const pagination = usePagination(purchaseOrders, 10);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState({
@@ -336,8 +340,8 @@ export default function POList() {
                         </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
-                        {purchaseOrders.length > 0 ? (
-                            purchaseOrders.map((po, idx) => (
+                        {pagination.paginatedItems.length > 0 ? (
+                            pagination.paginatedItems.map((po, idx) => (
                                 <tr key={po.id || idx}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-slate-100">
                                         {po.po_number || po.customer_po_number || po.quotation_number}
@@ -382,6 +386,15 @@ export default function POList() {
                         )}
                     </tbody>
                 </table>
+
+                {/* Pagination Controller */}
+                <Pagination
+                    currentPage={pagination.currentPage}
+                    totalItems={pagination.totalItems}
+                    pageSize={pagination.pageSize}
+                    onPageChange={pagination.setCurrentPage}
+                    onPageSizeChange={pagination.setPageSize}
+                />
             </div>
 
             {isModalOpen && (

@@ -7,6 +7,8 @@ import {
   getDeliveryOrders, getDeliveryOrder, createDeliveryOrder, getSalesOrders, getSalesOrder
 } from '../services/api';
 import { swalError } from '../utils/swal';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function DeliveryOrder() {
   const [deliveryOrders, setDeliveryOrders] = useState([]);
@@ -17,6 +19,8 @@ export default function DeliveryOrder() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const pagination = usePagination(deliveryOrders, 10);
 
   const [formData, setFormData] = useState({
     sales_order_id: '',
@@ -565,7 +569,7 @@ export default function DeliveryOrder() {
                       <p className="font-medium">Belum ada Surat Jalan yang diterbitkan.</p>
                     </div>
                   </td></tr>
-                ) : deliveryOrders.map((d, index) => (
+                ) : pagination.paginatedItems.map((d, index) => (
                   <tr key={d.id || index} className="hover:bg-slate-50/80 transition text-sm">
                     <td className="p-5 font-bold text-slate-800">{d.do_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{d.customer_name}</td>
@@ -585,6 +589,15 @@ export default function DeliveryOrder() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controller */}
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalItems={pagination.totalItems}
+            pageSize={pagination.pageSize}
+            onPageChange={pagination.setCurrentPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
         </div>
       )}
     </div>

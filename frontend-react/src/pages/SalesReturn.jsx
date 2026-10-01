@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function SalesReturn() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,6 +16,16 @@ export default function SalesReturn() {
     { id: 1, returnNo: 'SR-202609-001', date: '2026-09-25', customerName: 'PT. Maju Mundur', invoiceNo: 'INV-202609-001', amount: 5000000, description: 'Barang cacat pabrik' },
     { id: 2, returnNo: 'SR-202609-002', date: '2026-09-22', customerName: 'Toko Sejahtera', invoiceNo: 'INV-202608-045', amount: 1200000, description: 'Salah kirim tipe barang' },
   ]);
+
+  const filteredReturns = useMemo(() => {
+    return dummyReturns.filter(item =>
+      item.returnNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.invoiceNo.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [dummyReturns, searchTerm]);
+
+  const pagination = usePagination(filteredReturns, 10);
 
   const [formData, setFormData] = useState({
     returnNo: '',
@@ -214,7 +226,13 @@ export default function SalesReturn() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {dummyReturns.map((item) => (
+              {pagination.paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-12 text-center text-slate-400">
+                    Tidak ada Retur Penjualan ditemukan.
+                  </td>
+                </tr>
+              ) : pagination.paginatedItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition relative">
                   <td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">{item.returnNo}</td>
                   <td className="px-6 py-3">{item.date}</td>
@@ -227,7 +245,7 @@ export default function SalesReturn() {
                   <td className="px-6 py-3 text-center relative">
                     <button 
                       onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
-                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                     >
                       <MoreVertical className="h-4 w-4 inline" />
                     </button>
@@ -236,19 +254,19 @@ export default function SalesReturn() {
                       <div className="absolute right-12 top-8 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 text-left">
                         <button 
                           onClick={() => handleOpenEditForm(item)}
-                          className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                          className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Edit3 className="h-3.5 w-3.5 text-blue-500" /> Edit
                         </button>
                         <button 
                           onClick={() => handlePrint(item)}
-                          className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                          className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak
                         </button>
                         <button 
                           onClick={() => handleDelete(item.id)}
-                          className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 border-t border-slate-100 dark:border-slate-700"
+                          className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 border-t border-slate-100 dark:border-slate-700 cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" /> Hapus
                         </button>
@@ -260,6 +278,15 @@ export default function SalesReturn() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controller */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

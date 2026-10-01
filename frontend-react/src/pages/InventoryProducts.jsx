@@ -3,6 +3,8 @@ import { Plus, Search, Edit2, Trash2, Barcode, X, Save, RefreshCw, Package, Prin
 import { getProducts, createProduct, updateProduct, deleteProduct, importProducts, downloadProductTemplate, downloadExport, getCustomers } from '../services/api';
 import BarcodeLabel, { printBarcodes } from '../components/BarcodeLabel';
 import { swalConfirm, swalError, swalToast } from '../utils/swal';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 const EMPTY_FORM = {
   product_code: '',
@@ -34,6 +36,8 @@ export default function InventoryProducts() {
   const [importFile, setImportFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+
+  const pagination = usePagination(products, 10);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -266,13 +270,13 @@ export default function InventoryProducts() {
                     Memuat data...
                   </td>
                 </tr>
-              ) : products.length === 0 ? (
+              ) : pagination.paginatedItems.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-10 text-slate-400">
                     Tidak ada produk ditemukan.
                   </td>
                 </tr>
-              ) : products.map((p) => (
+              ) : pagination.paginatedItems.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50 transition">
                   <td className="px-4 py-3 text-slate-600 text-xs">{p.part_number || '-'}</td>
                   <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
@@ -314,9 +318,15 @@ export default function InventoryProducts() {
             </tbody>
           </table>
         </div>
-        <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-400">
-          Total: {products.length} produk
-        </div>
+
+        {/* Pagination Controller */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
 
       {/* Modal Tambah/Edit */}

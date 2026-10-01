@@ -3,6 +3,8 @@ import {
   FileSignature, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, Package, ArrowRightCircle, XCircle
 } from 'lucide-react';
 import { swalError } from '../utils/swal';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 
 export default function Quotation() {
   const [quotations, setQuotations] = useState([]);
@@ -10,6 +12,8 @@ export default function Quotation() {
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+
+  const pagination = usePagination(quotations, 10);
 
   const [formData, setFormData] = useState({
     quotation_number: `AQ-${Math.floor(10000000 + Math.random() * 90000000)}`,
@@ -544,7 +548,7 @@ export default function Quotation() {
                       <p className="font-medium">Belum ada Penawaran yang diterbitkan.</p>
                     </div>
                   </td></tr>
-                ) : quotations.map((q) => {
+                ) : pagination.paginatedItems.map((q) => {
                   const uniqueKey = q.id || q.quotation_number;
                   const isFinished = q.status === 'Deal' || q.status === 'Not Deal';
                   return (
@@ -589,6 +593,15 @@ export default function Quotation() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controller */}
+          <Pagination
+            currentPage={pagination.currentPage}
+            totalItems={pagination.totalItems}
+            pageSize={pagination.pageSize}
+            onPageChange={pagination.setCurrentPage}
+            onPageSizeChange={pagination.setPageSize}
+          />
         </div>
       )}
     </div>

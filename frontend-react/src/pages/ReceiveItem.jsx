@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer } from 'lucide-react';
+import Pagination from '../components/Pagination';
+import usePagination from '../hooks/usePagination';
 import axios from 'axios';
 
 export default function ReceiveItem() {
@@ -35,6 +37,15 @@ export default function ReceiveItem() {
       setLoading(false);
     }
   };
+
+  const filteredReceiveItems = useMemo(() => {
+    return receiveItems.filter(item =>
+      (item.receive_no || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.vendor_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [receiveItems, searchTerm]);
+
+  const pagination = usePagination(filteredReceiveItems, 10);
 
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -152,10 +163,10 @@ export default function ReceiveItem() {
                 <tr><th className="px-6 py-3">Tanggal</th><th className="px-6 py-3">No. Penerimaan</th><th className="px-6 py-3">Vendor</th><th className="px-6 py-3">Ref. PO</th><th className="px-6 py-3">Status</th><th className="px-6 py-3 text-center">Aksi</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 dark:text-slate-300">
-                {receiveItems.filter(item => item.receive_no.toLowerCase().includes(searchTerm.toLowerCase()) || item.vendor_name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 ? (
+                {pagination.paginatedItems.length === 0 ? (
                   <tr><td colSpan="6" className="text-center py-8 text-slate-400">Belum ada data penerimaan barang di database.</td></tr>
                 ) : (
-                  receiveItems.filter(item => item.receive_no.toLowerCase().includes(searchTerm.toLowerCase()) || item.vendor_name.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                  pagination.paginatedItems.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 relative">
                       <td className="px-6 py-3">{item.date}</td>
                       <td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400">{item.receive_no}</td>
@@ -163,11 +174,11 @@ export default function ReceiveItem() {
                       <td className="px-6 py-3 text-slate-500">{item.po_ref || '-'}</td>
                       <td className="px-6 py-3"><span className={`px-2.5 py-1 rounded-full text-xs font-medium ${item.status === 'Diterima Penuh' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.status}</span></td>
                       <td className="px-6 py-3 text-center">
-                        <button onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"><MoreVertical className="h-4 w-4" /></button>
+                        <button onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md cursor-pointer"><MoreVertical className="h-4 w-4" /></button>
                         {activeMenuId === item.id && (
                           <div className="absolute right-12 top-8 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 text-left">
-                            <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
-                            <button onClick={() => handleDelete(item.id)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 text-red-600"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
+                            <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
+                            <button onClick={() => handleDelete(item.id)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 text-red-600 cursor-pointer"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
                           </div>
                         )}
                       </td>
@@ -178,6 +189,15 @@ export default function ReceiveItem() {
             </table>
           )}
         </div>
+
+        {/* Pagination Controller */}
+        <Pagination
+          currentPage={pagination.currentPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </div>
   );

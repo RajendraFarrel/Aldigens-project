@@ -36,6 +36,14 @@ import NetworkMonitoring from './pages/NetworkMonitoring';
 import SecurityStatus from './pages/SecurityStatus';
 import ActivityLog from './pages/ActivityLog';
 import Commissioning from './pages/Commissioning';
+// Import Modul Akuntansi
+import ChartOfAccount from './pages/accounting/ChartOfAccount';
+import JurnalUmum from './pages/accounting/JurnalUmum';
+import JournalVoucherDetail from './pages/accounting/JournalVoucherDetail';
+import BukuBesar from './pages/accounting/BukuBesar';
+import NeracaSaldo from './pages/accounting/NeracaSaldo';
+import JurnalPenyesuaian from './pages/accounting/JurnalPenyesuaian';
+import LaporanKeuangan from './pages/accounting/LaporanKeuangan';
 import { Menu, Moon, Sun } from 'lucide-react';
 import axios from 'axios';
 import { useTheme } from './context/ThemeContext';
@@ -63,6 +71,15 @@ const PAGE_TITLES = {
   'material-release':       'Pengeluaran Bahan Baku',
   'product-result':         'Penerimaan Hasil Produksi',
   'production':             'Produksi',
+  // Akuntansi
+  'accounting-menu':          'Akuntansi',
+  'accounting-coa':           'Chart of Account',
+  'accounting-journal':       'Jurnal Umum',
+  'accounting-voucher-detail':'Detail Journal Voucher',
+  'accounting-ledger':        'Buku Besar',
+  'accounting-trial-balance': 'Neraca Saldo',
+  'accounting-adjustment':    'Jurnal Penyesuaian',
+  'accounting-reports':       'Laporan Keuangan',
   // Pengaturan & Inventory
   'users':                  'Pengaturan Sistem',
   'inventory-products':     'Data Part Number Inventory',
@@ -100,10 +117,19 @@ export default function App() {
   const allowedMenus = getAllowedMenus(currentUser);
 
   useEffect(() => {
-    if (isAuthenticated && !allowedMenus.includes(activeTab)) {
+    if (isAuthenticated && !allowedMenus.includes(activeTab) && activeTab !== 'accounting-voucher-detail') {
       setActiveTab('dashboard');
     }
   }, [isAuthenticated, currentUser]);
+
+  /* Navigasi antar-halaman lewat event (dipakai modul Akuntansi). */
+  useEffect(() => {
+    const handleGoto = (e) => {
+      if (e?.detail) setActiveTab(e.detail);
+    };
+    window.addEventListener('aldigens:goto', handleGoto);
+    return () => window.removeEventListener('aldigens:goto', handleGoto);
+  }, []);
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
@@ -177,6 +203,15 @@ export default function App() {
       case 'material-release':       return <MaterialRelease />;
       case 'product-result':         return <ProductResult />;
       case 'production':             return <Production />;
+
+      // Modul Akuntansi
+      case 'accounting-coa':           return <ChartOfAccount />;
+      case 'accounting-journal':       return <JurnalUmum />;
+      case 'accounting-voucher-detail':return <JournalVoucherDetail />;
+      case 'accounting-ledger':        return <BukuBesar />;
+      case 'accounting-trial-balance': return <NeracaSaldo />;
+      case 'accounting-adjustment':    return <JurnalPenyesuaian />;
+      case 'accounting-reports':       return <LaporanKeuangan />;
 
       // Modul Pengaturan & Inventory
       case 'users':                  return <UserManagement />;

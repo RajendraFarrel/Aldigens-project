@@ -14,6 +14,71 @@ body {
 }
 
 /* =====================================================================
+   LAYOUT CETAK (Modul Akuntansi & dokumen lain)
+   Hanya elemen ber-.print-area yang dicetak; sisanya disembunyikan.
+   ===================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Sembunyikan seluruh shell aplikasi */
+  body > #root > div > aside,
+  body > #root > div > main > header,
+  .no-print {
+    display: none !important;
+  }
+
+  body > #root,
+  body > #root > div,
+  body > #root > div > main,
+  body > #root > div > main > *:not(.print-area) {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /*_area cetak_ */
+  .print-area {
+    display: block !important;
+    width: 100%;
+    color: #000 !important;
+    background: #fff !important;
+    font-size: 11pt;
+  }
+
+  .print-area * {
+    color: #000 !important;
+    background: transparent !important;
+  }
+
+  /* Hindari tabel terpotong antar halaman */
+  .print-area table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .print-area thead {
+    display: table-header-group;
+  }
+  .print-area tr {
+    page-break-inside: avoid;
+  }
+  .print-area .print-page-break {
+    page-break-after: always;
+  }
+}
+
+/* =====================================================================
    DARK MODE – Override global terkurasi
    Aplikasi ini memakai skala netral (slate/gray/white) untuk sebagian
    besar permukaan & teks. Ketika <html class="dark">, kelas terang

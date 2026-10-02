@@ -28,6 +28,9 @@ use App\Http\Controllers\Api\ReceiveItemController;
 use App\Http\Controllers\CustomerPartNumberController;
 use App\Http\Controllers\CommissioningController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\JournalVoucherController;
+use App\Http\Controllers\AccountingReportController;
 
 
 /*
@@ -145,6 +148,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/purchase-orders/{id}/convert-to-so', [SalesOrderController::class, 'storeFromPO']);
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     Route::put('/quotations/{id}', [QuotationController::class, 'update']);
+
+    // --- Modul Akuntansi ---
+    // Chart of Account
+    Route::get('/accounting/accounts', [AccountController::class, 'index']);
+    Route::post('/accounting/accounts', [AccountController::class, 'store']);
+    Route::put('/accounting/accounts/{account}', [AccountController::class, 'update']);
+    Route::patch('/accounting/accounts/{account}/toggle-status', [AccountController::class, 'toggleStatus']);
+
+    // Journal Voucher (termasuk jurnal penyesuaian)
+    Route::get('/accounting/vouchers', [JournalVoucherController::class, 'index']);
+    Route::post('/accounting/vouchers', [JournalVoucherController::class, 'store']);
+    Route::get('/accounting/vouchers/{journalVoucher}', [JournalVoucherController::class, 'show']);
+    Route::put('/accounting/vouchers/{journalVoucher}', [JournalVoucherController::class, 'update']);
+    Route::delete('/accounting/vouchers/{journalVoucher}', [JournalVoucherController::class, 'destroy']);
+    Route::post('/accounting/vouchers/{journalVoucher}/post', [JournalVoucherController::class, 'post']);
+    Route::post('/accounting/vouchers/{journalVoucher}/reverse', [JournalVoucherController::class, 'reverse']);
+
+    // Laporan akuntansi (sumber data sama: jurnal POSTED)
+    Route::get('/accounting/reports/summary', [AccountingReportController::class, 'summary']);
+    Route::get('/accounting/reports/journal-umum', [AccountingReportController::class, 'journalUmum']);
+    Route::get('/accounting/reports/buku-besar', [AccountingReportController::class, 'bukuBesar']);
+    Route::get('/accounting/reports/neraca-saldo', [AccountingReportController::class, 'neracaSaldo']);
+    Route::get('/accounting/reports/laba-rugi', [AccountingReportController::class, 'labaRugi']);
+    Route::get('/accounting/reports/neraca', [AccountingReportController::class, 'neraca']);
 
     // Current user info
     Route::get('/user', function (Request $request) {

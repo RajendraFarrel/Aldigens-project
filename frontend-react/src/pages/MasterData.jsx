@@ -164,18 +164,22 @@ export default function MasterData({ type = 'customer' }) {
   };
 
   const deactivate = async (row) => {
-    if (!window.confirm(`Nonaktifkan ${label} ${row[nameKey]}?`)) return;
+    const isSparepartAktif = isCustomer && (row.products_count || 0) > 0;
+    const question = isSparepartAktif
+      ? `${label} ${row[nameKey]} masih memiliki ${row.products_count} sparepart.\n\nHapus customer dan sekaligus lepas sparepartnya dari customer ini?`
+      : `Hapus ${label.toLowerCase()} ${row[nameKey]}?\n\nData akan dihapus permanen dan tidak bisa dikembalikan.`;
+
+    if (!window.confirm(question)) return;
     try {
       if (isCustomer) {
-        setRows(rows.map(r => r.id === row.id ? { ...r, status: 'NONAKTIF' } : r));
-        try { await deleteCustomer(row.id); } catch { }
+        await deleteCustomer(row.id);
       } else {
         await deleteSupplier(row.id);
-        await load();
       }
-      setMessage(`${label} berhasil dinonaktifkan.`);
+      setMessage(`${label} ${row[nameKey]} berhasil dihapus.`);
+      await load();
     } catch (err) {
-      setError(err.response?.data?.message || `${label} gagal dinonaktifkan.`);
+      setError(err.response?.data?.message || `${label} gagal dihapus.`);
     }
   };
 
@@ -276,15 +280,13 @@ export default function MasterData({ type = 'customer' }) {
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
-                      {row.status === 'AKTIF' && (
-                        <button
-                          onClick={() => deactivate(row)}
-                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition cursor-pointer"
-                          title="Nonaktifkan"
-                        >
+                      <button
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition cursor-pointer"
+                        onClick={() => deactivate(row)}
+                        title="Hapus"
+                      >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
                     </div>
                   </td>
                 </tr>

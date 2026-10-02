@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   BarChart3, RefreshCw, ChevronLeft, ChevronRight,
-  ArrowDownCircle, ArrowUpCircle, TrendingUp
+  ArrowDownCircle, ArrowUpCircle, ArrowRightLeft, TrendingUp
 } from 'lucide-react';
 import { getWeeklyReport } from '../services/api';
 
@@ -158,10 +158,14 @@ export default function InventoryReports() {
                           <span className={`text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 w-fit ${
                             t.transaction_type === 'MASUK'
                               ? 'bg-emerald-100 text-emerald-700'
+                              : t.transaction_type === 'TRANSFER'
+                              ? 'bg-blue-100 text-blue-700'
                               : 'bg-rose-100 text-rose-700'
                           }`}>
                             {t.transaction_type === 'MASUK'
                               ? <ArrowDownCircle className="h-3 w-3" />
+                              : t.transaction_type === 'TRANSFER'
+                              ? <ArrowRightLeft className="h-3 w-3" />
                               : <ArrowUpCircle className="h-3 w-3" />
                             }
                             {t.transaction_type}

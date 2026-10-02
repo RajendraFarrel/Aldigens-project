@@ -77,11 +77,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // Warehouse berada di dalam Inventory
     Route::apiResource('/inventory/warehouses', WarehouseController::class)->except(['show']);
     Route::get('/inventory/warehouses/{warehouse}/locations', [WarehouseController::class, 'locations']);
+    Route::get('/inventory/warehouses/{warehouse}/items', [WarehouseController::class, 'items']);
     Route::post('/inventory/warehouses/{warehouse}/locations', [WarehouseController::class, 'storeLocation']);
     Route::get('/inventory/stocks', [InventoryWarehouseController::class, 'stocks']);
     Route::post('/inventory/receive', [InventoryWarehouseController::class, 'receive']);
     Route::post('/inventory/issue', [InventoryWarehouseController::class, 'issue']);
     Route::post('/inventory/transfer', [InventoryWarehouseController::class, 'transfer']);
+    Route::get('/inventory/mutations', [InventoryWarehouseController::class, 'mutations']);
+    Route::put('/inventory/mutations/{groupKey}', [InventoryWarehouseController::class, 'updateMutation']);
+    Route::delete('/inventory/mutations/{groupKey}', [InventoryWarehouseController::class, 'destroyMutation']);
     Route::get('/inventory/stock-opnames', [StockOpnameController::class, 'index']);
     Route::post('/inventory/stock-opnames', [StockOpnameController::class, 'store']);
     Route::post('/inventory/stock-opnames/{stockOpname}/complete', [StockOpnameController::class, 'complete']);

@@ -1,10 +1,42 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  History, RefreshCw, ArrowDownCircle, ArrowUpCircle, Filter
+  History, RefreshCw, ArrowDownCircle, ArrowUpCircle, ArrowRightLeft,
+  SlidersHorizontal, Filter as FilterIcon,
 } from 'lucide-react';
 import { getTransactions } from '../services/api';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
+
+/**
+ * Warna & ikon per jenis mutasi.
+ * MASUK  -> hijau   (barang bertambah)
+ * KELUAR -> merah   (barang berkurang)
+ * TRANSFER -> biru   (pindah lokasi, bukan keluar dari gudang)
+ * ADJUSTMENT -> abu  (koreksi stok)
+ */
+const TYPE_CONFIG = {
+  MASUK:      { badge: 'bg-emerald-100 text-emerald-700', icon: ArrowDownCircle,  text: 'text-emerald-600', button: 'bg-emerald-600 border-emerald-600' },
+  KELUAR:     { badge: 'bg-rose-100 text-rose-700',       icon: ArrowUpCircle,    text: 'text-rose-600',    button: 'bg-rose-600 border-rose-600' },
+  TRANSFER:   { badge: 'bg-blue-100 text-blue-700',         icon: ArrowRightLeft,   text: 'text-blue-600',    button: 'bg-blue-600 border-blue-600' },
+  ADJUSTMENT: { badge: 'bg-slate-200 text-slate-700',       icon: SlidersHorizontal, text: 'text-slate-600',  button: 'bg-slate-700 border-slate-700' },
+};
+
+const DEFAULT_TYPE = { badge: 'bg-slate-100 text-slate-700', icon: SlidersHorizontal, text: 'text-slate-600', button: 'bg-slate-800 border-slate-800' };
+
+const typeConfig = (type) => TYPE_CONFIG[type] ?? DEFAULT_TYPE;
+
+/* Label jenis mutasi (TRANSFER arah Keluar / Masuk tetap satu kategori). */
+const typeLabel = (t) => {
+  if (t.transaction_type !== 'TRANSFER') return t.transaction_type;
+  return t.transfer_direction === 'IN' ? 'TRANSFER (MASUK)' : t.transfer_direction === 'OUT' ? 'TRANSFER (KELUAR)' : 'TRANSFER';
+};
+
+const FILTER_OPTIONS = [
+  { value: '', label: 'Semua' },
+  { value: 'MASUK', label: 'MASUK' },
+  { value: 'KELUAR', label: 'KELUAR' },
+  { value: 'TRANSFER', label: 'TRANSFER' },
+];
 
 export default function InventoryTransactions() {
   const [transactions, setTransactions] = useState([]);
@@ -64,23 +96,19 @@ export default function InventoryTransactions() {
 
       {/* Filter */}
       <div className="flex items-center gap-3">
-        <Filter className="h-4 w-4 text-slate-400" />
-        <div className="flex gap-2">
-          {['', 'MASUK', 'KELUAR'].map((type) => (
+        <FilterIcon className="h-4 w-4 text-slate-400" />
+        <div className="flex flex-wrap gap-2">
+          {FILTER_OPTIONS.map(({ value, label }) => (
             <button
-              key={type}
-              onClick={() => setFilterType(type)}
+              key={value || 'all'}
+              onClick={() => setFilterType(value)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer border ${
-                filterType === type
-                  ? type === 'MASUK'
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : type === 'KELUAR'
-                    ? 'bg-rose-600 text-white border-rose-600'
-                    : 'bg-slate-800 text-white border-slate-800'
+                filterType === value
+                  ? `${typeConfig(value).button} text-white`
                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              {type || 'Semua'}
+              {label}
             </button>
           ))}
         </div>
@@ -119,22 +147,18 @@ export default function InventoryTransactions() {
                     Tidak ada data transaksi.
                   </td>
                 </tr>
-              ) : pagination.paginatedItems.map((t) => (
+              ) : pagination.paginatedItems.map((t) => {
+                const cfg = typeConfig(t.transaction_type);
+                const TypeIcon = cfg.icon;
+                return (
                 <tr key={t.id} className="hover:bg-slate-50 transition">
                   <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                     {formatDate(t.transaction_time)}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${
-                      t.transaction_type === 'MASUK'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
-                    }`}>
-                      {t.transaction_type === 'MASUK'
-                        ? <ArrowDownCircle className="h-3 w-3" />
-                        : <ArrowUpCircle className="h-3 w-3" />
-                      }
-                      {t.transaction_type}
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${cfg.badge}`}>
+                      <TypeIcon className="h-3 w-3" />
+                      {typeLabel(t)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -145,7 +169,7 @@ export default function InventoryTransactions() {
                   <td className="px-4 py-3 text-right font-bold text-slate-800">{t.quantity}</td>
                   <td className="px-4 py-3 text-right text-slate-500">{t.stock_before}</td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`font-semibold ${t.transaction_type === 'MASUK' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`font-semibold ${cfg.text}`}>
                       {t.stock_after}
                     </span>
                   </td>
@@ -153,7 +177,8 @@ export default function InventoryTransactions() {
                   <td className="px-4 py-3 text-xs text-slate-500">{t.reference_number || t.reference_type || '-'}</td>
                   <td className="px-4 py-3 text-xs text-slate-500">{t.user_name || '-'}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

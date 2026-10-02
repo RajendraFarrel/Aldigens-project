@@ -17,4 +17,14 @@ class Customer extends Model
         'address',
         'status',
     ];
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    public function partNumbers()
+    {
+        return $this->hasMany(CustomerPartNumber::class);
+    }
 }

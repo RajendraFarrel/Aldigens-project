@@ -27,6 +27,7 @@ class InventoryTransactionController extends Controller
             return [
                 'id'               => $t->id,
                 'transaction_type' => $t->transaction_type,
+                'transfer_direction' => $t->transfer_direction,
                 'quantity'         => $t->quantity,
                 'stock_before'     => $t->stock_before,
                 'stock_after'      => $t->stock_after,

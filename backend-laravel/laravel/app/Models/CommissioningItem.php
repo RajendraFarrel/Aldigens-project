@@ -13,7 +13,10 @@ class CommissioningItem extends Model
 
     protected $fillable = [
         'commissioning_id',
+        'no',          // <-- Tambahkan ini
         'check_item',
+        'physical',    // <-- Tambahkan ini
+        'function',    // <-- Tambahkan ini
         'result',
         'remarks',
     ];

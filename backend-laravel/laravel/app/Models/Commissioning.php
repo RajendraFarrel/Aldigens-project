@@ -12,13 +12,19 @@ class Commissioning extends Model
     protected $table = 'commissionings';
 
     protected $fillable = [
-    'commissioning_code', 
-    'customer_id', 
-    'project_name', 
-    'commissioning_date', 
-    'technician_name', 
-    'notes', 
-    'status' // <-- Pastikan 'status' ada di sini
+    'commissioning_code',
+    'customer_id',
+    'project_name',
+    'do_number',
+    'so_number',
+    'ref_po',
+    'unit_model',       // <-- Pastikan ada
+    'serial_no',         // <-- Pastikan ada
+    'installation_date', // <-- Pastikan ada
+    'commissioning_date',
+    'technician_name',
+    'status',
+    'notes',
 ];
 
     // Relasi ke Customer

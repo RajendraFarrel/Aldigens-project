@@ -157,5 +157,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/commissionings', [CommissioningController::class, 'index']);
     Route::post('/commissionings', [CommissioningController::class, 'store']);
+    Route::get('/commissionings/{id}', [CommissioningController::class, 'show']); // Tambahkan ini jika butuh detail
+    Route::put('/commissionings/{id}', [CommissioningController::class, 'update']); // <-- TAMBAHKAN INI AGAR EDIT BERHASIL
+    Route::delete('/commissionings/{id}', [CommissioningController::class, 'destroy']); // Tambahkan ini jika butuh hapus
     Route::patch('/commissionings/{id}/status', [CommissioningController::class, 'updateStatus']);
 });

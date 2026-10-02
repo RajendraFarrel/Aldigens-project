@@ -7,12 +7,11 @@ import usePagination from '../hooks/usePagination';
 
 export default function SalesOrder() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
+  const [viewMode, setViewMode] = useState('list');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [masterProducts, setMasterProducts] = useState([]);
 
-  // Data Sales Order (SO) - Diinisialisasi dari localStorage atau data bawaan
   const [salesOrders, setSalesOrders] = useState(() => {
     const saved = localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders');
     if (saved) {
@@ -32,7 +31,7 @@ export default function SalesOrder() {
         customer_name: 'PT. UNITED TRACTORS Tbk',
         shipTo: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
         customer_address: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
-        refPo: '990621159',
+        refPo: 'PO-UT-990621159',
         terms: 'Net 30',
         estDate: '2026-09-21',
         sentBy: 'B 1234 SZT',
@@ -45,7 +44,6 @@ export default function SalesOrder() {
     ];
   });
 
-  // Ambil data master produk dari API/localStorage untuk auto-fill part number
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -59,7 +57,6 @@ export default function SalesOrder() {
     fetchProducts();
   }, []);
 
-  // Sinkronisasi otomatis dengan localStorage setiap kali salesOrders berubah
   useEffect(() => {
     localStorage.setItem('aldigens_sales_orders', JSON.stringify(salesOrders));
   }, [salesOrders]);
@@ -67,13 +64,13 @@ export default function SalesOrder() {
   const filteredSalesOrders = useMemo(() => {
     return salesOrders.filter(item =>
       (item.soNo || item.so_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.customer || item.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+      (item.customer || item.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.refPo || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [salesOrders, searchTerm]);
 
   const pagination = usePagination(filteredSalesOrders, 10);
 
-  // State Form Input
   const [formData, setFormData] = useState({
     soNo: 'SO-' + Math.floor(10000000 + Math.random() * 90000000),
     date: new Date().toISOString().split('T')[0],
@@ -113,7 +110,7 @@ export default function SalesOrder() {
       soNo: item.soNo || item.so_number || 'SO-' + Math.floor(10000000 + Math.random() * 90000000),
       customer: item.customer || item.customer_name || '',
       shipTo: item.shipTo || item.customer_address || '',
-      refPo: item.refPo || item.reff_po || '',
+      refPo: item.refPo || item.reff_po || item.customer_po || '',
       salesman: item.salesman || item.admin_sales || 'FIKHAY',
       items: (item.items || []).map(i => ({
         id: i.id || Date.now() + Math.random(),
@@ -187,6 +184,8 @@ export default function SalesOrder() {
       so_number: currentSoNo,
       customer_name: formData.customer,
       customer_address: formData.shipTo,
+      customer_po: formData.refPo,
+      ref_po: formData.refPo,
       items: formData.items.map(it => ({
         ...it,
         part_number: it.code || it.part_number,
@@ -213,21 +212,23 @@ export default function SalesOrder() {
     }
   };
 
-  // --- FUNGSI PROSES KE DELIVERY ORDER (DO) ---
   const handleConvertToDO = (item) => {
     setActiveMenuId(null);
     const soNumber = item.soNo || item.so_number || 'SO-UNKNOWN';
+    const customerPo = item.refPo || item.reff_po || item.customer_po || '-';
     
     const newDO = {
       id: Date.now(),
       do_number: 'DO-' + Math.floor(1000 + Math.random() * 9000),
       so_number: soNumber,
+      customer_po: customerPo, // Membawa nomor PO Pelanggan ke DO
+      ref_po: customerPo,      // Kompatibilitas cadangan
       do_date: new Date().toISOString().split('T')[0],
       customer_name: item.customer || item.customer_name || 'Pelanggan',
       delivery_address: item.shipTo || item.customer_address || 'Jakarta',
       vehicle_number: item.sentBy || 'B 1234 SZT',
       driver_name: 'Kurir Perusahaan',
-      notes: 'Barang dikirim berdasarkan SO: ' + soNumber,
+      notes: 'Barang dikirim berdasarkan SO: ' + soNumber + (customerPo !== '-' ? ` (PO Pelanggan: ${customerPo})` : ''),
       status: 'Shipped',
       items: (item.items || []).map(i => ({
         part_number: i.code || i.part_number || '-',
@@ -246,13 +247,12 @@ export default function SalesOrder() {
     swalToast(`Sales Order ${soNumber} berhasil diproses ke Delivery Order (DO)!`, 'success');
   };
 
-  // --- TEMPLATE CETAK STANDARD ACCURATE 4 DENGAN LOGO ALDIGENS 2 ---
   const handlePrint = (item) => {
     setActiveMenuId(null);
     const rawItems = item.items || [];
     const subTotal = rawItems.reduce((acc, curr) => acc + (Number(curr.qty || curr.quantity || 1) * Number(curr.unit_price || curr.price || 0)), 0);
     const discountTotal = rawItems.reduce((acc, curr) => acc + ((Number(curr.qty || 1) * Number(curr.unit_price || curr.price || 0)) * (curr.disc || 0) / 100), 0);
-    const taxTotal = (subTotal - discountTotal) * 0.11; // PPN 11%
+    const taxTotal = (subTotal - discountTotal) * 0.11;
     const grandTotal = (subTotal - discountTotal) + taxTotal;
 
     const printWindow = window.open('', '_blank');
@@ -315,7 +315,7 @@ export default function SalesOrder() {
               <td></td>
               <td align="right" style="width: 45%;">
                 Tanggal : ${item.date || '-'}<br/>
-                Reff. PO. No : ${item.refPo || item.reff_po || '-'}<br/>
+                No. PO Pelanggan : <strong>${item.refPo || item.reff_po || item.customer_po || '-'}</strong><br/>
                 Term Pembayaran : ${item.terms || 'Net 30'}<br/>
                 Est. Tgl Kirim : ${item.estDate || item.est_delivery_date || '-'}<br/>
                 Dikirim Oleh : ${item.sentBy || 'Kurir Perusahaan'}<br/>
@@ -459,7 +459,7 @@ export default function SalesOrder() {
           <form onSubmit={handleSave} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">No. SO</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">No. SO Internal</label>
                 <input 
                   type="text" 
                   value={formData.soNo} 
@@ -481,8 +481,8 @@ export default function SalesOrder() {
                 <input type="text" placeholder="Alamat pengiriman barang..." value={formData.shipTo} onChange={(e) => setFormData({...formData, shipTo: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Reff. PO No.</label>
-                <input type="text" placeholder="No PO Pelanggan..." value={formData.refPo} onChange={(e) => setFormData({...formData, refPo: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                <label className="block text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">No. PO Pelanggan (Customer PO)</label>
+                <input type="text" placeholder="Masukkan Nomor PO Pelanggan..." value={formData.refPo} onChange={(e) => setFormData({...formData, refPo: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Term Pembayaran</label>
@@ -608,7 +608,7 @@ export default function SalesOrder() {
                 <th className="px-6 py-3.5">Tanggal</th>
                 <th className="px-6 py-3.5">No. SO</th>
                 <th className="px-6 py-3.5">Pelanggan</th>
-                <th className="px-6 py-3.5">Reff. PO</th>
+                <th className="px-6 py-3.5">No. PO Pelanggan</th>
                 <th className="px-6 py-3.5">Salesman</th>
                 <th className="px-6 py-3.5">Status</th>
                 <th className="px-6 py-3.5 text-center">Aksi</th>
@@ -626,7 +626,7 @@ export default function SalesOrder() {
                   <td className="px-6 py-4">{item.date || '-'}</td>
                   <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">{item.soNo || item.so_number}</td>
                   <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{item.customer || item.customer_name}</td>
-                  <td className="px-6 py-4 text-slate-500">{item.refPo || item.reff_po || '-'}</td>
+                  <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-medium">{item.refPo || item.reff_po || item.customer_po || '-'}</td>
                   <td className="px-6 py-4">{item.salesman || item.admin_sales || 'Administrator'}</td>
                   <td className="px-6 py-4">
                     <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-max bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
@@ -677,7 +677,6 @@ export default function SalesOrder() {
           </table>
         </div>
 
-        {/* Pagination Controller */}
         <Pagination
           currentPage={pagination.currentPage}
           totalItems={pagination.totalItems}

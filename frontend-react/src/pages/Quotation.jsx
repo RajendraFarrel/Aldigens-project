@@ -45,7 +45,6 @@ export default function Quotation() {
       setMasterProducts(dataProducts);
     } catch (e) {
       console.error("Gagal memuat produk dari API", e);
-      // Fallback ke localStorage jika API gagal
       const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
       setMasterProducts(fallback);
     } finally {
@@ -129,22 +128,26 @@ export default function Quotation() {
     }, 400);
   };
 
+  // --- DIUBAH AGAR LANGSUNG DIALIHKAN KE SALES ORDER (SO) ---
   const handleActionStatus = (q, newStatus, e) => {
     e.stopPropagation();
     
     if (newStatus === 'Deal') {
-      const existingPOs = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
-      const filteredPOs = existingPOs.filter(po => po.quotation_number !== q.quotation_number);
+      const existingSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
+      const filteredSOs = existingSOs.filter(so => so.quotation_number !== q.quotation_number && so.source_quotation !== q.quotation_number);
       
-      const newPO = {
+      const newSO = {
         ...q,
-        po_number: `PO-${q.quotation_number}`,
-        po_date: new Date().toISOString().split('T')[0],
-        source_quotation: q.quotation_number
+        id: Date.now(),
+        so_number: `SO-${Math.floor(100000 + Math.random() * 900000)}`,
+        date: new Date().toISOString().split('T')[0],
+        source_quotation: q.quotation_number,
+        ref_po: '', // Bisa diisi nomor PO customer nantinya di form SO
+        status: 'Open'
       };
       
-      localStorage.setItem('aldigens_purchase_orders', JSON.stringify([newPO, ...filteredPOs]));
-      setSuccessMsg(`Penawaran ${q.quotation_number} berstatus Deal dan dialihkan ke PO!`);
+      localStorage.setItem('aldigens_sales_orders', JSON.stringify([newSO, ...filteredSOs]));
+      setSuccessMsg(`Penawaran ${q.quotation_number} berstatus Deal dan dialihkan ke Sales Order (SO)!`);
     } else {
       setSuccessMsg(`Penawaran ${q.quotation_number} ditandai Not Deal.`);
     }
@@ -379,7 +382,7 @@ export default function Quotation() {
               </button>
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Formulir Penawaran Harga</h2>
-                <p className="text-sm text-slate-500">Sesuaikan dengan standar format penawaran Sany.</p>
+                <p className="text-sm text-slate-500">Sesuaikan dengan standar format penawaran.</p>
               </div>
             </div>
             <button type="submit" disabled={saving} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition cursor-pointer">
@@ -615,7 +618,7 @@ export default function Quotation() {
                       <td className="p-5 text-center">
                         {isFinished ? (
                           <span className="text-xs font-semibold text-slate-400 italic">
-                            {q.status === 'Deal' ? 'Dialihkan ke PO' : 'Tidak dilanjutkan'}
+                            {q.status === 'Deal' ? 'Dialihkan ke Sales Order' : 'Tidak dilanjutkan'}
                           </span>
                         ) : (
                           <div className="flex items-center justify-center gap-2">
@@ -623,7 +626,7 @@ export default function Quotation() {
                               onClick={(e) => handleActionStatus(q, 'Deal', e)}
                               className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition cursor-pointer"
                             >
-                              <ArrowRightCircle className="w-3.5 h-3.5" /> Deal (ke PO)
+                              <ArrowRightCircle className="w-3.5 h-3.5" /> Deal (ke SO)
                             </button>
                             <button
                               onClick={(e) => handleActionStatus(q, 'Not Deal', e)}
@@ -646,7 +649,6 @@ export default function Quotation() {
             </table>
           </div>
 
-          {/* Pagination Controller */}
           <Pagination
             currentPage={pagination.currentPage}
             totalItems={pagination.totalItems}

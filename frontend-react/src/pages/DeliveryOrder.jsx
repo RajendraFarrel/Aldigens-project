@@ -22,6 +22,7 @@ export default function DeliveryOrder() {
 
   const [formData, setFormData] = useState({
     sales_order_id: '',
+    ref_po: '', // Tambahan state untuk No PO Pelanggan
     do_number: `DO-${Math.floor(1000 + Math.random() * 9000)}`,
     do_date: new Date().toISOString().split('T')[0],
     customer_name: '',
@@ -78,7 +79,7 @@ export default function DeliveryOrder() {
   }, [fetchDOs, fetchSOs]);
 
   const handleSelectSO = (soId) => {
-    setFormData((prev) => ({ ...prev, sales_order_id: soId, items: [] }));
+    setFormData((prev) => ({ ...prev, sales_order_id: soId, ref_po: '', items: [] }));
     if (!soId) return;
 
     const so = salesOrders.find((s) => String(s.id) === String(soId) || String(s.soNo) === String(soId) || String(s.so_number) === String(soId));
@@ -94,6 +95,7 @@ export default function DeliveryOrder() {
     setFormData((prev) => ({
       ...prev,
       sales_order_id: soId,
+      ref_po: so.refPo || so.reff_po || '', // Mengambil data PO Pelanggan dari SO
       customer_name: so.customer || so.customer_name || '',
       delivery_address: so.shipTo || so.customer_address || '',
       vehicle_number: so.sentBy || so.delivery_by || '',
@@ -121,6 +123,7 @@ export default function DeliveryOrder() {
   const resetForm = () => {
     setFormData({
       sales_order_id: '',
+      ref_po: '',
       do_number: `DO-${Math.floor(1000 + Math.random() * 9000)}`,
       do_date: new Date().toISOString().split('T')[0],
       customer_name: '',
@@ -257,7 +260,7 @@ export default function DeliveryOrder() {
                 </div>
               </td>
               <td class="title-area">
-                <div class="doc-title">DELIVERY ORDER</div>
+                <div class="doc-title">DELIVERY ORDER (SURAT JALAN)</div>
                 <div><strong>No :</strong> ${escapeHtml(doData.do_number || '-')}</div>
               </td>
             </tr>
@@ -268,7 +271,8 @@ export default function DeliveryOrder() {
               <td></td>
               <td align="right" style="width: 45%;">
                 Tanggal : ${escapeHtml(doData.do_date || '-')}<br/>
-                No. SO : ${escapeHtml(doData.so_number || '-')}<br/>
+                No. SO Internal : ${escapeHtml(doData.so_number || '-')}<br/>
+                No. PO Pelanggan : <strong>${escapeHtml(doData.ref_po || '-')}</strong><br/>
                 Kendaraan : ${escapeHtml(doData.vehicle_number || '-')}<br/>
                 Driver / Kurir : ${escapeHtml(doData.driver_name || '-')}
               </td>
@@ -534,7 +538,7 @@ export default function DeliveryOrder() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Penerima</p>
               <p className="font-semibold text-slate-800">{selectedDO.customer_name}</p>
@@ -550,6 +554,10 @@ export default function DeliveryOrder() {
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Referensi SO</p>
               <p className="font-semibold text-slate-800">{selectedDO.so_number || '-'}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-orange-600">No. PO Pelanggan</p>
+              <p className="font-bold text-orange-600">{selectedDO.ref_po || '-'}</p>
             </div>
           </div>
 
@@ -587,6 +595,7 @@ export default function DeliveryOrder() {
                   <th className="p-5 font-bold">No. Surat Jalan</th>
                   <th className="p-5 font-bold">Penerima</th>
                   <th className="p-5 font-bold">Ref. SO</th>
+                  <th className="p-5 font-bold text-orange-600">PO Pelanggan</th>
                   <th className="p-5 font-bold">Tanggal</th>
                   <th className="p-5 font-bold">Kendaraan</th>
                   <th className="p-5 font-bold text-center">Status</th>
@@ -595,11 +604,11 @@ export default function DeliveryOrder() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <tr><td colSpan="7" className="text-center p-12 text-slate-400 text-sm">
+                  <tr><td colSpan="8" className="text-center p-12 text-slate-400 text-sm">
                     <RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data...
                   </td></tr>
                 ) : deliveryOrders.length === 0 ? (
-                  <tr><td colSpan="7" className="text-center p-16 text-slate-400 text-sm">
+                  <tr><td colSpan="8" className="text-center p-16 text-slate-400 text-sm">
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <Truck className="w-12 h-12 text-slate-200" />
                       <p className="font-medium">Belum ada Surat Jalan yang diterbitkan.</p>
@@ -610,6 +619,7 @@ export default function DeliveryOrder() {
                     <td className="p-5 font-bold text-slate-800">{d.do_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{d.customer_name}</td>
                     <td className="p-5 text-slate-500">{d.so_number || '-'}</td>
+                    <td className="p-5 text-orange-600 font-medium">{d.ref_po || '-'}</td>
                     <td className="p-5 text-slate-500">{d.do_date}</td>
                     <td className="p-5 text-slate-500">{d.vehicle_number || '-'}</td>
                     <td className="p-5 text-center">
@@ -626,7 +636,6 @@ export default function DeliveryOrder() {
             </table>
           </div>
 
-          {/* Pagination Controller */}
           <Pagination
             currentPage={pagination.currentPage}
             totalItems={pagination.totalItems}

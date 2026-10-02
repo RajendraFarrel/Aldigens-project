@@ -86,6 +86,35 @@ export default function Invoice() {
     fetchDOs();
   }, [fetchInvoices, fetchDOs]);
 
+  // --- MENANGKAP DATA DARI BAST / KOMISIONING OTOMATIS ---
+  useEffect(() => {
+    const activeRef = localStorage.getItem('active_invoice_ref');
+    if (activeRef) {
+      try {
+        const parsedRef = JSON.parse(activeRef);
+        setIsCreating(true);
+        
+        setFormData((prev) => ({
+          ...prev,
+          do_reference: parsedRef.do_number || parsedRef.commissioning_code || '',
+          customer_name: parsedRef.customer_name || '',
+          notes: `Referensi BAST: ${parsedRef.commissioning_code} | PO: ${parsedRef.ref_po || '-'} | SO: ${parsedRef.so_number || '-'}`,
+          items: [
+            {
+              description: `Pekerjaan Proyek / Komisioning: ${parsedRef.project_name || parsedRef.commissioning_code} (PO: ${parsedRef.ref_po || '-'})`,
+              qty: 1,
+              unit_price: 0
+            }
+          ]
+        }));
+        
+        localStorage.removeItem('active_invoice_ref');
+      } catch (err) {
+        console.error('Gagal memparsing referensi BAST:', err);
+      }
+    }
+  }, []);
+
   const handleSelectDO = (doNumber) => {
     setFormData((prev) => ({ ...prev, do_reference: doNumber, items: [] }));
     if (!doNumber) return;
@@ -169,6 +198,35 @@ export default function Invoice() {
       setError('Gagal menyimpan Invoice.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUpdateStatus = async (newStatus) => {
+    if (!selectedInvoice) return;
+    
+    try {
+      const updatedInvoice = { ...selectedInvoice, status: newStatus };
+      setSelectedInvoice(updatedInvoice);
+      
+      const existing = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
+      const updatedList = existing.map(inv => 
+        (inv.id === updatedInvoice.id || inv.invoice_number === updatedInvoice.invoice_number) 
+          ? updatedInvoice 
+          : inv
+      );
+      localStorage.setItem('aldigens_invoices', JSON.stringify(updatedList));
+
+      try {
+        await api.put(`/invoices/${selectedInvoice.id}`, { status: newStatus });
+      } catch (err) {
+        console.warn("Backend update status offline, disimpan secara lokal.");
+      }
+
+      setSuccessMsg(`Status invoice berhasil diubah menjadi ${newStatus}!`);
+      fetchInvoices();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (e) {
+      setError('Gagal mengubah status invoice.');
     }
   };
 
@@ -343,12 +401,12 @@ export default function Invoice() {
             </div>
             <div>
               <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Invoice (Faktur Penjualan)</h1>
-              <p className="text-sm text-slate-500 mt-1">Terbitkan tagihan resmi ke pelanggan berdasarkan Surat Jalan (DO) yang selesai.</p>
+              <p className="text-sm text-slate-500 mt-1">Terbitkan tagihan resmi ke pelanggan berdasarkan Surat Jalan (DO) atau BAST.</p>
             </div>
           </div>
           <button
             onClick={() => { resetForm(); setIsCreating(true); }}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-indigo-500/20 transition-all cursor-pointer"
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-indigo-500/25 transition-all cursor-pointer"
           >
             <Plus className="w-5 h-5" />
             <span>Buat Invoice</span>
@@ -361,9 +419,6 @@ export default function Invoice() {
           <CheckCircle2 className="h-4 w-4" /> {successMsg}
         </div>
       )}
-      {error && !isCreating && (
-        <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>
-      )}
 
       {isCreating ? (
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 space-y-8 w-full">
@@ -374,7 +429,7 @@ export default function Invoice() {
               </button>
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Formulir Invoice Baru</h2>
-                <p className="text-sm text-slate-500">Tarik data dari D.O atau buat manual.</p>
+                <p className="text-sm text-slate-500">Tarik data dari D.O / BAST atau buat manual.</p>
               </div>
             </div>
             <button type="submit" disabled={saving} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition cursor-pointer">
@@ -387,7 +442,7 @@ export default function Invoice() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-1.5 lg:col-span-1">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Referensi D.O (Opsional)</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Referensi D.O / BAST</label>
               <select
                 value={formData.do_reference}
                 onChange={(e) => handleSelectDO(e.target.value)}
@@ -438,14 +493,14 @@ export default function Invoice() {
 
             {formData.items.length === 0 ? (
               <p className="text-sm text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6 text-center">
-                Belum ada rincian tagihan. Tarik dari D.O atau tambah manual.
+                Belum ada rincian tagihan. Tarik dari D.O / BAST atau tambah manual.
               </p>
             ) : (
               <div className="space-y-3">
                 {formData.items.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 items-center">
                     <div className="md:col-span-6">
-                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">DESKRIPSI BARANG</label>
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">DESKRIPSI BARANG / PROYEK</label>
                       <input type="text" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
                     </div>
                     <div className="md:col-span-2">
@@ -483,10 +538,28 @@ export default function Invoice() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex flex-wrap items-center gap-3">
               <span className={`px-4 py-2 rounded-xl text-sm font-bold border ${statusBadge(selectedInvoice.status || 'Unpaid')}`}>
                 {selectedInvoice.status || 'Unpaid'}
               </span>
+
+              {selectedInvoice.status !== 'Paid' ? (
+                <button
+                  onClick={() => handleUpdateStatus('Paid')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2.5 rounded-xl font-medium transition cursor-pointer shadow-sm"
+                >
+                  Tandai Lunas (Paid)
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleUpdateStatus('Unpaid')}
+                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs px-4 py-2.5 rounded-xl font-medium transition cursor-pointer shadow-sm"
+                >
+                  Ubah ke Unpaid
+                </button>
+              )}
+
               <button
                 onClick={() => printInvoice(selectedInvoice)}
                 className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer"
@@ -507,7 +580,7 @@ export default function Invoice() {
               <p className="font-semibold text-slate-800">{selectedInvoice.due_date || '-'}</p>
             </div>
             <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Ref D.O</p>
+              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Ref D.O / BAST</p>
               <p className="font-semibold text-slate-800">{selectedInvoice.do_reference || '-'}</p>
             </div>
           </div>

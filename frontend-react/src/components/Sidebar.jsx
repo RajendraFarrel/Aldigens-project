@@ -55,22 +55,22 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
 
   return (
     <aside
-      className={`bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 transition-all duration-300 z-50 dark:bg-slate-950 dark:border-slate-800 ${
+      className={`bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300 flex flex-col border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-50 ${
         isOpen ? 'w-64' : 'w-20'
       }`}
     >
       {/* Logo */}
-      <div className="p-4 border-b border-slate-800 flex items-center space-x-3 overflow-hidden">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center space-x-3 overflow-hidden">
         <img
           src={logoPerusahaan}
           alt="Logo PT Aldigens"
           className="h-10 w-10 object-cover rounded-md flex-shrink-0"
         />
         <div className={`transition-opacity duration-300 ${isOpen ? 'opacity-100 flex-1' : 'opacity-0 hidden'}`}>
-          <h1 className="text-white font-bold text-xs leading-snug truncate">
+          <h1 className="text-slate-800 dark:text-white font-bold text-xs leading-snug truncate">
             PT. ALDIGENS PUTERA PERSADA
           </h1>
-          <p className="text-[10px] text-slate-400 mt-0.5">Sistem Terintegrasi</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Sistem Terintegrasi</p>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
         {menuGroups.map(({ group, items }) => (
           <div key={group}>
             {isOpen && (
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest px-3 mb-1.5">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5">
                 {group}
               </p>
             )}
@@ -100,7 +100,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer ${
                         isActive && !hasSubItems
                           ? 'bg-blue-600 text-white shadow-md'
-                          : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                       }`}
                     >
                       <div className="flex items-center space-x-3 truncate">
@@ -109,20 +109,20 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
                           {item.label}
                         </span>
                       </div>
-                      
+
                       {/* Ikon panah untuk Dropdown */}
                       {hasSubItems && isOpen && (
                         isDropdownOpen ? (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                          <ChevronDown className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                         ) : (
-                          <ChevronRight className="h-4 w-4 text-slate-400" />
+                          <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                         )
                       )}
                     </button>
 
                     {/* Sub-menu Rendering */}
                     {hasSubItems && isDropdownOpen && isOpen && (
-                      <div className="mt-1 ml-4 pl-4 border-l-2 border-slate-700 space-y-1">
+                      <div className="mt-1 ml-4 pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-1">
                         {item.subItems.map((sub) => {
                           const SubIcon = sub.icon;
                           const isSubActive = activeTab === sub.key;
@@ -133,7 +133,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
                               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                                 isSubActive
                                   ? 'bg-blue-600 text-white shadow-md'
-                                  : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                               }`}
                             >
                               <SubIcon className="h-4 w-4 flex-shrink-0" />
@@ -152,7 +152,7 @@ export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, all
       </nav>
 
       {/* Logout */}
-      <div className="p-3 border-t border-slate-800">
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800">
         <button
           onClick={onLogout}
           title={!isOpen ? 'Keluar Aplikasi' : ''}

@@ -105,7 +105,8 @@ export default function App() {
     return !!localStorage.getItem('auth_token');
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Menu aktif disimpan di localStorage agar tetap di halaman yang sama setelah reload.
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('aldigens_active_tab') || 'dashboard');
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('auth_user') || 'null');
@@ -121,6 +122,11 @@ export default function App() {
       setActiveTab('dashboard');
     }
   }, [isAuthenticated, currentUser]);
+
+  /* Simpan menu aktif setiap kali berubah supaya reload tidak kembali ke dashboard. */
+  useEffect(() => {
+    if (isAuthenticated) localStorage.setItem('aldigens_active_tab', activeTab);
+  }, [activeTab, isAuthenticated]);
 
   /* Judul tab browser mengikuti halaman aktif. */
   useEffect(() => {
@@ -175,7 +181,9 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
+    localStorage.removeItem('aldigens_active_tab');
     setCurrentUser(null);
+    setActiveTab('dashboard');
     setIsAuthenticated(false);
   };
 

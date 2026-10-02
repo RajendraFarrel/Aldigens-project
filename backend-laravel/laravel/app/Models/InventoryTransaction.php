@@ -10,6 +10,7 @@ class InventoryTransaction extends Model
     use HasFactory;
 
     protected $fillable = [
+        'group_key',
         'product_id',
         'user_id',
         'warehouse_id',
@@ -18,6 +19,7 @@ class InventoryTransaction extends Model
         'reference_id',
         'reference_number',
         'transaction_type',
+        'transfer_direction',
         'quantity',
         'stock_before',
         'stock_after',

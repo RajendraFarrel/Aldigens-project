@@ -80,7 +80,9 @@ class InventoryStockService
 
             InventoryTransaction::create([
                 'product_id' => $lockedProduct->id,
+                'group_key' => $context['group_key'] ?? null,
                 'transaction_type' => $type,
+                'transfer_direction' => $context['transfer_direction'] ?? null,
                 'quantity' => $quantity,
                 'stock_before' => $stockBefore,
                 'stock_after' => $stockAfter,
@@ -177,7 +179,9 @@ class InventoryStockService
 
             InventoryTransaction::create([
                 'product_id' => $lockedProduct->id,
+                'group_key' => $context['group_key'] ?? null,
                 'transaction_type' => 'ADJUSTMENT',
+                'transfer_direction' => null,
                 'quantity' => $difference,
                 'stock_before' => $stockBefore,
                 'stock_after' => $stockAfter,
@@ -194,6 +198,54 @@ class InventoryStockService
             ]);
 
             return $lockedProduct->fresh();
+        });
+    }
+
+    /**
+     * Membatalkan satu grup mutasi (penerimaan / pengeluaran / transfer) dengan
+     * mengembalikan saldo lokasi ke nilai sebelum mutasi dibuat.
+     */
+    public function revertGroup(?string $groupKey = null, ?int $transactionId = null): int
+    {
+        return DB::transaction(function () use ($groupKey, $transactionId) {
+            $query = InventoryTransaction::query()->orderBy('id', 'asc');
+            if ($groupKey) {
+                $query->where('group_key', $groupKey);
+            } elseif ($transactionId) {
+                $query->where('id', $transactionId);
+            } else {
+                return 0;
+            }
+
+            $transactions = $query->get();
+            $affectedProducts = [];
+
+            foreach ($transactions as $transaction) {
+                $stockQuery = InventoryStock::query()
+                    ->where('product_id', $transaction->product_id)
+                    ->where('warehouse_id', $transaction->warehouse_id);
+                if ($transaction->warehouse_location_id) {
+                    $stockQuery->where('warehouse_location_id', $transaction->warehouse_location_id);
+                } else {
+                    $stockQuery->whereNull('warehouse_location_id');
+                }
+
+                $stock = $stockQuery->lockForUpdate()->first();
+                if ($stock) {
+                    $stock->update(['quantity' => (int) $transaction->stock_before]);
+                }
+
+                $affectedProducts[$transaction->product_id] = true;
+                $transaction->delete();
+            }
+
+            foreach (array_keys($affectedProducts) as $productId) {
+                Product::where('id', $productId)->update([
+                    'stock' => InventoryStock::where('product_id', $productId)->sum('quantity'),
+                ]);
+            }
+
+            return $transactions->count();
         });
     }
 }

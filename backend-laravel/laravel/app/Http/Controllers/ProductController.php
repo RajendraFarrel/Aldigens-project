@@ -90,7 +90,7 @@ class ProductController extends Controller
         return response()->json(['data' => $product]);
     }
 
-    public function update(Request $request, Product $product)
+    public function update(Request $request, Product $product, \App\Services\InventoryStockService $stockService)
     {
         $validated = $request->validate([
             'product_code' => 'nullable|string|max:255',
@@ -100,7 +100,7 @@ class ProductController extends Controller
             'category'     => 'nullable|string|max:255',
             'item_type'    => 'nullable|in:BAHAN / COMPONENT,PRODUK JADI,PRODUKSI',
             'unit'         => 'nullable|string|max:50',
-            'stock'        => 'prohibited',
+            'stock'        => 'nullable|integer|min:0',
             'minimum_stock' => 'nullable|integer|min:0',
             'maximum_stock' => 'nullable|integer|min:0',
             'status'       => 'nullable|in:AKTIF,NONAKTIF',
@@ -126,7 +126,31 @@ class ProductController extends Controller
             ], 422);
         }
 
+        // Koreksi stok dicatat sebagai adjustment agar histori mutasi tetap konsisten
+        // dengan saldo di inventory_stocks (tidak menimpa kolom secara diam-diam).
+        $requestedStock = array_key_exists('stock', $validated) && $validated['stock'] !== null
+            ? (int) $validated['stock']
+            : null;
+        unset($validated['stock']);
+
         $product->update($validated);
+
+        if ($requestedStock !== null && $requestedStock !== (int) $product->stock) {
+            $warehouse = Warehouse::query()->firstOrCreate(
+                ['code' => 'MAIN'],
+                ['name' => 'Warehouse Utama', 'status' => 'AKTIF']
+            );
+
+            $product = $stockService->adjustWarehouseTotal($product, $requestedStock - (int) $product->stock, [
+                'warehouse_id' => $warehouse->id,
+                'warehouse_location_id' => null,
+                'user_id' => $request->user()?->id,
+                'user_name' => $request->user()?->name,
+                'reference_type' => 'PRODUCT_EDIT',
+                'reference_number' => $product->part_number,
+                'notes' => 'Koreksi stok saat edit data produk',
+            ]);
+        }
 
         return response()->json(['data' => $product, 'message' => 'Produk berhasil diperbarui.']);
     }

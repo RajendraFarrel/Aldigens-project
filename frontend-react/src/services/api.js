@@ -100,11 +100,15 @@ export const createWarehouse = (data) => api.post('/inventory/warehouses', data)
 export const updateWarehouse = (id, data) => api.put(`/inventory/warehouses/${id}`, data);
 export const deleteWarehouse = (id) => api.delete(`/inventory/warehouses/${id}`);
 export const getWarehouseLocations = (id) => api.get(`/inventory/warehouses/${id}/locations`);
+export const getWarehouseItems = (id, params = {}) => api.get(`/inventory/warehouses/${id}/items`, { params });
 export const createWarehouseLocation = (id, data) => api.post(`/inventory/warehouses/${id}/locations`, data);
 export const getInventoryStocks = (params = {}) => api.get('/inventory/stocks', { params });
 export const receiveInventory = (data) => api.post('/inventory/receive', data);
 export const issueInventory = (data) => api.post('/inventory/issue', data);
 export const transferInventory = (data) => api.post('/inventory/transfer', data);
+export const getInventoryMutations = (params = {}) => api.get('/inventory/mutations', { params });
+export const updateInventoryMutation = (groupKey, data) => api.put(`/inventory/mutations/${groupKey}`, data);
+export const deleteInventoryMutation = (groupKey) => api.delete(`/inventory/mutations/${groupKey}`);
 export const getStockOpnames = (params = {}) => api.get('/inventory/stock-opnames', { params });
 export const createStockOpname = (data) => api.post('/inventory/stock-opnames', data);
 export const completeStockOpname = (id) => api.post(`/inventory/stock-opnames/${id}/complete`);

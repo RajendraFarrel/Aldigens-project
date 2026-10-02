@@ -1,540 +1,436 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  NotebookPen, Plus, Search, Eye, Trash2, Save, CheckCircle2, XCircle, FileText,
+    NotebookPen, Plus, Search, RefreshCw, Eye, Pencil, CheckCircle2,
+    Undo2, Trash2,
 } from 'lucide-react';
 import PrintButton from '../../components/PrintButton';
 import PrintHeader from '../../components/PrintHeader';
+import JournalVoucherForm from '../../components/accounting/JournalVoucherForm';
 import {
-  JOURNAL_VOUCHERS, CHART_OF_ACCOUNTS, TRANSACTION_TYPES,
-  accountByKode, rupiah, formatTanggal,
-} from '../../Data/mockAccounting';
-import { requestVoucherDetail, setSelectedVoucherId } from '../../Data/accountingStore';
+    getVouchers, getVoucher, postVoucher, reverseVoucher, deleteVoucher,
+    getJournalUmum, VOUCHER_TYPES, rupiah, angka, formatTanggal, periodeDefault,
+} from '../../services/accountingApi';
+import { requestVoucherDetail } from '../../Data/accountingStore';
 import { swalSuccess, swalError, swalConfirm } from '../../utils/swal';
 
-const emptyLine = () => ({ kode: '', memo: '', debit: '', kredit: '' });
-
+/**
+ * Jurnal Umum / Journal Voucher.
+ *
+ * Tab "Rekap Jurnal"  : jurnal hasil POSTED, susunan mengikuti Excel rekap perusahaan.
+ * Tab "Daftar Voucher" : semua voucher (Draft & Posted) dari database.
+ */
 export default function JurnalUmum() {
-  const [view, setView] = useState('list'); // list | form
-  const [search, setSearch] = useState('');
+    const [tab, setTab] = useState('rekap'); // rekap | daftar | form
+    const [formEdit, setFormEdit] = useState(null);
 
-  /* ---- Header voucher ---- */
-  const [form, setForm] = useState({
-    noVoucher: '',
-    tanggal: new Date().toISOString().slice(0, 10),
-    jenis: 'Penjualan',
-    keterangan: '',
-  });
-  const [lines, setLines] = useState([emptyLine(), emptyLine()]);
-  const [errors, setErrors] = useState({});
+    /* --- state daftar voucher --- */
+    const [vouchers, setVouchers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
+    const [filterStatus, setFilterStatus] = useState('');
+    const [filterJenis, setFilterJenis] = useState('');
 
-  useEffect(() => {
-    if (view !== 'form') return;
-    const next = String(JOURNAL_VOUCHERS.length + 1).padStart(3, '0');
-    setForm((f) => ({ ...f, noVoucher: `JV-${new Date().getFullYear()}-${next}` }));
-    setLines([emptyLine(), emptyLine()]);
-    setErrors({});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+    /* --- state rekap jurnal --- */
+    const [rekap, setRekap] = useState(null);
+    const [rekapLoading, setRekapLoading] = useState(false);
+    const [periode, setPeriode] = useState(periodeDefault());
 
-  const totalDebit = useMemo(
-    () => lines.reduce((s, l) => s + (Number(l.debit) || 0), 0),
-    [lines]
-  );
-  const totalKredit = useMemo(
-    () => lines.reduce((s, l) => s + (Number(l.kredit) || 0), 0),
-    [lines]
-  );
-  const selisih = totalDebit - totalKredit;
-  const balanced = totalDebit > 0 && selisih === 0;
+    const muatVouchers = useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data } = await getVouchers({ per_page: 200 });
+            setVouchers(data.data || []);
+        } catch (err) {
+            swalError('Gagal memuat daftar voucher', err.response?.data?.message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
-  const setLine = (idx, field, value) => {
-    setLines((prev) =>
-      prev.map((l, i) => {
-        if (i !== idx) return l;
-        const next = { ...l, [field]: value };
-        /* Debit & kredit tidak boleh terisi bersamaan (praktik pembukuan). */
-        if (field === 'debit' && value) next.kredit = '';
-        if (field === 'kredit' && value) next.debit = '';
-        return next;
-      })
-    );
-  };
+    const muatRekap = useCallback(async () => {
+        setRekapLoading(true);
+        try {
+            const { data } = await getJournalUmum({ from: periode.from, to: periode.to });
+            setRekap(data);
+        } catch (err) {
+            swalError('Gagal memuat rekap jurnal', err.response?.data?.message);
+        } finally {
+            setRekapLoading(false);
+        }
+    }, [periode]);
 
-  const addLine = () => setLines((p) => [...p, emptyLine()]);
-  const removeLine = (idx) => setLines((p) => (p.length <= 2 ? p : p.filter((_, i) => i !== idx)));
+    useEffect(() => { muatVouchers(); }, [muatVouchers]);
+    useEffect(() => { muatRekap(); }, [muatRekap]);
 
-  const validate = () => {
-    const e = {};
-    if (!form.noVoucher.trim()) e.noVoucher = 'No voucher wajib diisi';
-    if (!form.tanggal) e.tanggal = 'Tanggal wajib diisi';
-    if (!form.keterangan.trim()) e.keterangan = 'Keterangan wajib diisi';
+    const daftar = useMemo(() => vouchers.filter((v) => {
+        const q = search.toLowerCase().trim();
+        const mQ = !q
+            || v.no_voucher.toLowerCase().includes(q)
+            || (v.keterangan || '').toLowerCase().includes(q)
+            || (v.no_referensi || '').toLowerCase().includes(q);
+        const mS = !filterStatus || v.status === filterStatus;
+        const mJ = !filterJenis || v.jenis === filterJenis;
+        return mQ && mS && mJ;
+    }), [vouchers, search, filterStatus, filterJenis]);
 
-    const usable = lines.filter((l) => l.kode || Number(l.debit) || Number(l.kredit));
-    if (usable.length < 2) e.lines = 'Minimal dua baris jurnal (debit & kredit)';
-    usable.forEach((l, i) => {
-      if (!l.kode) e[`line-${i}`] = 'Kode akun wajib dipilih';
-      if (Number(l.debit) === 0 && Number(l.kredit) === 0) {
-        e[`line-${i}`] = 'Nominal debit atau kredit harus diisi';
-      }
-    });
+    /* --- aksi --- */
+    const bukaDetail = async (v) => {
+        try {
+            const { data } = await getVoucher(v.id);
+            requestVoucherDetail(data.id);
+            window.dispatchEvent(new CustomEvent('aldigens:goto', { detail: 'accounting-voucher-detail' }));
+        } catch (err) {
+            swalError('Gagal membuka detail voucher', err.response?.data?.message);
+        }
+    };
 
-    if (totalDebit === 0) e.total = 'Total debit masih 0';
-    if (selisih !== 0) {
-      e.total = `Total Debit (${rupiah(totalDebit)}) harus sama dengan Total Kredit (${rupiah(totalKredit)})`;
-    }
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
+    const posting = async (v) => {
+        const ok = await swalConfirm({
+            title: `Posting Voucher ${v.no_voucher}?`,
+            text: 'Setelah diposting, voucher terkunci danjournalsnya masuk ke Buku Besar serta Neraca Saldo.',
+            confirmText: 'Ya, Posting',
+        });
+        if (!ok) return;
 
-  const handleSimpanDraft = () => {
-    if (totalDebit === 0) {
-      setErrors({ total: 'Isi nominal jurnal sebelum menyimpan draft' });
-      return;
-    }
-    swalSuccess('Draft Disimpan', `Voucher ${form.noVoucher} disimpan sebagai Draft (belum posting).`);
-  };
+        try {
+            const { data } = await postVoucher(v.id);
+            swalSuccess(data.message || 'Voucher berhasil diposting.');
+            muatVouchers();
+            muatRekap();
+        } catch (err) {
+            swalError('Posting gagal', err.response?.data?.message);
+        }
+    };
 
-  const handlePosting = () => {
-    if (!validate()) {
-      swalError('Validasi Gagal', 'Periksa kembali isian jurnal. Total Debit harus sama dengan Total Kredit.');
-      return;
-    }
-    swalSuccess('Jurnal Diposting', `Voucher ${form.noVoucher} berhasil diposting ke buku besar.`);
-    setView('list');
-  };
+    const reversal = async (v) => {
+        const Swal = (await import('sweetalert2')).default;
+        const { value: alasan } = await Swal.fire({
+            title: `Reversal Voucher ${v.no_voucher}`,
+            input: 'textarea',
+            inputLabel: 'Alasan reversal (wajib)',
+            inputPlaceholder: 'Contoh: salah input nominal',
+            inputValidator: (val) => (!val || val.trim() === '') ? 'Alasan wajib diisi.' : undefined,
+            showCancelButton: true,
+            confirmButtonText: 'Buat Reversal',
+        });
+        if (!alasan) return;
 
-  const handleBatal = () => {
-    setView('list');
-    setForm({ noVoucher: '', tanggal: new Date().toISOString().slice(0, 10), jenis: 'Penjualan', keterangan: '' });
-    setLines([emptyLine(), emptyLine()]);
-    setErrors({});
-  };
+        try {
+            const { data } = await reverseVoucher(v.id, alasan);
+            swalSuccess(data.message || 'Reversal berhasil dibuat.');
+            muatVouchers();
+            muatRekap();
+        } catch (err) {
+            swalError('Reversal gagal', err.response?.data?.message);
+        }
+    };
 
-  const handleHapus = async (v) => {
-    const ok = await swalConfirm({
-      title: 'Hapus Voucher?',
-      text: `Voucher ${v.noVoucher} akan dihapus dari daftar.`,
-      confirmText: 'Ya, Hapus',
-      danger: true,
-    });
-    if (ok) swalSuccess('Dihapus', `Voucher ${v.noVoucher} telah dihapus.`);
-  };
+    const hapusDraft = async (v) => {
+        const ok = await swalConfirm({
+            title: `Hapus voucher ${v.no_voucher}?`,
+            text: 'Hanya voucher Draft yang dapat dihapus.',
+            confirmText: 'Hapus',
+            danger: true,
+        });
+        if (!ok) return;
 
-  const handleLihat = (v) => {
-    setSelectedVoucherId(v.id);
-    requestVoucherDetail(v.id);
-    window.dispatchEvent(new CustomEvent('aldigens:goto', { detail: 'accounting-voucher-detail' }));
-  };
+        try {
+            await deleteVoucher(v.id);
+            swalSuccess('Voucher draft dihapus.');
+            muatVouchers();
+        } catch (err) {
+            swalError('Gagal menghapus voucher', err.response?.data?.message);
+        }
+    };
 
-  const daftar = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return JOURNAL_VOUCHERS;
-    return JOURNAL_VOUCHERS.filter(
-      (v) =>
-        v.noVoucher.toLowerCase().includes(q) ||
-        v.keterangan.toLowerCase().includes(q) ||
-        v.jenis.toLowerCase().includes(q)
-    );
-  }, [search]);
+    const badge = (status) => {
+        const map = {
+            DRAFT: 'bg-amber-100 text-amber-700',
+            POSTED: 'bg-emerald-100 text-emerald-700',
+            VOID: 'bg-slate-200 text-slate-600',
+        };
+        return `inline-block px-2 py-1 rounded-full text-xs font-bold ${map[status] || ''}`;
+    };
 
-  /* =====================================================================
-     DAFTAR JOURNAL VOUCHER
-     ===================================================================== */
-  if (view === 'list') {
     return (
-      <div className="p-6 space-y-5 print-area">
-        <div className="flex flex-wrap items-center justify-between gap-3 no-print">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2.5 rounded-xl shadow">
-              <NotebookPen className="h-5 w-5 text-white" />
+        <div className="p-6 space-y-5 print-area">
+            <div className="flex flex-wrap items-center justify-between gap-3 no-print">
+                <div className="flex items-center gap-3">
+                    <div className="bg-indigo-600 p-2.5 rounded-xl shadow">
+                        <NotebookPen className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Jurnal Umum</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Journal Voucher dan rekap jurnal dari transaksi yang sudah diposting
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => { muatVouchers(); muatRekap(); }}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer">
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Muat Ulang</span>
+                    </button>
+                    <button onClick={() => { setFormEdit(null); setTab('form'); }}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm cursor-pointer">
+                        <Plus className="h-4 w-4" /> Buat Voucher
+                    </button>
+                </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Jurnal Umum</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Daftar Journal Voucher &mdash; Input Transaksi Jurnal Umum
-              </p>
+
+            {/* Tab */}
+            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 no-print">
+                {[
+                    { k: 'rekap', label: 'Rekap Jurnal' },
+                    { k: 'daftar', label: 'Daftar Voucher' },
+                    { k: 'form', label: formEdit ? 'Edit Voucher' : 'Voucher Baru' },
+                ].map((t) => (
+                    <button key={t.k} onClick={() => setTab(t.k)}
+                        className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition cursor-pointer
+                            ${tab === t.k
+                                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+                        {t.label}
+                    </button>
+                ))}
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <PrintButton label="Cetak Daftar" />
-            <button
-              onClick={() => setView('form')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm cursor-pointer"
-            >
-              <Plus className="h-4 w-4" /> Buat Voucher
-            </button>
-          </div>
-        </div>
 
-        <PrintHeader judul="DAFTAR JOURNAL VOUCHER" periode="Tahun Buku 2026" />
+            {/* ---------------- TAB: REKAP JURNAL ---------------- */}
+            {tab === 'rekap' && (
+                <div className="space-y-4">
+                    <div className="flex flex-wrap items-end gap-3 no-print">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Dari Tanggal</label>
+                            <input type="date" value={periode.from}
+                                onChange={(e) => setPeriode({ ...periode, from: e.target.value })}
+                                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Sampai Tanggal</label>
+                            <input type="date" value={periode.to}
+                                onChange={(e) => setPeriode({ ...periode, to: e.target.value })}
+                                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+                        </div>
+                        <PrintButton label="Cetak Rekap" />
+                    </div>
 
-        {/* Ringkasan */}
-        <div className="grid grid-cols-3 gap-3 no-print">
-          <StatCard label="Total Voucher" value={JOURNAL_VOUCHERS.length} tone="slate" />
-          <StatCard label="Sudah Posting" value={JOURNAL_VOUCHERS.filter((v) => v.status === 'Posted').length} tone="emerald" />
-          <StatCard label="Draft" value={JOURNAL_VOUCHERS.filter((v) => v.status === 'Draft').length} tone="amber" />
-        </div>
+                    <PrintHeader
+                        judul="REKAP JURNAL UMUM"
+                        periode={`${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`}
+                    />
 
-        {/* Cari */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 no-print">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari No Voucher, Keterangan, atau Jenis Transaksi..."
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-        </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Total Debit</p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">{rupiah(rekap?.total_debit)}</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Total Kredit</p>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">{rupiah(rekap?.total_kredit)}</p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Selisih</p>
+                            <p className={`text-sm font-bold ${rekap?.balanced ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {rupiah(rekap?.selisih)}
+                            </p>
+                        </div>
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Status</p>
+                            <p className={`text-sm font-bold ${rekap?.balanced ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {rekap?.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
+                            </p>
+                        </div>
+                    </div>
 
-        {/* Tabel daftar */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-                <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">No Voucher</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Tanggal</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Jenis Transaksi</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Keterangan</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Total Debit</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Status</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 no-print">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {daftar.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-10 text-slate-400">
-                      Tidak ada journal voucher yang cocok.
-                    </td>
-                  </tr>
-                ) : (
-                  daftar.map((v) => {
-                    const d = v.lines.reduce((s, l) => s + l.debit, 0);
-                    return (
-                      <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                        <td className="px-4 py-3 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">{v.noVoucher}</td>
-                        <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{formatTanggal(v.tanggal)}</td>
-                        <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">{v.jenis}</td>
-                        <td className="px-4 py-3 text-slate-700 dark:text-slate-200 max-w-xs truncate">{v.keterangan}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-800 dark:text-white">{rupiah(d)}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`text-xs font-bold px-2 py-1 rounded-full ${v.status === 'Posted'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-amber-100 text-amber-700'
-                              }`}
-                          >
-                            {v.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap no-print">
-                          <button
-                            onClick={() => handleLihat(v)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> Lihat
-                          </button>
-                          <button
-                            onClick={() => handleHapus(v)}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition cursor-pointer"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Hapus
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-300 uppercase">
+                                    <tr>
+                                        <th className="px-2 py-3 text-left">Tanggal</th>
+                                        <th className="px-2 py-3 text-left">Bln</th>
+                                        <th className="px-2 py-3 text-left">No Ref</th>
+                                        <th className="px-2 py-3 text-left">Nomor Akun Debit</th>
+                                        <th className="px-2 py-3 text-left">Nama Akun Debit</th>
+                                        <th className="px-2 py-3 text-right">Debit</th>
+                                        <th className="px-2 py-3 text-right">Kredit</th>
+                                        <th className="px-2 py-3 text-left">Nomor Akun Kredit</th>
+                                        <th className="px-2 py-3 text-left">Nama Akun Kredit</th>
+                                        <th className="px-2 py-3 text-left">Keterangan</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {rekapLoading && <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-400">Memuat rekap...</td></tr>}
+                                    {!rekapLoading && (rekap?.rows?.length ?? 0) === 0 && (
+                                        <tr><td colSpan={10} className="px-3 py-10 text-center text-slate-400">
+                                            Belum ada jurnal posted pada periode ini. Voucher Draft tidak memengaruhi rekap.
+                                        </td></tr>
+                                    )}
+                                    {(rekap?.rows || []).map((r) => {
+                                        const d = Number(r.debit) > 0;
+                                        return (
+                                            <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                <td className="px-2 py-2 whitespace-nowrap">{formatTanggal(r.tanggal)}</td>
+                                                <td className="px-2 py-2">{String(r.tanggal).slice(5, 7)}</td>
+                                                <td className="px-2 py-2 font-mono whitespace-nowrap">{r.no_voucher}</td>
+                                                <td className="px-2 py-2 font-mono">{d ? r.nomor_akun : ''}</td>
+                                                <td className="px-2 py-2">{d ? r.nama_akun : ''}</td>
+                                                <td className="px-2 py-2 text-right whitespace-nowrap">{d ? angka(r.debit) : ''}</td>
+                                                <td className="px-2 py-2 text-right whitespace-nowrap">{d ? '' : angka(r.kredit)}</td>
+                                                <td className="px-2 py-2 font-mono">{d ? '' : r.nomor_akun}</td>
+                                                <td className="px-2 py-2">{d ? '' : r.nama_akun}</td>
+                                                <td className="px-2 py-2">{r.memo || r.keterangan || '-'}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                {rekap?.rows?.length > 0 && (
+                                    <tfoot className="bg-slate-50 dark:bg-slate-800/60 border-t-2 border-slate-300 dark:border-slate-700 font-bold">
+                                        <tr>
+                                            <td colSpan={5} className="px-2 py-3 text-right">TOTAL</td>
+                                            <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_debit)}</td>
+                                            <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_kredit)}</td>
+                                            <td colSpan={3} className="px-2 py-3 text-right">
+                                                Selisih {angka(rekap.selisih)} — {rekap.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                )}
+                            </table>
+                        </div>
+                    </div>
+
+                    {rekap?.rows?.length > 0 && (
+                        <div className="hidden print:block mt-6 text-xs">
+                            <p>Dicetak dari Sistem Terintegrasi Aldigens — {rekap.jumlah_voucher} voucher posted.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ---------------- TAB: DAFTAR VOUCHER ---------------- */}
+            {tab === 'daftar' && (
+                <div className="space-y-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 flex flex-wrap items-end gap-3 no-print">
+                        <div className="flex-1 min-w-55">
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Cari</label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <input value={search} onChange={(e) => setSearch(e.target.value)}
+                                    placeholder="No. voucher, keterangan, atau referensi..."
+                                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Status</label>
+                            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+                                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                                <option value="">Semua</option>
+                                <option value="DRAFT">Draft</option>
+                                <option value="POSTED">Posted</option>
+                                <option value="VOID">Dibatalkan</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Jenis</label>
+                            <select value={filterJenis} onChange={(e) => setFilterJenis(e.target.value)}
+                                className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                                <option value="">Semua</option>
+                                {VOUCHER_TYPES.map((j) => <option key={j}>{j}</option>)}
+                            </select>
+                        </div>
+                        <PrintButton label="Cetak Daftar" />
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50 dark:bg-slate-800 text-xs uppercase text-slate-500 dark:text-slate-300">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">No. Voucher</th>
+                                        <th className="px-4 py-3 text-left">Tanggal</th>
+                                        <th className="px-4 py-3 text-left">Jenis</th>
+                                        <th className="px-4 py-3 text-left">Keterangan</th>
+                                        <th className="px-4 py-3 text-right">Total Debit</th>
+                                        <th className="px-4 py-3 text-right">Total Kredit</th>
+                                        <th className="px-4 py-3 text-center">Status</th>
+                                        <th className="px-4 py-3 text-center no-print">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {loading && <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Memuat voucher...</td></tr>}
+                                    {!loading && daftar.length === 0 && (
+                                        <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Belum ada voucher.</td></tr>
+                                    )}
+                                    {daftar.map((v) => (
+                                        <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                            <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">{v.no_voucher}</td>
+                                            <td className="px-4 py-3 text-xs whitespace-nowrap">{formatTanggal(v.tanggal)}</td>
+                                            <td className="px-4 py-3 text-xs">{v.jenis}</td>
+                                            <td className="px-4 py-3 text-xs max-w-64 truncate">{v.keterangan || '-'}</td>
+                                            <td className="px-4 py-3 text-right text-xs whitespace-nowrap">{angka(v.total_debit)}</td>
+                                            <td className="px-4 py-3 text-right text-xs whitespace-nowrap">{angka(v.total_kredit)}</td>
+                                            <td className="px-4 py-3 text-center"><span className={badge(v.status)}>{v.status}</span></td>
+                                            <td className="px-4 py-3 no-print">
+                                                <div className="flex gap-1 justify-center">
+                                                    <button onClick={() => bukaDetail(v)} title="Lihat detail"
+                                                        className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer">
+                                                        <Eye className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    {v.status === 'DRAFT' && (
+                                                        <>
+                                                            <button onClick={() => { setFormEdit(v); setTab('form'); }} title="Edit draft"
+                                                                className="p-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition cursor-pointer">
+                                                                <Pencil className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            <button onClick={() => posting(v)} title="Posting"
+                                                                className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition cursor-pointer">
+                                                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            <button onClick={() => hapusDraft(v)} title="Hapus draft"
+                                                                className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition cursor-pointer">
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {v.status === 'POSTED' && !v.reversal_of_id && (
+                                                        <button onClick={() => reversal(v)} title="Buat reversal (koreksi)"
+                                                            className="p-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition cursor-pointer">
+                                                            <Undo2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ---------------- TAB: FORM ---------------- */}
+            {tab === 'form' && (
+                <div className="no-print">
+                    {formEdit && formEdit.status !== 'DRAFT' && (
+                        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl px-4 py-3 mb-4">
+                            <p className="text-sm text-amber-800 dark:text-amber-300">
+                                Voucher berstatus <strong>{formEdit.status}</strong> tidak dapat diedit.
+                                Gunakan Reversal untuk koreksi agar histori tetap tercatat.
+                            </p>
+                        </div>
+                    )}
+                    <JournalVoucherForm
+                        key={formEdit?.id || 'baru'}
+                        jenisAwal={formEdit?.jenis || 'Jurnal Umum'}
+                        voucherEdit={formEdit}
+                        onBatal={() => { setFormEdit(null); setTab('daftar'); }}
+                        onTersimpan={() => { muatVouchers(); muatRekap(); setTab('daftar'); }}
+                    />
+                </div>
+            )}
         </div>
-      </div>
     );
-  }
-
-  /* =====================================================================
-     FORM BUAT VOUCHER
-     ===================================================================== */
-  return (
-    <div className="p-6 space-y-5 print-area">
-      <div className="flex flex-wrap items-center justify-between gap-3 no-print">
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-600 p-2.5 rounded-xl shadow">
-            <NotebookPen className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Buat Journal Voucher</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Input Transaksi Jurnal Umum</p>
-          </div>
-        </div>
-        <PrintButton label="Cetak Voucher" />
-      </div>
-
-      <PrintHeader judul="JOURNAL VOUCHER" periode={formatTanggal(form.tanggal)} />
-
-      {/* Info voucher */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Field label="No Voucher" error={errors.noVoucher}>
-          <input
-            value={form.noVoucher}
-            onChange={(e) => setForm({ ...form, noVoucher: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Tanggal" error={errors.tanggal}>
-          <input
-            type="date"
-            value={form.tanggal}
-            onChange={(e) => setForm({ ...form, tanggal: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Jenis Transaksi" error={errors.jenis}>
-          <select
-            value={form.jenis}
-            onChange={(e) => setForm({ ...form, jenis: e.target.value })}
-            className={inputCls}
-          >
-            {TRANSACTION_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Keterangan" error={errors.keterangan}>
-          <input
-            value={form.keterangan}
-            onChange={(e) => setForm({ ...form, keterangan: e.target.value })}
-            placeholder="Uraian transaksi..."
-            className={inputCls}
-          />
-        </Field>
-      </div>
-
-      {/* Baris jurnal */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800">
-          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-            <FileText className="h-4 w-4 text-indigo-500" /> Rincian Baris Jurnal
-          </h3>
-          <button
-            onClick={addLine}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition text-xs font-semibold cursor-pointer no-print"
-          >
-            <Plus className="h-3.5 w-3.5" /> Tambah Baris
-          </button>
-        </div>
-
-        {errors.lines && (
-          <p className="px-5 py-2 text-xs font-semibold text-rose-600 bg-rose-50">{errors.lines}</p>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-              <tr>
-                <th className="text-center px-3 py-3 w-12 font-semibold text-slate-600 dark:text-slate-300">#</th>
-                <th className="text-left px-3 py-3 w-44 font-semibold text-slate-600 dark:text-slate-300">Kode Akun</th>
-                <th className="text-left px-3 py-3 font-semibold text-slate-600 dark:text-slate-300">Nama Akun</th>
-                <th className="text-right px-3 py-3 w-40 font-semibold text-slate-600 dark:text-slate-300">Debit</th>
-                <th className="text-right px-3 py-3 w-40 font-semibold text-slate-600 dark:text-slate-300">Kredit</th>
-                <th className="text-left px-3 py-3 font-semibold text-slate-600 dark:text-slate-300">Memo</th>
-                <th className="text-center px-3 py-3 w-14 font-semibold text-slate-600 dark:text-slate-300 no-print">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {lines.map((l, i) => {
-                const akun = accountByKode(l.kode);
-                return (
-                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                    <td className="px-3 py-2 text-center text-xs text-slate-400">{i + 1}</td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={l.kode}
-                        onChange={(e) => setLine(i, 'kode', e.target.value)}
-                        className={`${inputCls} ${errors[`line-${i}`] ? 'border-rose-400' : ''}`}
-                      >
-                        <option value="">-- Pilih Akun --</option>
-                        {CHART_OF_ACCOUNTS.map((a) => (
-                          <option key={a.id} value={a.kode}>{a.kode} &mdash; {a.nama}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
-                      {akun ? akun.nama : <span className="text-slate-300">&mdash;</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min="0"
-                        value={l.debit}
-                        onChange={(e) => setLine(i, 'debit', e.target.value)}
-                        placeholder="0"
-                        className={`${inputCls} text-right`}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min="0"
-                        value={l.kredit}
-                        onChange={(e) => setLine(i, 'kredit', e.target.value)}
-                        placeholder="0"
-                        className={`${inputCls} text-right`}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        value={l.memo}
-                        onChange={(e) => setLine(i, 'memo', e.target.value)}
-                        placeholder="Keterangan baris..."
-                        className={inputCls}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-center no-print">
-                      <button
-                        onClick={() => removeLine(i)}
-                        disabled={lines.length <= 2}
-                        title={lines.length <= 2 ? 'Minimal 2 baris' : 'Hapus baris'}
-                        className="inline-flex p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot className="bg-slate-50 dark:bg-slate-800 border-t-2 border-slate-200 dark:border-slate-700">
-              <tr>
-                <td colSpan={3} className="px-3 py-3 text-right text-sm font-bold text-slate-700 dark:text-slate-200">
-                  TOTAL
-                </td>
-                <td className="px-3 py-3 text-right font-bold text-emerald-600">{rupiah(totalDebit)}</td>
-                <td className="px-3 py-3 text-right font-bold text-rose-600">{rupiah(totalKredit)}</td>
-                <td colSpan={2} className="px-3 py-3" />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-
-      {/* Validasi & tombol aksi */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold ${balanced
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              : 'bg-rose-50 border-rose-200 text-rose-600'
-            }`}
-        >
-          {balanced ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-          <span>
-            Total Debit {rupiah(totalDebit)} &mdash; Total Kredit {rupiah(totalKredit)}
-            {balanced ? ' (Seimbang)' : ` (Selisih ${rupiah(Math.abs(selisih))})`}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 no-print">
-          <button
-            onClick={handleSimpanDraft}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer"
-          >
-            <Save className="h-4 w-4" /> Simpan Draft
-          </button>
-          <button
-            onClick={handlePosting}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm transition ${balanced
-                ? 'bg-indigo-600 hover:bg-indigo-700 cursor-pointer'
-                : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-              }`}
-          >
-            <CheckCircle2 className="h-4 w-4" /> Posting Jurnal
-          </button>
-          <button
-            onClick={handleBatal}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition shadow-sm cursor-pointer"
-          >
-            <XCircle className="h-4 w-4" /> Batal
-          </button>
-        </div>
-      </div>
-
-      {errors.total && (
-        <p className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-4 py-2">
-          {errors.total}
-        </p>
-      )}
-
-      {/* Area cetak voucher */}
-      <div className="hidden print:block mt-6">
-        <table className="w-full text-xs border border-slate-800">
-          <thead>
-            <tr>
-              <th className="border border-slate-800 px-2 py-1">Kode Akun</th>
-              <th className="border border-slate-800 px-2 py-1">Nama Akun</th>
-              <th className="border border-slate-800 px-2 py-1">Memo</th>
-              <th className="border border-slate-800 px-2 py-1 text-right">Debit</th>
-              <th className="border border-slate-800 px-2 py-1 text-right">Kredit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.filter((l) => l.kode).map((l, i) => {
-              const a = accountByKode(l.kode);
-              return (
-                <tr key={i}>
-                  <td className="border border-slate-800 px-2 py-1">{l.kode}</td>
-                  <td className="border border-slate-800 px-2 py-1">{a ? a.nama : ''}</td>
-                  <td className="border border-slate-800 px-2 py-1">{l.memo}</td>
-                  <td className="border border-slate-800 px-2 py-1 text-right">{Number(l.debit || 0).toLocaleString('id-ID')}</td>
-                  <td className="border border-slate-800 px-2 py-1 text-right">{Number(l.kredit || 0).toLocaleString('id-ID')}</td>
-                </tr>
-              );
-            })}
-            <tr>
-              <td colSpan={3} className="border border-slate-800 px-2 py-1 text-right font-bold">TOTAL</td>
-              <td className="border border-slate-800 px-2 py-1 text-right font-bold">{totalDebit.toLocaleString('id-ID')}</td>
-              <td className="border border-slate-800 px-2 py-1 text-right font-bold">{totalKredit.toLocaleString('id-ID')}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div className="flex justify-between mt-6 text-xs">
-          <p>Jakarta, {formatTanggal(form.tanggal)}</p>
-          <div className="text-center">
-            <p>Dibuat oleh,</p><div className="h-14" /><p className="underline">( ................................ )</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Helper kecil ---------- */
-const inputCls =
-  'w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500';
-
-function Field({ label, error, children }) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">{label}</label>
-      {children}
-      {error && <p className="mt-1 text-[11px] font-semibold text-rose-600">{error}</p>}
-    </div>
-  );
-}
-
-function StatCard({ label, value, tone = 'slate' }) {
-  const tones = {
-    slate: 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white',
-    emerald: 'bg-emerald-50 dark:bg-emerald-50 border-emerald-200 text-emerald-700',
-    amber: 'bg-amber-50 dark:bg-amber-50 border-amber-200 text-amber-700',
-  };
-  return (
-    <div className={`border rounded-2xl p-4 shadow-sm text-center ${tones[tone]}`}>
-      <p className="text-xs opacity-80">{label}</p>
-      <p className="text-2xl font-bold">{value}</p>
-    </div>
-  );
 }

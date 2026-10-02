@@ -1,40 +1,72 @@
-import React, { useMemo, useState } from 'react';
-import { FileBarChart, TrendingUp, Scale, NotebookPen, BookOpen } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { FileBarChart, RefreshCw, AlertTriangle } from 'lucide-react';
 import PrintButton from '../../components/PrintButton';
 import PrintHeader from '../../components/PrintHeader';
 import {
-  INCOME_STATEMENT, BALANCE_SHEET, JOURNAL_VOUCHERS, LEDGER_MUTATIONS,
-  accountByKode, rupiah, formatTanggal,
-} from '../../Data/mockAccounting';
+  getLabaRugi, getNeraca, rupiah, angka, formatTanggal, periodeDefault,
+} from '../../services/accountingApi';
+import { swalError } from '../../utils/swal';
 
-const TABS = [
-  { key: 'laba-rugi', label: 'Laporan Laba Rugi', icon: TrendingUp },
-  { key: 'neraca', label: 'Neraca', icon: Scale },
-  { key: 'jurnal', label: 'Laporan Jurnal', icon: NotebookPen },
-  { key: 'buku-besar', label: 'Buku Besar', icon: BookOpen },
-];
-
+/**
+ * Laporan Keuangan: Laba Rugi dan Neraca.
+ *
+ * Semua angka berasal dari jurnal POSTED. Bila COA atau saldo awal belum
+ * disiapkan, sistem menampilkan peringatan dan TIDAK menampilkan laporan
+ * seolah-olah valid.
+ */
 export default function LaporanKeuangan() {
   const [tab, setTab] = useState('laba-rugi');
-  const [periode, setPeriode] = useState('2026-01');
+  const [periode, setPeriode] = useState(periodeDefault());
+  const [labaRugi, setLabaRugi] = useState(null);
+  const [neraca, setNeraca] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const totalPendapatan = useMemo(
-    () => INCOME_STATEMENT.pendapatan.reduce((s, r) => s + r.nilai, 0),
-    []
+  const muat = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { from: periode.from, to: periode.to };
+      const [lr, nr] = await Promise.all([getLabaRugi(params), getNeraca(params)]);
+      setLabaRugi(lr.data);
+      setNeraca(nr.data);
+    } catch (err) {
+      swalError('Gagal memuat laporan keuangan', err.response?.data?.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [periode]);
+
+  useEffect(() => { muat(); }, [muat]);
+
+  const periodeLabel = `${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`;
+  const semuaPeringatan = [...(labaRugi?.peringatan || []), ...(neraca?.peringatan || [])];
+
+  const Baris = ({ label, items, total, totalLabel }) => (
+    <div className="mb-5">
+      <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">{label}</h4>
+      <table className="w-full text-sm">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          {items.length === 0 && (
+            <tr><td colSpan={2} className="py-2 text-slate-400 text-xs">Tidak ada akun.</td></tr>
+          )}
+          {items.map((a, i) => (
+            <tr key={a.account_id ?? i}>
+              <td className="py-2 pr-3 text-slate-700 dark:text-slate-200">
+                {a.nomor_akun !== '-' && <span className="font-mono text-xs text-slate-400 mr-2">{a.nomor_akun}</span>}
+                {a.nama_akun}
+              </td>
+              <td className="py-2 text-right whitespace-nowrap text-slate-800 dark:text-slate-100">{angka(a.saldo)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t-2 border-slate-300 dark:border-slate-700 font-bold">
+          <tr>
+            <td className="py-2 text-right">{totalLabel}</td>
+            <td className="py-2 text-right whitespace-nowrap">{angka(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
-  const totalHPP = useMemo(() => INCOME_STATEMENT.hpp.reduce((s, r) => s + r.nilai, 0), []);
-  const totalBeban = useMemo(() => INCOME_STATEMENT.beban.reduce((s, r) => s + r.nilai, 0), []);
-  const labaKotor = totalPendapatan - totalHPP;
-  const labaBersih = labaKotor - totalBeban;
-
-  const totalAset = useMemo(() => BALANCE_SHEET.aset.reduce((s, r) => s + r.nilai, 0), []);
-  const totalKewajiban = useMemo(() => BALANCE_SHEET.kewajiban.reduce((s, r) => s + r.nilai, 0), []);
-  const totalEkuitas = useMemo(() => BALANCE_SHEET.ekuitas.reduce((s, r) => s + r.nilai, 0), []);
-  const totalPasiva = totalKewajiban + totalEkuitas;
-  const neracaSeimbang = totalAset === totalPasiva;
-
-  const activeTabMeta = TABS.find((t) => t.key === tab);
-  const Judul = activeTabMeta?.label || 'Laporan Keuangan';
 
   return (
     <div className="p-6 space-y-5 print-area">
@@ -46,234 +78,184 @@ export default function LaporanKeuangan() {
           <div>
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Laporan Keuangan</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Laporan Laba Rugi, Neraca, Laporan Jurnal, dan Buku Besar
+              Dihitung dari Chart of Account, saldo awal, dan jurnal yang sudah diposting
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={periode}
-            onChange={(e) => setPeriode(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="2026-01">Januari 2026</option>
-            <option value="2026-02">Februari 2026</option>
-            <option value="2026-03">Maret 2026</option>
-          </select>
+          <button onClick={muat}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Muat Ulang</span>
+          </button>
           <PrintButton label="Cetak Laporan" />
         </div>
       </div>
 
-      {/* Tab */}
-      <div className="flex flex-wrap gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 no-print">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex-1 min-w-40 py-2 rounded-lg text-sm font-medium transition cursor-pointer inline-flex items-center justify-center gap-2 ${tab === t.key
-                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                }`}
-            >
-              <Icon className="h-4 w-4" /> {t.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-end gap-3 no-print">
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Dari</label>
+          <input type="date" value={periode.from} onChange={(e) => setPeriode({ ...periode, from: e.target.value })}
+            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Sampai</label>
+          <input type="date" value={periode.to} onChange={(e) => setPeriode({ ...periode, to: e.target.value })}
+            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
+        </div>
       </div>
 
-      <PrintHeader judul={Judul.toUpperCase()} periode={`Periode ${periode}`} />
+      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 no-print">
+        {[
+          { k: 'laba-rugi', label: 'Laporan Laba Rugi' },
+          { k: 'neraca', label: 'Neraca' },
+        ].map((t) => (
+          <button key={t.k} onClick={() => setTab(t.k)}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition cursor-pointer
+                            ${tab === t.k ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
-        {/* ---------------- Laporan Laba Rugi ---------------- */}
-        {tab === 'laba-rugi' && (
-          <>
-            <h3 className="text-center font-bold text-slate-900 dark:text-white mb-1">LAPORAN LABA RUGI</h3>
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-5">
-              Untuk Periode {formatTanggal(`${periode}-01`)}
-            </p>
+      {/* Peringatan konfigurasi */}
+      {semuaPeringatan.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl px-4 py-3 no-print">
+          <p className="text-sm font-bold text-amber-800 dark:text-amber-300 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" /> Laporan belum dapat dianggap final
+          </p>
+          <ul className="list-disc pl-6 mt-1 space-y-0.5">
+            {semuaPeringatan.map((p, i) => (
+              <li key={i} className="text-xs text-amber-700 dark:text-amber-300">{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-            <Section title="PENDAPATAN">
-              {INCOME_STATEMENT.pendapatan.map((r) => (
-                <Row key={r.akun} kode={r.akun} nama={r.nama} nilai={rupiah(r.nilai)} />
-              ))}
-              <Row bold label="Total Pendapatan" nilai={rupiah(totalPendapatan)} />
-            </Section>
+      {/* ---------- LABA RUGI ---------- */}
+      {tab === 'laba-rugi' && labaRugi && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+          <PrintHeader judul="LAPORAN LABA RUGI" periode={periodeLabel} />
 
-            <Section title="HARGA POKOK PENJUALAN">
-              {INCOME_STATEMENT.hpp.map((r) => (
-                <Row key={r.akun} kode={r.akun} nama={r.nama} nilai={rupiah(r.nilai)} />
-              ))}
-              <Row bold label="Laba Kotor" nilai={rupiah(labaKotor)} />
-            </Section>
+          <Baris label="Pendapatan" items={labaRugi.pendapatan}
+            total={labaRugi.total_pendapatan} totalLabel="Total Pendapatan" />
+          <Baris label="Harga Pokok Penjualan" items={labaRugi.harga_pokok}
+            total={labaRugi.total_hpp} totalLabel="Total HPP" />
+          <Baris label="Beban" items={labaRugi.beban}
+            total={labaRugi.total_beban} totalLabel="Total Beban" />
 
-            <Section title="BEBAN OPERASIONAL">
-              {INCOME_STATEMENT.beban.map((r) => (
-                <Row key={r.akun} kode={r.akun} nama={r.nama} nilai={rupiah(r.nilai)} />
-              ))}
-              <Row bold label="Total Beban" nilai={rupiah(totalBeban)} />
-            </Section>
-
-            <div className="mt-4 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-50 border border-indigo-200 flex justify-between font-bold text-indigo-700">
-              <span>LABA BERSIH</span>
-              <span>{rupiah(labaBersih)}</span>
+          <div className="border-t-2 border-slate-300 dark:border-slate-700 pt-3 space-y-1">
+            <div className="flex justify-between text-sm font-semibold">
+              <span>Laba Kotor</span>
+              <span>{rupiah(labaRugi.laba_kotor)}</span>
             </div>
-          </>
-        )}
-
-        {/* ---------------- Neraca ---------------- */}
-        {tab === 'neraca' && (
-          <>
-            <h3 className="text-center font-bold text-slate-900 dark:text-white mb-1">NERACA</h3>
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-5">
-              Per {formatTanggal(`${periode}-28`)}
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <h4 className="font-bold text-slate-700 dark:text-slate-200 border-b border-slate-300 dark:border-slate-600 pb-1 mb-2">ASET</h4>
-                {BALANCE_SHEET.aset.map((r) => (
-                  <Row key={r.akun} kode={r.akun} nama={r.nama} nilai={rupiah(r.nilai)} />
-                ))}
-                <Row bold label="Total Aset" nilai={rupiah(totalAset)} />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-700 dark:text-slate-200 border-b border-slate-300 dark:border-slate-600 pb-1 mb-2">KEWAJIBAN</h4>
-                {BALANCE_SHEET.kewajiban.map((r) => (
-                  <Row key={r.akun} kode={r.akun} nama={r.nama} nilai={rupiah(r.nilai)} />
-                ))}
-                <Row bold label="Total Kewajiban" nilai={rupiah(totalKewajiban)} />
-
-                <h4 className="font-bold text-slate-700 dark:text-slate-200 border-b border-slate-300 dark:border-slate-600 pb-1 mb-2 mt-4">EKUITAS</h4>
-                {BALANCE_SHEET.ekuitas.map((r) => (
-                  <Row key={r.akun} kode={r.akun} nama={r.nama} nilai={rupiah(r.nilai)} />
-                ))}
-                <Row bold label="Total Ekuitas" nilai={rupiah(totalEkuitas)} />
-                <Row bold label="Total Pasiva" nilai={rupiah(totalPasiva)} />
-              </div>
+            <div className="flex justify-between text-base font-bold">
+              <span>LABA / RUGI BERSIH</span>
+              <span className={labaRugi.laba_bersih >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                {rupiah(labaRugi.laba_bersih)}
+              </span>
             </div>
+          </div>
+        </div>
+      )}
 
-            <p className={`mt-4 text-center text-sm font-bold ${neracaSeimbang ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {neracaSeimbang
-                ? '✓ Neraca seimbang: Total Aset = Total Pasiva'
-                : `Total Aset (${rupiah(totalAset)}) ≠ Total Pasiva (${rupiah(totalPasiva)})`}
-            </p>
-          </>
-        )}
+      {/* ---------- NERACA ---------- */}
+      {tab === 'neraca' && neraca && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+          <PrintHeader judul="NERACA (LAPORAN POSISI KEUANGAN)" periode={periodeLabel} />
 
-        {/* ---------------- Laporan Jurnal ---------------- */}
-        {tab === 'jurnal' && (
-          <>
-            <h3 className="text-center font-bold text-slate-900 dark:text-white mb-1">LAPORAN JURNAL</h3>
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-4">Periode {periode}</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-bold">Tanggal</th>
-                    <th className="px-3 py-2 text-left font-bold">No. Voucher</th>
-                    <th className="px-3 py-2 text-left font-bold">Kode Akun</th>
-                    <th className="px-3 py-2 text-left font-bold">Nama Akun</th>
-                    <th className="px-3 py-2 text-left font-bold">Keterangan</th>
-                    <th className="px-3 py-2 text-right font-bold">Debit</th>
-                    <th className="px-3 py-2 text-right font-bold">Kredit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {JOURNAL_VOUCHERS.map((v) =>
-                    v.lines.map((l, i) => {
-                      const a = accountByKode(l.kode);
-                      return (
-                        <tr key={`${v.id}-${i}`} className="border-t border-slate-100 dark:border-slate-800">
-                          <td className="px-3 py-1.5">{i === 0 ? formatTanggal(v.tanggal) : ''}</td>
-                          <td className="px-3 py-1.5 font-mono">{i === 0 ? v.noVoucher : ''}</td>
-                          <td className="px-3 py-1.5 font-mono">{l.kode}</td>
-                          <td className="px-3 py-1.5">{a ? a.nama : '-'}</td>
-                          <td className="px-3 py-1.5">{i === 0 ? v.keterangan : ''}</td>
-                          <td className="px-3 py-1.5 text-right">{l.debit ? rupiah(l.debit) : '-'}</td>
-                          <td className="px-3 py-1.5 text-right">{l.kredit ? rupiah(l.kredit) : '-'}</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-
-        {/* ---------------- Buku Besar ---------------- */}
-        {tab === 'buku-besar' && (
-          <>
-            <h3 className="text-center font-bold text-slate-900 dark:text-white mb-1">BUKU BESAR</h3>
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-4">Periode {periode}</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-bold">Tanggal</th>
-                    <th className="px-3 py-2 text-left font-bold">No. Voucher</th>
-                    <th className="px-3 py-2 text-left font-bold">Keterangan</th>
-                    <th className="px-3 py-2 text-right font-bold">Debit</th>
-                    <th className="px-3 py-2 text-right font-bold">Kredit</th>
-                    <th className="px-3 py-2 text-right font-bold">Saldo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {LEDGER_MUTATIONS.map((m, i) => (
-                    <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
-                      <td className="px-3 py-1.5">{formatTanggal(m.tanggal)}</td>
-                      <td className="px-3 py-1.5 font-mono">{m.voucher}</td>
-                      <td className="px-3 py-1.5">{m.keterangan}</td>
-                      <td className="px-3 py-1.5 text-right">{m.debit ? rupiah(m.debit) : '-'}</td>
-                      <td className="px-3 py-1.5 text-right">{m.kredit ? rupiah(m.kredit) : '-'}</td>
-                      <td className="px-3 py-1.5 text-right font-bold">{rupiah(m.saldo)}</td>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+              <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">ASET</h4>
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {neraca.aset.length === 0 && <tr><td className="py-2 text-slate-400 text-xs">Tidak ada akun.</td></tr>}
+                  {neraca.aset.map((a, i) => (
+                    <tr key={a.account_id ?? i}>
+                      <td className="py-2 pr-3 text-slate-700 dark:text-slate-200">
+                        <span className="font-mono text-xs text-slate-400 mr-2">{a.nomor_akun}</span>{a.nama_akun}
+                      </td>
+                      <td className="py-2 text-right whitespace-nowrap">{angka(a.saldo)}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="border-t-2 border-slate-300 dark:border-slate-700 font-bold">
+                  <tr><td className="py-2 text-right">Total Aset</td><td className="py-2 text-right whitespace-nowrap">{angka(neraca.total_aset)}</td></tr>
+                </tfoot>
               </table>
             </div>
-          </>
-        )}
 
-        {/* Tanda tangan */}
-        <div className="flex justify-between mt-10 text-xs pt-6 border-t border-slate-200 dark:border-slate-700">
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">KEWAJIBAN</h4>
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {neraca.kewajiban.length === 0 && <tr><td className="py-2 text-slate-400 text-xs">Tidak ada akun.</td></tr>}
+                    {neraca.kewajiban.map((a, i) => (
+                      <tr key={a.account_id ?? i}>
+                        <td className="py-2 pr-3 text-slate-700 dark:text-slate-200">
+                          <span className="font-mono text-xs text-slate-400 mr-2">{a.nomor_akun}</span>{a.nama_akun}
+                        </td>
+                        <td className="py-2 text-right whitespace-nowrap">{angka(a.saldo)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-slate-300 dark:border-slate-700 font-bold">
+                    <tr><td className="py-2 text-right">Total Kewajiban</td><td className="py-2 text-right whitespace-nowrap">{angka(neraca.total_kewajiban)}</td></tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div>
+                <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">EKUITAS</h4>
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {neraca.ekuitas.length === 0 && <tr><td className="py-2 text-slate-400 text-xs">Tidak ada akun.</td></tr>}
+                    {neraca.ekuitas.map((a, i) => (
+                      <tr key={a.account_id ?? i}>
+                        <td className="py-2 pr-3 text-slate-700 dark:text-slate-200">
+                          {a.nomor_akun !== '-' && <span className="font-mono text-xs text-slate-400 mr-2">{a.nomor_akun}</span>}{a.nama_akun}
+                        </td>
+                        <td className="py-2 text-right whitespace-nowrap">{angka(a.saldo)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-slate-300 dark:border-slate-700 font-bold">
+                    <tr><td className="py-2 text-right">Total Ekuitas</td><td className="py-2 text-right whitespace-nowrap">{angka(neraca.total_ekuitas)}</td></tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 border-t-2 border-slate-300 dark:border-slate-700 pt-3 space-y-1">
+            <div className="flex justify-between text-sm font-semibold">
+              <span>Total Pasiva (Kewajiban + Ekuitas)</span>
+              <span>{rupiah(neraca.total_kewajiban + neraca.total_ekuitas)}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold">
+              <span>{neraca.balanced ? 'NERACA SEIMBANG' : 'NERACA TIDAK SEIMBANG'}</span>
+              <span className={neraca.balanced ? 'text-emerald-600' : 'text-red-600'}>
+                Selisih {rupiah(Math.abs(neraca.selisih))}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <p className="text-center text-sm text-slate-400">Memuat laporan...</p>
+      )}
+
+      <div className="hidden print:block mt-8 text-xs">
+        <div className="flex justify-between">
           <p>Jakarta, {formatTanggal(new Date().toISOString().slice(0, 10))}</p>
           <div className="text-center">
-            <p>Mengetahui,</p>
-            <p>Finance Manager</p>
-            <div className="h-16" />
+            <p>Mengetahui,</p><p>Finance Manager</p><div className="h-16" />
             <p className="underline">( ................................ )</p>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Section({ title, children }) {
-  return (
-    <div className="mb-4">
-      <h4 className="font-bold text-slate-700 dark:text-slate-200 border-b border-slate-300 dark:border-slate-600 pb-1 mb-2">
-        {title}
-      </h4>
-      {children}
-    </div>
-  );
-}
-
-function Row({ kode, nama, nilai, bold, label }) {
-  return (
-    <div
-      className={`flex justify-between py-1 text-sm ${bold ? 'font-bold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-700 mt-1 pt-2' : 'text-slate-700 dark:text-slate-300'
-        }`}
-    >
-      <span>
-        {kode && <span className="font-mono text-xs text-slate-400 mr-2">{kode}</span>}
-        {label || nama}
-      </span>
-      <span>{nilai}</span>
     </div>
   );
 }

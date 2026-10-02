@@ -1,11 +1,28 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LogOut, ChevronDown, ChevronRight } from 'lucide-react'; // Tambahan ikon panah
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 import { MENU_GROUPS } from '../config/menus';
 
 export default function Sidebar({ isOpen, activeTab, setActiveTab, onLogout, allowedMenus }) {
   // State untuk melacak menu dropdown mana yang sedang terbuka
-  const [openDropdowns, setOpenDropdowns] = useState({});
+  // Awalnya dibuka otomatis mengikuti sub-menu yang sedang aktif (agar tetap terbuka setelah reload).
+  const [openDropdowns, setOpenDropdowns] = useState(() => {
+    const parent = MENU_GROUPS
+      .flatMap((g) => g.items)
+      .find((item) => item.subItems?.some((sub) => sub.key === activeTab));
+    return parent ? { [parent.key]: true } : {};
+  });
+
+  // Tetap terbuka selama pengguna berada di sub-menu grup tersebut.
+  useEffect(() => {
+    if (!activeTab) return;
+    const parent = MENU_GROUPS
+      .flatMap((g) => g.items)
+      .find((item) => item.subItems?.some((sub) => sub.key === activeTab));
+    if (parent) {
+      setOpenDropdowns((prev) => (prev[parent.key] ? prev : { ...prev, [parent.key]: true }));
+    }
+  }, [activeTab]);
 
   const toggleDropdown = (key) => {
     setOpenDropdowns((prev) => ({ ...prev, [key]: !prev[key] }));

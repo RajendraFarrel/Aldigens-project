@@ -94,8 +94,7 @@ export default function InventoryProducts() {
     setError('');
     try {
       if (editingProduct) {
-        const { stock, ...editableForm } = form;
-        await updateProduct(editingProduct.id, editableForm);
+        await updateProduct(editingProduct.id, form);
         swalToast('Produk berhasil diperbarui.', 'success');
       } else {
         await createProduct(form);
@@ -420,14 +419,22 @@ export default function InventoryProducts() {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <div><label className="text-xs font-semibold text-slate-600 block mb-1">Stok Awal</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">
+                    {editingProduct ? 'Jumlah Stok' : 'Stok Awal'}
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.stock}
+                    onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {editingProduct && (
+                    <p className="text-[11px] text-amber-600 mt-1 leading-relaxed">
+                      Perubahan jumlah stok dicatat sebagai adjustment pada histori mutasi.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

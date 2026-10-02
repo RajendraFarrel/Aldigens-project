@@ -4,15 +4,24 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\CustomerPartNumber;
+use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class MasterDataController extends Controller
 {
     // ================= CUSTOMER METHODS =================
     public function getCustomers()
     {
-        $customers = Customer::orderBy('id', 'desc')->get();
+        // Sertakan jumlah sparepart & part number customer agar UI bisa informed
+        // sebelum menghapus (dan setelah hapus, products.customer_id di-null-kan).
+        $customers = Customer::withCount(['products', 'partNumbers'])
+            ->orderBy('id', 'desc')
+            ->get();
+
         return response()->json([
             'success' => true,
             'data' => $customers
@@ -64,11 +73,47 @@ class MasterDataController extends Controller
     public function deleteCustomer($id)
     {
         $customer = Customer::findOrFail($id);
-        $customer->update(['status' => 'NONAKTIF']); // Soft disable / nonaktifkan
+
+        // Kumpulkan dependensi transaksional yang tidak boleh hilang.
+        $blocking = [];
+
+        // Hanya periksa tabel yang benar-benar punya kolom customer_id.
+        $models = [
+            'commissionings'  => \App\Models\Commissioning::class,
+            'sales_returns'   => \App\Models\SalesReturn::class,
+            'sales_orders'    => \App\Models\SalesOrder::class,
+            'delivery_orders' => \App\Models\DeliveryOrder::class,
+            'quotations'      => \App\Models\Quotation::class,
+            'invoices'        => \App\Models\Invoice::class,
+            'sales_receipts'  => \App\Models\SalesReceipt::class,
+        ];
+
+        foreach ($models as $label => $model) {
+            if (!class_exists($model)) continue;
+            if (!Schema::hasColumn($model::make()->getTable(), 'customer_id')) continue;
+            $count = $model::where('customer_id', $customer->id)->count();
+            if ($count > 0) {
+                $blocking[] = "{$count} data {$label}";
+            }
+        }
+
+        if ($blocking) {
+            return response()->json([
+                'message' => 'Customer masih terkait dengan ' . implode(', ', $blocking)
+                    . '. Hapus atau pindahkan datanya terlebih dahulu.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($customer) {
+            // Sparepart tidak ikut terhapus; hanya dilepas dari customer ini.
+            Product::where('customer_id', $customer->id)->update(['customer_id' => null]);
+            CustomerPartNumber::where('customer_id', $customer->id)->delete();
+            $customer->delete();
+        });
 
         return response()->json([
             'success' => true,
-            'message' => 'Customer berhasil dinonaktifkan'
+            'message' => 'Customer berhasil dihapus'
         ]);
     }
 

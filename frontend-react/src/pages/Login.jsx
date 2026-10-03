@@ -43,17 +43,43 @@ export default function Login({ onLogin }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 sm:p-6 relative">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+      {/* ── Latar belakang halaman ── */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-[#0b1526] dark:to-blue-950" />
+        {/* pola grid halus */}
+        <div
+          className="absolute inset-0 opacity-60 dark:opacity-20"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, rgba(100,116,139,0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(100,116,139,0.14) 1px, transparent 1px)',
+            backgroundSize: '44px 44px',
+            maskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 90% 80% at 50% 40%, black 40%, transparent 100%)',
+          }}
+        />
+        {/* cahaya biru lembut */}
+        <div className="absolute -top-32 -left-24 h-96 w-96 rounded-full bg-blue-400/25 dark:bg-blue-600/25 blur-3xl" />
+        <div className="absolute -bottom-40 -right-24 h-[28rem] w-[28rem] rounded-full bg-blue-600/15 dark:bg-blue-500/20 blur-3xl" />
+        <div className="absolute top-1/3 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-white/50 dark:bg-blue-400/10 blur-3xl" />
+        {/* watermark teks raksasa */}
+        <div className="absolute inset-x-0 top-8 flex justify-center select-none">
+          <span className="text-[18vw] md:text-[10rem] font-black tracking-tighter leading-none text-slate-900/[0.04] dark:text-white/[0.05] whitespace-nowrap">
+            ALDIGENS
+          </span>
+        </div>
+      </div>
+
       <button
         onClick={toggleTheme}
         title={isDark ? 'Mode Terang' : 'Mode Gelap'}
-        className="absolute top-5 right-5 p-2.5 rounded-xl bg-white/10 dark:bg-white/10 hover:bg-white/20 text-slate-300 dark:text-slate-200 transition cursor-pointer"
+        className="absolute top-5 right-5 z-10 p-2.5 rounded-xl bg-white dark:bg-white/10 border border-slate-200 dark:border-transparent shadow-sm hover:bg-slate-50 text-slate-500 dark:text-slate-200 dark:hover:bg-white/20 transition cursor-pointer"
       >
         {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
       </button>
 
       {/* Kartu utama: sisi kiri branding, sisi kanan form */}
-      <div className="w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 grid md:grid-cols-2">
+      <div className="relative z-10 w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 grid md:grid-cols-2">
 
         {/* ── Panel kiri ── */}
         <div className="relative bg-slate-900 dark:bg-slate-950 text-white p-8 sm:p-10 flex flex-col justify-between">

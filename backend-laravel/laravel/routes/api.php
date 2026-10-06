@@ -31,6 +31,9 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\JournalVoucherController;
 use App\Http\Controllers\AccountingReportController;
+// Modul Operasional (SPK) — Step 3A
+use App\Http\Controllers\SpkController;
+use App\Http\Controllers\EmployeeController;
 
 
 /*
@@ -192,4 +195,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/commissionings/{id}', [CommissioningController::class, 'update']); // <-- TAMBAHKAN INI AGAR EDIT BERHASIL
     Route::delete('/commissionings/{id}', [CommissioningController::class, 'destroy']); // Tambahkan ini jika butuh hapus
     Route::patch('/commissionings/{id}/status', [CommissioningController::class, 'updateStatus']);
+
+    // --- Modul Operasional: SPK (data induk pekerjaan operasional) ---
+    Route::apiResource('/spks', SpkController::class);
+
+    // --- Master personel lapangan (terpisah dari users / akun login) ---
+    Route::apiResource('/employees', EmployeeController::class)->only(['index', 'store', 'show', 'update']);
 });

@@ -36,6 +36,7 @@ import NetworkMonitoring from './pages/NetworkMonitoring';
 import SecurityStatus from './pages/SecurityStatus';
 import ActivityLog from './pages/ActivityLog';
 import Commissioning from './pages/Commissioning';
+import SPK from './pages/SPK';
 // Import Modul Akuntansi
 import ChartOfAccount from './pages/accounting/ChartOfAccount';
 import JurnalUmum from './pages/accounting/JurnalUmum';
@@ -96,6 +97,7 @@ const PAGE_TITLES = {
   'network-monitoring':     'Network Monitoring',
   'security-status':        'Security Status',
   'activity-log':           'Activity Log',
+  'spk':                        'Surat Perintah Kerja (SPK)',
   'commissioning':              'Komisioning & BAST',
 };
 
@@ -243,6 +245,7 @@ export default function App() {
       case 'network-monitoring':     return <NetworkMonitoring />;
       case 'security-status':        return <SecurityStatus />;
       case 'activity-log':           return <ActivityLog />;
+      case 'spk':                        return <SPK />;
       case 'commissioning':              return <Commissioning />;
       default:                       return <Dashboard />;
     }

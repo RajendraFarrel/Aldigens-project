@@ -214,6 +214,25 @@ export const updateInvoiceStatus = (id, status) =>
     api.put(`/invoices/${id}/status`, { status });
 
 // -----------------------------------------------
+// Operasional – SPK (Surat Perintah Kerja)
+// -----------------------------------------------
+// Nomor SPK selalu dibuat backend; frontend tidak pernah mengirim spk_number.
+export const getSpks = (params = {}) =>
+    api.get('/spks', { params });
+
+export const getSpk = (id) =>
+    api.get(`/spks/${id}`);
+
+export const createSpk = (data) =>
+    api.post('/spks', data);
+
+export const updateSpk = (id, data) =>
+    api.put(`/spks/${id}`, data);
+
+export const deleteSpk = (id) =>
+    api.delete(`/spks/${id}`);
+
+// -----------------------------------------------
 // Existing functions (Quotation & PO)
 // -----------------------------------------------
 export const convertQuotationToPO = async (quotationId, poData) => {

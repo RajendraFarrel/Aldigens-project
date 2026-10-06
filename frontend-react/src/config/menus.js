@@ -72,7 +72,6 @@ export const MENU_GROUPS = [{
                     { key: 'quotation', label: 'Quotation', icon: FileText },
                     { key: 'sales-order', label: 'Sales Order & Customer PO', icon: ShoppingCart },
                     { key: 'delivery-order', label: 'Delivery Order (DO)', icon: Truck },
-                    { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare }, // Tepat di bawah DO
                     { key: 'invoice', label: 'Invoice', icon: Receipt },
                     { key: 'sales-return', label: 'Sales Return', icon: PackageMinus },
                     { key: 'sales-receipt', label: 'Sales Receipt', icon: Wallet },
@@ -127,7 +126,6 @@ export const MENU_GROUPS = [{
                 { key: 'inventory-scan', label: 'Barcode Scanner', icon: ScanLine },
                 { key: 'inventory-transactions', label: 'Transaction History', icon: History },
                 { key: 'inventory-reports', label: 'Stock Reports', icon: BarChart3 },
-                { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare },
             ],
         }],
     },
@@ -140,6 +138,19 @@ export const MENU_GROUPS = [{
             subItems: [
                 { key: 'master-customers', label: 'Customers', icon: UsersRound },
                 { key: 'master-suppliers', label: 'Suppliers', icon: Truck },
+            ],
+        }],
+    },
+    {
+        group: 'Operasional',
+        items: [{
+            key: 'operasional-menu',
+            label: 'Operasional',
+            icon: ClipboardList,
+            subItems: [
+                // Hanya sub-menu yang implementasinya sudah tersedia.
+                { key: 'spk', label: 'SPK', icon: FileText },
+                { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare },
             ],
         }],
     },

@@ -7,7 +7,7 @@ import usePagination from '../hooks/usePagination';
 
 export default function POList() {
     const [purchaseOrders, setPurchaseOrders] = useState([]);
-    const [inventoryItems, setInventoryItems] = useState([]); // State untuk daftar part number/inventory dari database
+    const [inventoryItems, setInventoryItems] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const pagination = usePagination(purchaseOrders, 10);
@@ -21,6 +21,7 @@ export default function POList() {
         supplier_phone: '-',
         supplier_email: '-',
         subject: '',
+        tax_percentage: 0, // Diubah menjadi persentase (default 0%)
         items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
     });
 
@@ -49,7 +50,6 @@ export default function POList() {
         }
     };
 
-    // Ambil data part number langsung dari Database melalui API Laravel (/inventory/products)
     const fetchInventoryParts = async () => {
         try {
             const response = await api.get('/inventory/products').catch(() => null);
@@ -60,16 +60,24 @@ export default function POList() {
             } else if (Array.isArray(response?.data)) {
                 setInventoryItems(response.data);
             } else {
-                // Fallback ke local storage jika database kosong / belum merespons
                 const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
                 setInventoryItems(localParts);
             }
         } catch (err) {
-            console.warn("Gagal memuat produk dari database, menggunakan data lokal.");
             const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
             setInventoryItems(localParts);
         }
     };
+
+    // Kalkulasi Subtotal, PPN, dan Grand Total
+    const calculatedSubTotal = formData.items.reduce((acc, item) => {
+        return acc + (Number(item.qty || 0) * Number(item.unit_price || 0));
+    }, 0);
+
+    const numericTaxPercent = Number(formData.tax_percentage || 0);
+    // Menghitung nominal pajak dari persentase (Subtotal * Persentase / 100)
+    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100)); 
+    const calculatedGrandTotal = calculatedSubTotal + calculatedTaxAmount;
 
     const handleAddItem = () => {
         setFormData({ ...formData, items: [...formData.items, { part_number: '', description: '', qty: 1, unit_price: 0 }] });
@@ -84,7 +92,6 @@ export default function POList() {
         const updatedItems = [...formData.items];
         updatedItems[index][field] = value;
 
-        // Jika user memilih berdasarkan part number, otomatis isi deskripsi dari data inventory
         if (field === 'part_number') {
             const selectedPart = inventoryItems.find(p => p.part_number === value || p.product_code === value || p.id?.toString() === value);
             if (selectedPart) {
@@ -103,16 +110,15 @@ export default function POList() {
         supplier_phone: '-',
         supplier_email: '-',
         subject: '',
+        tax_percentage: 0,
         items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
     });
 
     const handleSubmitNewPO = async (e) => {
         e.preventDefault();
         try {
-            let calculatedSubTotal = 0;
             const formattedItems = formData.items.map((item) => {
                 const amount = Number(item.qty) * Number(item.unit_price);
-                calculatedSubTotal += amount;
                 return {
                     part_number: item.part_number || 'PART-GENERAL',
                     description: item.description,
@@ -122,9 +128,6 @@ export default function POList() {
                     amount: amount,
                 };
             });
-
-            const taxAmount = calculatedSubTotal * 0.11;
-            const grandTotal = calculatedSubTotal + taxAmount;
 
             const newPOItem = {
                 id: Date.now(),
@@ -136,8 +139,9 @@ export default function POList() {
                 customer_address: formData.supplier_address,
                 subject: formData.subject,
                 sub_total: calculatedSubTotal,
-                tax_amount: taxAmount,
-                grand_total: grandTotal,
+                tax_amount: calculatedTaxAmount, // Simpan nominal yang sudah dihitung agar cetak tetap akurat
+                tax_percentage: numericTaxPercent,
+                grand_total: calculatedGrandTotal,
                 items: formattedItems,
                 status: 'Pending'
             };
@@ -207,9 +211,10 @@ export default function POList() {
 
     const handlePrintPO = (po) => {
         const itemsList = po.items || [];
-        const subTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0);
-        const taxTotal = subTotal * 0.11;
-        const grandTotal = subTotal + taxTotal;
+        const subTotal = po.sub_total ?? itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0);
+        const taxTotal = po.tax_amount ?? (subTotal * 0.11);
+        const grandTotal = po.grand_total ?? (subTotal + taxTotal);
+        const taxLabel = po.tax_percentage ? `PPN ${po.tax_percentage}%` : 'PPN';
 
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
@@ -291,9 +296,9 @@ export default function POList() {
                             <td class="terbilang-box"><strong>Keterangan:</strong><br/><span>${po.subject || '-'}</span></td>
                             <td class="summary-box">
                                 <table class="summary-table">
-                                    <tr><td>Sub Total</td><td align="right"><strong>${subTotal.toLocaleString('id-ID')}</strong></td></tr>
-                                    <tr><td>PPN 11%</td><td align="right">${taxTotal.toLocaleString('id-ID')}</td></tr>
-                                    <tr class="total-row"><td>Total Order</td><td align="right">IDR ${grandTotal.toLocaleString('id-ID')}</td></tr>
+                                    <tr><td>Sub Total</td><td align="right"><strong>${Number(subTotal).toLocaleString('id-ID')}</strong></td></tr>
+                                    <tr><td>${taxLabel}</td><td align="right">${Number(taxTotal).toLocaleString('id-ID')}</td></tr>
+                                    <tr class="total-row"><td>Total Order</td><td align="right">IDR ${Number(grandTotal).toLocaleString('id-ID')}</td></tr>
                                 </table>
                             </td>
                         </tr>
@@ -466,6 +471,42 @@ export default function POList() {
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Bagian Ringkasan Harga & PPN Persentase */}
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-600 font-medium">Sub Total:</span>
+                                    <span className="font-bold text-slate-800">Rp {calculatedSubTotal.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-t border-slate-200 pt-3">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm font-semibold text-slate-700">PPN (%):</label>
+                                        <div className="flex gap-1">
+                                            <button type="button" onClick={() => setFormData({ ...formData, tax_percentage: 11 })} className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 cursor-pointer">11%</button>
+                                            <button type="button" onClick={() => setFormData({ ...formData, tax_percentage: 0 })} className="px-2 py-0.5 text-xs bg-slate-200 text-slate-700 rounded hover:bg-slate-300 cursor-pointer">0%</button>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                                        <input 
+                                            type="number" 
+                                            min="0"
+                                            max="100"
+                                            placeholder="0" 
+                                            value={formData.tax_percentage} 
+                                            onChange={(e) => setFormData({ ...formData, tax_percentage: e.target.value === '' ? 0 : Number(e.target.value) })} 
+                                            className="w-20 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-center font-bold text-slate-900"
+                                        />
+                                        <span className="text-sm font-medium text-slate-500 w-32 text-right">
+                                            (+ Rp {calculatedTaxAmount.toLocaleString('id-ID')})
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between text-base border-t border-slate-200 pt-3">
+                                    <span className="font-bold text-slate-900">Grand Total:</span>
+                                    <span className="font-extrabold text-blue-600">Rp {calculatedGrandTotal.toLocaleString('id-ID')}</span>
+                                </div>
+                            </div>
+
                             <div className="flex justify-end space-x-3 pt-4 border-t border-slate-200">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 cursor-pointer">Batal</button>
                                 <button type="submit" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium cursor-pointer">Simpan PO</button>
@@ -476,4 +517,4 @@ export default function POList() {
             )}
         </div>
     );
-} 
+}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   FileSignature, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, Package, ArrowRightCircle, XCircle
 } from 'lucide-react';
-import { getProducts } from '../services/api';
+import { getProducts, getCustomers, getCustomerPartNumbers } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
@@ -10,6 +10,8 @@ import usePagination from '../hooks/usePagination';
 export default function Quotation() {
   const [quotations, setQuotations] = useState([]);
   const [masterProducts, setMasterProducts] = useState([]);
+  const [masterCustomers, setMasterCustomers] = useState([]);
+  const [customerParts, setCustomerParts] = useState([]); 
   const [isCreating, setIsCreating] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -33,6 +35,8 @@ export default function Quotation() {
 
   useEffect(() => {
     fetchMasterProducts();
+    fetchMasterCustomers();
+    fetchCustomerParts();
     const savedData = JSON.parse(localStorage.getItem('aldigens_quotations') || '[]');
     setQuotations(savedData);
   }, []);
@@ -45,11 +49,86 @@ export default function Quotation() {
       setMasterProducts(dataProducts);
     } catch (e) {
       console.error("Gagal memuat produk dari API", e);
-      const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
-      setMasterProducts(fallback);
     } finally {
       setLoadingProducts(false);
     }
+  };
+
+  const fetchMasterCustomers = async () => {
+    try {
+      const res = await getCustomers();
+      let dataCust = [];
+      if (res.data && Array.isArray(res.data.data)) {
+        dataCust = res.data.data;
+      } else if (Array.isArray(res.data)) {
+        dataCust = res.data;
+      }
+      setMasterCustomers(dataCust);
+    } catch (e) {
+      console.error("Gagal memuat master customer", e);
+    }
+  };
+
+  const fetchCustomerParts = async () => {
+    try {
+      // Ambil limit ekstra besar agar data part customer tidak terpotong pagination
+      const res = await getCustomerPartNumbers({ limit: 5000, per_page: 5000, all: true });
+      let parts = [];
+      if (res.data && Array.isArray(res.data.data)) {
+        parts = res.data.data;
+      } else if (Array.isArray(res.data)) {
+        parts = res.data;
+      }
+      setCustomerParts(parts);
+    } catch (e) {
+      console.error("Gagal memuat master part number customer", e);
+    }
+  };
+
+  const handleCustomerChange = (customerName) => {
+    const selectedCust = masterCustomers.find(c => c.customer_name === customerName);
+    setFormData({
+      ...formData,
+      customer_name: customerName,
+      customer_address: selectedCust?.address || formData.customer_address,
+      attention_person: selectedCust?.phone || formData.attention_person,
+      items: [] // Hapus list item lama agar tidak bentrok dengan part customer baru
+    });
+  };
+
+  // FUNGSI FILTER BULLETPROOF UNTUK MENJAMIN DATA SINKRON 100%
+  const getFilteredProductsForCustomer = () => {
+    if (!formData.customer_name) return [];
+
+    const selectedCust = masterCustomers.find(c => c.customer_name === formData.customer_name);
+    if (!selectedCust) return [];
+
+    let filteredParts = [];
+
+    // 1. Filter dengan mencocokkan berbagai format ID atau Nama dari API
+    if (customerParts && customerParts.length > 0) {
+      filteredParts = customerParts.filter(cp => {
+        const matchId = String(cp.customer_id) === String(selectedCust.id) || 
+                        (cp.customer && String(cp.customer.id) === String(selectedCust.id));
+        const matchName = (cp.customer_name === selectedCust.customer_name) || 
+                          (cp.customer && cp.customer.customer_name === selectedCust.customer_name);
+        return matchId || matchName;
+      });
+    }
+
+    // 2. Jika filter di atas kosong, cek apakah relasinya sudah di-nest oleh Laravel
+    if (filteredParts.length === 0) {
+      filteredParts = selectedCust.part_numbers || selectedCust.customer_part_numbers || selectedCust.items || [];
+    }
+
+    // 3. STANDARISASI KEY DATABASE: Mengunci & menyamakan key agar tidak ada field yang meleset 
+    return filteredParts.map(p => ({
+      ...p,
+      _part_number: p.part_number || p.part_no || p.code || p.item_code || '',
+      _description: p.item_description || p.description || p.part_name || p.name || '',
+      _price: p.harga_jual || p.price || p.unit_price || 0,
+      _unit: p.unit || 'SET'
+    }));
   };
 
   const handleItemChange = (index, field, value) => {
@@ -57,17 +136,17 @@ export default function Quotation() {
     items[index][field] = value;
 
     if (field === 'part_number') {
-      const matched = masterProducts.find(
-        (p) => 
-          (p.part_number && p.part_number.toLowerCase() === value.toLowerCase()) || 
-          (p.code && p.code.toLowerCase() === value.toLowerCase()) ||
-          (p.name && p.name.toLowerCase() === value.toLowerCase())
+      const availableList = getFilteredProductsForCustomer();
+      // Bandingkan menggunakan key standar _part_number
+      const matched = availableList.find(
+        (p) => String(p._part_number).toLowerCase() === String(value).toLowerCase()
       );
 
       if (matched) {
-        items[index].part_number = matched.part_number || matched.code || value;
-        items[index].description = matched.name || matched.description || '';
-        items[index].unit = matched.unit || 'SET';
+        items[index].part_number = matched._part_number || value;
+        items[index].description = matched._description;
+        items[index].unit = matched._unit;
+        items[index].unit_price = matched._price;
       }
     }
 
@@ -75,6 +154,10 @@ export default function Quotation() {
   };
 
   const handleAddItem = () => {
+    if (!formData.customer_name) {
+      swalError('Peringatan', 'Silakan pilih Customer terlebih dahulu sebelum menambah barang.');
+      return;
+    }
     setFormData({
       ...formData,
       items: [...formData.items, { part_number: '', description: '', qty: 1, unit: 'SET', unit_price: 0 }],
@@ -128,7 +211,6 @@ export default function Quotation() {
     }, 400);
   };
 
-  // --- DIUBAH AGAR LANGSUNG DIALIHKAN KE SALES ORDER (SO) ---
   const handleActionStatus = (q, newStatus, e) => {
     e.stopPropagation();
     
@@ -142,7 +224,7 @@ export default function Quotation() {
         so_number: `SO-${Math.floor(100000 + Math.random() * 900000)}`,
         date: new Date().toISOString().split('T')[0],
         source_quotation: q.quotation_number,
-        ref_po: '', // Bisa diisi nomor PO customer nantinya di form SO
+        ref_po: '',
         status: 'Open'
       };
       
@@ -413,7 +495,19 @@ export default function Quotation() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Nama Customer / Perusahaan <span className="text-red-500">*</span></label>
-              <input type="text" required placeholder="PT Sany Perkasa" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} />
+              <select
+                required
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-teal-500 transition cursor-pointer"
+                value={formData.customer_name}
+                onChange={(e) => handleCustomerChange(e.target.value)}
+              >
+                <option value="">-- Pilih Customer dari Master --</option>
+                {masterCustomers.map((cust, idx) => (
+                  <option key={idx} value={cust.customer_name}>
+                    {cust.customer_name} ({cust.customer_code})
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Nama Kontak (Up) <span className="text-red-500">*</span></label>
@@ -464,17 +558,15 @@ export default function Quotation() {
                         onChange={(e) => handleItemChange(index, 'part_number', e.target.value)}
                         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500"
                         required
+                        disabled={!formData.customer_name} 
                       />
                       <datalist id={`master-parts-${index}`}>
-                        {masterProducts.map((prod, idx) => {
-                          const pNo = prod.part_number || prod.code || '';
-                          const pName = prod.name || prod.description || '';
-                          return (
-                            <option key={idx} value={pNo}>
-                              {pName}
-                            </option>
-                          );
-                        })}
+                        {getFilteredProductsForCustomer().map((prod, idx) => (
+                          // Menggunakan key hasil standarisasi agar tidak ada yang meleset
+                          <option key={idx} value={prod._part_number}>
+                            {prod._description}
+                          </option>
+                        ))}
                       </datalist>
                     </div>
                     <div className="md:col-span-4">
@@ -571,7 +663,7 @@ export default function Quotation() {
                     <td className="p-4 text-sm font-medium text-slate-700">{it.description}</td>
                     <td className="p-4 text-sm text-center font-bold text-slate-800">{it.qty} {it.unit}</td>
                     <td className="p-4 text-sm text-right text-slate-600">{formatRupiah(it.unit_price)}</td>
-                    <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(it.qty * it.unit_price)}</td>
+                    <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(Number(it.qty) * Number(it.unit_price))}</td>
                   </tr>
                 ))}
               </tbody>

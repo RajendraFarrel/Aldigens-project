@@ -72,6 +72,7 @@ export const MENU_GROUPS = [{
                     { key: 'quotation', label: 'Quotation', icon: FileText },
                     { key: 'sales-order', label: 'Sales Order & Customer PO', icon: ShoppingCart },
                     { key: 'delivery-order', label: 'Delivery Order (DO)', icon: Truck },
+                    { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare },
                     { key: 'invoice', label: 'Invoice', icon: Receipt },
                     { key: 'sales-return', label: 'Sales Return', icon: PackageMinus },
                     { key: 'sales-receipt', label: 'Sales Receipt', icon: Wallet },
@@ -150,7 +151,6 @@ export const MENU_GROUPS = [{
             subItems: [
                 // Hanya sub-menu yang implementasinya sudah tersedia.
                 { key: 'spk', label: 'SPK', icon: FileText },
-                { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare },
             ],
         }],
     },

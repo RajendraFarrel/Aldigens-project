@@ -18,7 +18,7 @@ class CustomerSeeder extends Seeder
             ['customer_code' => 'CUST-006', 'customer_name' => 'PT SANY PERKASA', 'phone' => '021-29083888', 'email' => 'info@sanyperkasa.com', 'address' => 'Cakung, Jakarta Timur', 'status' => 'AKTIF'],
         ];
 
-        foreach ($customers as $c) {
+        foreach ($customers as $c) {    
             Customer::updateOrCreate(['customer_code' => $c['customer_code']], $c);
         }
     }

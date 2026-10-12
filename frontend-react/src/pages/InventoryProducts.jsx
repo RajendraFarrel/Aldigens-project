@@ -428,7 +428,7 @@ export default function InventoryProducts() {
                     min={0}
                     value={form.stock}
                     onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   />
                   {editingProduct && (
                     <p className="text-[11px] text-amber-600 mt-1 leading-relaxed">

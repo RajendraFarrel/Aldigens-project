@@ -6,6 +6,9 @@ const api = axios.create({
         'Content-Type': 'application/json',
         'Accept': 'application/json',
     },
+    // Batas waktu tunggu respons (ms). Tanpa ini, bila backend/DB hang,
+    // permintaan menggantung tanpa henti dan spinner UI berputar selamanya.
+    timeout: 20000,
 });
 
 // Otomatis lampirkan token dari localStorage ke setiap request
@@ -231,6 +234,21 @@ export const updateSpk = (id, data) =>
 
 export const deleteSpk = (id) =>
     api.delete(`/spks/${id}`);
+
+// -----------------------------------------------
+// Operasional – Penjadwalan (SPK Schedules)
+// -----------------------------------------------
+export const getSpkSchedules = (params = {}) =>
+    api.get('/spk-schedules', { params });
+
+export const getSpkSchedule = (id) =>
+    api.get(`/spk-schedules/${id}`);
+
+// -----------------------------------------------
+// Master Data – Employees
+// -----------------------------------------------
+export const getEmployees = (params = {}) =>
+    api.get('/employees', { params });
 
 // -----------------------------------------------
 // Existing functions (Quotation & PO)

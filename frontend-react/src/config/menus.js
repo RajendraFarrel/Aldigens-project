@@ -27,6 +27,7 @@ import {
     ArrowUpRight,
     PackageCheck,
     CheckSquare,
+    CalendarDays,
     // Modul Akuntansi
     BookMarked,
     NotebookPen,
@@ -150,6 +151,7 @@ export const MENU_GROUPS = [{
             subItems: [
                 // Hanya sub-menu yang implementasinya sudah tersedia.
                 { key: 'spk', label: 'SPK', icon: FileText },
+                { key: 'scheduling', label: 'Penjadwalan', icon: CalendarDays },
                 { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare },
             ],
         }],

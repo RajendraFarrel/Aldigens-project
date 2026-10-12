@@ -41,6 +41,12 @@ class Employee extends Model
         return $this->hasMany(SpkAssignment::class);
     }
 
+    /** Penugasan pada schedule operasional. Step 4C. */
+    public function scheduleAssignments()
+    {
+        return $this->hasMany(SpkScheduleAssignment::class);
+    }
+
     /** Generate kode karyawan berikutnya: EMP-0001. */
     public static function generateCode(): string
     {

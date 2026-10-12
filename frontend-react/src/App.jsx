@@ -37,6 +37,7 @@ import SecurityStatus from './pages/SecurityStatus';
 import ActivityLog from './pages/ActivityLog';
 import Commissioning from './pages/Commissioning';
 import SPK from './pages/SPK';
+import Scheduling from './pages/Scheduling';
 // Import Modul Akuntansi
 import ChartOfAccount from './pages/accounting/ChartOfAccount';
 import JurnalUmum from './pages/accounting/JurnalUmum';
@@ -98,6 +99,7 @@ const PAGE_TITLES = {
   'security-status':        'Security Status',
   'activity-log':           'Activity Log',
   'spk':                        'Surat Perintah Kerja (SPK)',
+  'scheduling':                 'Penjadwalan',
   'commissioning':              'Komisioning & BAST',
 };
 
@@ -246,6 +248,7 @@ export default function App() {
       case 'security-status':        return <SecurityStatus />;
       case 'activity-log':           return <ActivityLog />;
       case 'spk':                        return <SPK />;
+      case 'scheduling':                 return <Scheduling />;
       case 'commissioning':              return <Commissioning />;
       default:                       return <Dashboard />;
     }

@@ -34,6 +34,7 @@ use App\Http\Controllers\AccountingReportController;
 // Modul Operasional (SPK) — Step 3A
 use App\Http\Controllers\SpkController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\SpkScheduleController;
 
 
 /*
@@ -201,4 +202,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- Master personel lapangan (terpisah dari users / akun login) ---
     Route::apiResource('/employees', EmployeeController::class)->only(['index', 'store', 'show', 'update']);
+
+    // --- Penjadwalan operasional SPK (Step 4C) ---
+    Route::patch('/spk-schedules/{id}/status', [SpkScheduleController::class, 'updateStatus']);
+    Route::patch('/spk-schedules/{id}/progress', [SpkScheduleController::class, 'updateProgress']);
+    Route::apiResource('/spk-schedules', SpkScheduleController::class);
 });

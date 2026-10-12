@@ -36,7 +36,13 @@ export default function Login({ onLogin }) {
       else localStorage.removeItem('aldigens_remember_email');
       onLogin();
     } catch (e) {
-      setError(e.response?.data?.message || 'Login gagal. Coba lagi.');
+      if (e.code === 'ECONNABORTED') {
+        setError('Server tidak merespons (waktu habis). Periksa koneksi ke server backend.');
+      } else if (!e.response) {
+        setError('Tidak dapat terhubung ke server. Pastikan backend dan database berjalan.');
+      } else {
+        setError(e.response?.data?.message || 'Login gagal. Coba lagi.');
+      }
     } finally {
       setLoading(false);
     }

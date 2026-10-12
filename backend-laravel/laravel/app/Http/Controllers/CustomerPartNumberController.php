@@ -16,7 +16,7 @@ class CustomerPartNumberController extends Controller
     private function key(string $value): string
     {
         return trim(strtolower(preg_replace('/[^a-z0-9]+/', '_', $value)), '_');
-    }
+    }   
 
     private function value(array $row, array $keys)
     {

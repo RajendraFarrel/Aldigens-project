@@ -16,8 +16,7 @@ class DatabaseSeeder extends Seeder
     {
         // Akun default untuk login pertama kali
         User::updateOrCreate(
-            ['email' => 'admin@aldigens.co.id'],
-            [
+            ['email' => 'admin@aldigens.co.id'], [
                 'name'      => 'admin',
                 'full_name' => 'Administrator Sistem',
                 'password'  => Hash::make('password'),
@@ -29,8 +28,8 @@ class DatabaseSeeder extends Seeder
             CustomerSeeder::class,
         ]);
 
-        $this->call([
-            ImportExcelMasterSeeder::class,
-        ]);
+        // $this->call([
+        //     ImportExcelMasterSeeder::class,
+        // ]);
     }
 }

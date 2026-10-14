@@ -184,11 +184,16 @@ export const deleteRole = (id) =>
     api.delete(`/roles/${id}`);
 
 // -----------------------------------------------
+// Purchase Order (PO)
+// -----------------------------------------------
+export const getPurchaseOrders = () =>
+    api.get('/purchase-orders');
+
+// -----------------------------------------------
 // Delivery Order (DO) & Invoice
 // -----------------------------------------------
 export const getDeliveryOrders = () =>
     api.get('/delivery-orders');
-
 export const getDeliveryOrder = (id) =>
     api.get(`/delivery-orders/${id}`);
 

@@ -1,38 +1,89 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
 export default function PurchasePayment() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('list');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
 
-  const [dummyPayments, setDummyPayments] = useState([
-    { id: 1, paymentNo: 'PP-202609-001', date: '2026-09-28', vendorName: 'PT. Plastikindo', paymentMethod: 'Transfer Bank (BCA)', amount: 25000000, notes: 'Pelunasan PI-202609-001' },
-    { id: 2, paymentNo: 'PP-202609-002', date: '2026-09-25', vendorName: 'CV. Komputer Jaya', paymentMethod: 'Kas Kecil', amount: 5000000, notes: 'DP Pembelian Perangkat IT' },
-  ]);
-
-  const filteredPayments = useMemo(() => {
-    return dummyPayments.filter(item =>
-      item.paymentNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.vendorName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [dummyPayments, searchTerm]);
-
-  const pagination = usePagination(filteredPayments, 10);
+  const [payments, setPayments] = useState([]);
+  const [unpaidInvoices, setUnpaidInvoices] = useState([]);
 
   const [formData, setFormData] = useState({
-    paymentNo: '', date: '', vendorName: '', paymentMethod: 'Transfer Bank (BCA)', amount: '', notes: ''
+    paymentNo: `PP-${new Date().toISOString().slice(0, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
+    date: new Date().toISOString().split('T')[0],
+    invoice_reference: '',
+    vendorName: '',
+    paymentMethod: 'Transfer Bank (BCA)',
+    amount: '',
+    notes: ''
   });
+
+  useEffect(() => {
+    fetchPayments();
+    fetchUnpaidInvoices();
+  }, []);
+
+  const fetchPayments = () => {
+    const local = JSON.parse(localStorage.getItem('aldigens_purchase_payments') || '[]');
+    if (local.length === 0) {
+      const defaultData = [
+        { id: 1, paymentNo: 'PP-202609-001', date: '2026-09-28', vendorName: 'PT. Plastikindo', paymentMethod: 'Transfer Bank (BCA)', amount: 25000000, notes: 'Pelunasan PI-202609-001' },
+      ];
+      localStorage.setItem('aldigens_purchase_payments', JSON.stringify(defaultData));
+      setPayments(defaultData);
+    } else {
+      setPayments(local);
+    }
+  };
+
+  // Ambil data Purchase Invoice yang belum lunas dari LocalStorage modul PI sebelumnya
+  const fetchUnpaidInvoices = () => {
+    const invoices = JSON.parse(localStorage.getItem('aldigens_purchase_invoices') || '[]');
+    // Filter hanya yang statusnya belum lunas (atau semua jika ingin fleksibel)
+    const unpaid = invoices.filter(inv => inv.status !== 'Lunas');
+    setUnpaidInvoices(unpaid.length > 0 ? unpaid : invoices); // Fallback ke semua invoice jika tidak ada filter status
+  };
+
+  const handleSelectInvoice = (invoiceNo) => {
+    const selectedInv = unpaidInvoices.find(inv => inv.invoice_number === invoiceNo);
+    if (selectedInv) {
+      setFormData({
+        ...formData,
+        invoice_reference: selectedInv.invoice_number,
+        vendorName: selectedInv.supplier_name || '',
+        amount: selectedInv.grand_total || '',
+        notes: `Pelunasan Invoice No: ${selectedInv.invoice_number} (Ref PO: ${selectedInv.po_reference || '-'})`
+      });
+    }
+  };
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter(item =>
+      item.paymentNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.vendorName?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [payments, searchTerm]);
+
+  const pagination = usePagination(filteredPayments, 10);
 
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleOpenAddForm = () => {
+    fetchUnpaidInvoices();
     setEditingId(null);
-    setFormData({ paymentNo: '', date: '', vendorName: '', paymentMethod: 'Transfer Bank (BCA)', amount: '', notes: '' });
+    setFormData({
+      paymentNo: `PP-${new Date().toISOString().slice(0, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
+      date: new Date().toISOString().split('T')[0],
+      invoice_reference: '',
+      vendorName: '',
+      paymentMethod: 'Transfer Bank (BCA)',
+      amount: '',
+      notes: ''
+    });
     setViewMode('form');
   };
 
@@ -45,17 +96,33 @@ export default function PurchasePayment() {
 
   const handleSave = (e) => {
     e.preventDefault();
+    let updated;
     if (editingId) {
-      setDummyPayments(dummyPayments.map(item => item.id === editingId ? { ...item, ...formData, amount: Number(formData.amount) } : item));
+      updated = payments.map(item => item.id === editingId ? { ...item, ...formData, amount: Number(formData.amount) } : item);
     } else {
-      setDummyPayments([{ id: Date.now(), ...formData, amount: Number(formData.amount) }, ...dummyPayments]);
+      const newPayment = { id: Date.now(), ...formData, amount: Number(formData.amount) };
+      updated = [newPayment, ...payments];
+
+      // Opsional: Update status invoice yang dibayar menjadi 'Lunas' di localStorage PI
+      if (formData.invoice_reference) {
+        const invoices = JSON.parse(localStorage.getItem('aldigens_purchase_invoices') || '[]');
+        const updatedInvoices = invoices.map(inv => 
+          inv.invoice_number === formData.invoice_reference ? { ...inv, status: 'Lunas' } : inv
+        );
+        localStorage.setItem('aldigens_purchase_invoices', JSON.stringify(updatedInvoices));
+      }
     }
+
+    setPayments(updated);
+    localStorage.setItem('aldigens_purchase_payments', JSON.stringify(updated));
     setViewMode('list');
   };
 
   const handleDelete = (id) => {
     if (window.confirm('Hapus Bukti Pembayaran ini?')) {
-      setDummyPayments(dummyPayments.filter(item => item.id !== id));
+      const updated = payments.filter(item => item.id !== id);
+      setPayments(updated);
+      localStorage.setItem('aldigens_purchase_payments', JSON.stringify(updated));
       setActiveMenuId(null);
     }
   };
@@ -89,8 +156,25 @@ export default function PurchasePayment() {
             <h2 className="text-xl font-semibold dark:text-white">{editingId ? 'Edit Pembayaran' : 'Buat Pembayaran Baru'}</h2>
           </div>
           <form onSubmit={handleSave} className="space-y-6">
+            {!editingId && (
+              <div className="p-4 bg-blue-50 dark:bg-slate-800 rounded-xl border border-blue-100 dark:border-slate-700">
+                <label className="block text-sm font-medium text-blue-900 dark:text-blue-300 mb-1">Ambil dari Purchase Invoice (Opsional)</label>
+                <select 
+                  onChange={(e) => handleSelectInvoice(e.target.value)}
+                  className="w-full px-4 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">-- Pilih Faktur / Invoice untuk Dibayar --</option>
+                  {unpaidInvoices.map((inv, idx) => (
+                    <option key={idx} value={inv.invoice_number}>
+                      {inv.invoice_number} — {inv.supplier_name} (Rp {Number(inv.grand_total || 0).toLocaleString('id-ID')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">No. Pembayaran (PP)</label><input required type="text" name="paymentNo" value={formData.paymentNo} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Contoh: PP-2026..." /></div>
+              <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">No. Pembayaran (PP)</label><input required type="text" name="paymentNo" value={formData.paymentNo} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Tanggal Bayar</label><input required type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Vendor (Penerima)</label><input required type="text" name="vendorName" value={formData.vendorName} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nama Vendor..." /></div>
               <div>
@@ -109,8 +193,8 @@ export default function PurchasePayment() {
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-              <button type="button" onClick={() => setViewMode('list')} className="px-5 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-medium">Batal</button>
-              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium"><Save className="h-4 w-4" /> Simpan</button>
+              <button type="button" onClick={() => setViewMode('list')} className="px-5 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-medium cursor-pointer">Batal</button>
+              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium cursor-pointer"><Save className="h-4 w-4" /> Simpan</button>
             </div>
           </form>
         </div>
@@ -123,7 +207,7 @@ export default function PurchasePayment() {
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between gap-4">
           <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><input type="text" placeholder="Cari Pembayaran..." className="pl-9 pr-4 py-2 w-72 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm dark:text-white outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"><Plus className="h-4 w-4" /> Pembayaran Pembelian</button>
+          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer"><Plus className="h-4 w-4" /> Pembayaran Pembelian</button>
         </div>
         <div className="overflow-x-auto min-h-[300px]">
           <table className="w-full text-left text-sm whitespace-nowrap">

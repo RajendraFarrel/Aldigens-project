@@ -66,6 +66,12 @@ class Spk extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    /** Jadwal operasional (sesi/hari kerja) pada SPK ini. Step 4C. */
+    public function schedules()
+    {
+        return $this->hasMany(SpkSchedule::class);
+    }
+
     /** Penugasan karyawan pada SPK ini. */
     public function assignments()
     {

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock, ShoppingCart } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
@@ -124,6 +124,35 @@ export default function PurchaseRequisition() {
       setDummyPRs(dummyPRs.filter(item => item.id !== id));
       setActiveMenuId(null);
     }
+  };
+
+  // --- FUNGSI KONVERSI PR KE PURCHASE ORDER (PO) ---
+  const handleConvertToPO = (prItem) => {
+    setActiveMenuId(null);
+    
+    // Format item PR agar cocok dengan struktur Purchase Order
+    const poItems = prItem.items.map(i => ({
+      description: i.partNumber,
+      qty: i.quantity,
+      unit_price: 0 // Default harga satuan bisa diisi nanti di form PO
+    }));
+
+    const newPO = {
+      id: Date.now(),
+      po_number: 'PO-' + prItem.prNo.replace('PR-', ''),
+      date: new Date().toISOString().split('T')[0],
+      supplier_name: 'Supplier Umum (' + prItem.department + ')',
+      supplier_address: 'Jakarta',
+      subject: prItem.remarks || 'Pengadaan dari ' + prItem.prNo,
+      items: poItems,
+      status: 'Pending'
+    };
+
+    // Simpan ke local storage agar terbaca di halaman POList
+    const existingPOs = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
+    localStorage.setItem('aldigens_purchase_orders', JSON.stringify([newPO, ...existingPOs]));
+
+    alert(`PR ${prItem.prNo} berhasil diproses menjadi Purchase Order (PO)! Silakan buka menu Purchase Order.`);
   };
 
   const handlePrint = (item) => {
@@ -288,7 +317,7 @@ export default function PurchaseRequisition() {
             </div>
           </div>
           
-          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition">
+          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition cursor-pointer">
             <Plus className="h-4 w-4" />
             Simpan PR
           </button>
@@ -336,7 +365,15 @@ export default function PurchaseRequisition() {
                     </button>
 
                     {activeMenuId === item.id && (
-                      <div className="absolute right-12 top-10 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
+                      <div className="absolute right-12 top-10 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
+                        {item.status === 'Disetujui' && (
+                          <button 
+                            onClick={() => handleConvertToPO(item)}
+                            className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-700"
+                          >
+                            <ShoppingCart className="h-4 w-4" /> Proses ke PO
+                          </button>
+                        )}
                         <button 
                           onClick={() => handleOpenEditForm(item)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"

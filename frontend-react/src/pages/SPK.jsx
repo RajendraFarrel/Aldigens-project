@@ -4,9 +4,12 @@ import {
     createSpk,
     deleteSpk,
     getCustomers,
+<<<<<<< HEAD
     getDeliveryOrders,
     getPurchaseOrders,
     getSalesOrders,
+=======
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
     getSpks,
     updateSpk,
 } from '../services/api';
@@ -18,6 +21,26 @@ import { swalConfirm, swalError, swalToast } from '../utils/swal';
  * Sumber data: GET /api/spks (data asli dari backend, tanpa dummy/localStorage).
  * Nomor SPK selalu dibuat backend; form tidak pernah mengirim spk_number.
  */
+
+/* ─── Modal overlay (konsisten dengan CustomerPartNumbers / Warehouse) ─── */
+function Modal({ title, onClose, children }) {
+    return (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between">
+                    <h3 className="text-base font-bold text-slate-800">{title}</h3>
+                    <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 transition" type="button">
+                        <X className="w-4 h-4 text-slate-500" />
+                    </button>
+                </div>
+                {children}
+            </div>
+        </div>
+    );
+}
 
 /** Status lifecycle SPK — mengikuti konstanta Spk::STATUSES di backend. */
 const SPK_STATUSES = ['DRAFT', 'OPEN', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
@@ -137,6 +160,10 @@ export default function SPK() {
         setError(null);
 
         try {
+<<<<<<< HEAD
+=======
+            // Helper API resmi (token dilampirkan otomatis oleh interceptor di services/api.js).
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
             const res = await getSpks();
             const data = res.data?.data ?? res.data ?? [];
             setSpks(Array.isArray(data) ? data : []);
@@ -286,6 +313,7 @@ export default function SPK() {
         setForm((prev) => ({ ...prev, [field]: value }));
     };
 
+<<<<<<< HEAD
     /* ── Validasi frontend (backend tetap sumber validasi utama) ── */
     const validateForm = () => {
         if (!form.spk_date) return 'Tanggal SPK wajib diisi.';
@@ -324,11 +352,48 @@ export default function SPK() {
             setFormError(validationError);
             return;
         }
+=======
+    /**
+     * Simpan SPK — dipakai untuk Tambah (POST) maupun Edit (PUT).
+     * Nomor SPK TIDAK pernah dikirim; backend yang membuatnya.
+     */
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        // ── Validasi sebelum request API ──
+        if (!form.spk_date) {
+            setFormError('Tanggal SPK wajib diisi.');
+            return;
+        }
+        if (!form.customer_id) {
+            setFormError('Customer wajib dipilih.');
+            return;
+        }
+        if (!form.project_name.trim()) {
+            setFormError('Project / Deskripsi wajib diisi.');
+            return;
+        }
+        if (form.start_date && form.finish_date && form.finish_date < form.start_date) {
+            setFormError('Tanggal Selesai tidak boleh lebih awal dari Tanggal Mulai.');
+            return;
+        }
+        if (form.employee_count !== '' && Number(form.employee_count) < 0) {
+            setFormError('Jumlah Karyawan tidak boleh negatif.');
+            return;
+        }
+
+        // Cegah double submit.
+        if (saving) return;
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
 
         setSaving(true);
         setFormError('');
 
         try {
+<<<<<<< HEAD
+=======
+            // Payload: TANPA spk_number dan TANPA id.
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
             const payload = {
                 spk_date: form.spk_date,
                 customer_id: Number(form.customer_id),
@@ -350,6 +415,7 @@ export default function SPK() {
                 status: form.status,
             };
 
+<<<<<<< HEAD
             if (editingId) {
                 await updateSpk(editingId, payload);
                 swalToast('SPK berhasil diperbarui.', 'success');
@@ -362,11 +428,37 @@ export default function SPK() {
             await fetchData();
         } catch (err) {
             setFormError(buildErrorMessage(err, 'Gagal menyimpan data SPK.'));
+=======
+            if (editingId === null) {
+                await createSpk(payload);
+                swalToast('SPK berhasil dibuat.', 'success');
+            } else {
+                await updateSpk(editingId, payload);
+                swalToast('SPK berhasil diperbarui.', 'success');
+            }
+
+            closeForm();
+            fetchData();
+        } catch (err) {
+            // Prioritaskan detail validasi 422 jika ada.
+            const validationErrors = err.response?.data?.errors;
+            if (validationErrors && typeof validationErrors === 'object') {
+                const messages = Object.values(validationErrors).flat().filter(Boolean);
+                setFormError(
+                    messages.length
+                        ? messages.join(' ')
+                        : err.response?.data?.message || 'Gagal menyimpan data SPK.'
+                );
+            } else {
+                setFormError(err.response?.data?.message || 'Gagal menyimpan data SPK.');
+            }
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
         } finally {
             setSaving(false);
         }
     };
 
+<<<<<<< HEAD
     /** Hapus SPK dengan konfirmasi. Backend hanya mengizinkan status DRAFT. */
     const handleDelete = async (spk) => {
         const confirmed = await swalConfirm({
@@ -376,13 +468,31 @@ export default function SPK() {
             danger: true,
         });
         if (!confirmed) return;
+=======
+    /** Hapus SPK — backend menentukan apakah data boleh dihapus. */
+    const handleDelete = async (spk) => {
+        const ok = await swalConfirm({
+            title: 'Hapus SPK?',
+            text: `SPK "${spk.spk_number || '-'}" akan dihapus. Tindakan ini tidak dapat dibatalkan.`,
+            confirmText: 'Ya, Hapus',
+            cancelText: 'Batal',
+            danger: true,
+        });
+        if (!ok) return;
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
 
         try {
             await deleteSpk(spk.id);
             swalToast('SPK berhasil dihapus.', 'success');
+<<<<<<< HEAD
             await fetchData();
         } catch (err) {
             swalError('Gagal menghapus SPK', buildErrorMessage(err, 'Gagal menghapus data SPK.'));
+=======
+            fetchData();
+        } catch (err) {
+            swalError('Gagal menghapus', err.response?.data?.message || 'Gagal menghapus data SPK.');
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
         }
     };
 
@@ -502,6 +612,10 @@ export default function SPK() {
                                                 onClick={() => openEdit(spk)}
                                                 className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition cursor-pointer"
                                                 title="Edit"
+<<<<<<< HEAD
+=======
+                                                type="button"
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
                                             >
                                                 <Pencil className="w-4 h-4" />
                                             </button>
@@ -509,6 +623,10 @@ export default function SPK() {
                                                 onClick={() => handleDelete(spk)}
                                                 className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition cursor-pointer"
                                                 title="Hapus"
+<<<<<<< HEAD
+=======
+                                                type="button"
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
@@ -521,12 +639,17 @@ export default function SPK() {
                 </table>
             </div>
 
+<<<<<<< HEAD
             {/* ─── Modal Form Tambah/Edit SPK ─── */}
+=======
+            {/* ─── Modal Form Tambah / Edit SPK ─── */}
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
             {showForm && (
                 <Modal
                     title={editingId ? 'Edit Surat Perintah Kerja (SPK)' : 'Tambah Surat Perintah Kerja (SPK)'}
                     onClose={closeForm}
                 >
+<<<<<<< HEAD
                     <form onSubmit={submit} className="flex flex-col min-h-0">
                         <div className="overflow-y-auto px-6 py-5 space-y-6">
                             {/* 1. INFORMASI SPK */}
@@ -770,15 +893,245 @@ export default function SPK() {
                                 type="button"
                                 onClick={closeForm}
                                 className="flex-1 border py-2.5 rounded-xl text-sm hover:bg-slate-50 transition cursor-pointer"
+=======
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        {/* Nomor SPK: dibuat backend, hanya ditampilkan read-only saat edit. */}
+                        {editingId === null ? (
+                            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                Nomor SPK dibuat otomatis oleh sistem.
+                            </p>
+                        ) : (
+                            <div className="space-y-1">
+                                <label className={labelCls}>No. SPK</label>
+                                <input
+                                    value={editingId ? (spks.find((s) => s.id === editingId)?.spk_number || '') : ''}
+                                    readOnly
+                                    disabled
+                                    className={`${inputCls} bg-slate-100 text-slate-500 cursor-not-allowed`}
+                                />
+                            </div>
+                        )}
+
+                        {/* ── INFORMASI SPK ── */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Informasi SPK</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Tanggal SPK <span className="text-rose-500">*</span></label>
+                                    <input
+                                        type="date"
+                                        value={form.spk_date}
+                                        onChange={(e) => handleFormChange('spk_date', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Customer <span className="text-rose-500">*</span></label>
+                                    <select
+                                        value={form.customer_id}
+                                        onChange={(e) => handleFormChange('customer_id', e.target.value)}
+                                        className={inputCls}
+                                    >
+                                        <option value="">-- Pilih Customer --</option>
+                                        {customers.map((c) => (
+                                            <option key={c.id} value={c.id}>{c.customer_name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── REFERENSI DOKUMEN ── */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Referensi Dokumen</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <label className={labelCls}>No. PO</label>
+                                    <input
+                                        value={form.po_number}
+                                        onChange={(e) => handleFormChange('po_number', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>No. SO</label>
+                                    <input
+                                        value={form.so_number}
+                                        onChange={(e) => handleFormChange('so_number', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>No. DO</label>
+                                    <input
+                                        value={form.do_number}
+                                        onChange={(e) => handleFormChange('do_number', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── INFORMASI PEKERJAAN ── */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Informasi Pekerjaan</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1 md:col-span-2">
+                                    <label className={labelCls}>Project / Deskripsi <span className="text-rose-500">*</span></label>
+                                    <input
+                                        value={form.project_name}
+                                        onChange={(e) => handleFormChange('project_name', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>S/N</label>
+                                    <input
+                                        value={form.serial_no}
+                                        onChange={(e) => handleFormChange('serial_no', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Lokasi</label>
+                                    <input
+                                        value={form.location}
+                                        onChange={(e) => handleFormChange('location', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Tanggal Mulai</label>
+                                    <input
+                                        type="date"
+                                        value={form.start_date}
+                                        onChange={(e) => handleFormChange('start_date', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Tanggal Selesai</label>
+                                    <input
+                                        type="date"
+                                        value={form.finish_date}
+                                        onChange={(e) => handleFormChange('finish_date', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── PENANGGUNG JAWAB ── */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Penanggung Jawab</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Contractor</label>
+                                    <input
+                                        value={form.contractor}
+                                        onChange={(e) => handleFormChange('contractor', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Project Leader</label>
+                                    <input
+                                        value={form.project_leader}
+                                        onChange={(e) => handleFormChange('project_leader', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>PIC EHS</label>
+                                    <input
+                                        value={form.pic_ehs}
+                                        onChange={(e) => handleFormChange('pic_ehs', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Person Responsible</label>
+                                    <input
+                                        value={form.person_responsible}
+                                        onChange={(e) => handleFormChange('person_responsible', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Jumlah Karyawan</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={form.employee_count}
+                                        onChange={(e) => handleFormChange('employee_count', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── INFORMASI EHS / LAINNYA ── */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Informasi EHS / Lainnya</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Security Monitoring</label>
+                                    <input
+                                        value={form.security_monitoring}
+                                        onChange={(e) => handleFormChange('security_monitoring', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className={labelCls}>Status</label>
+                                    <select
+                                        value={form.status}
+                                        onChange={(e) => handleFormChange('status', e.target.value)}
+                                        className={inputCls}
+                                    >
+                                        {SPK_STATUSES.map((s) => (
+                                            <option key={s} value={s}>{s}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-1 md:col-span-2">
+                                    <label className={labelCls}>Catatan</label>
+                                    <textarea
+                                        rows={3}
+                                        value={form.notes}
+                                        onChange={(e) => handleFormChange('notes', e.target.value)}
+                                        className={inputCls}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {formError && (
+                            <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-lg">{formError}</p>
+                        )}
+
+                        <div className="flex gap-3 pt-1">
+                            <button
+                                type="button"
+                                onClick={closeForm}
+                                className="flex-1 border py-2.5 rounded-xl text-sm hover:bg-slate-50 transition"
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
                             >
                                 Batal
                             </button>
                             <button
                                 type="submit"
                                 disabled={saving}
+<<<<<<< HEAD
                                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                             >
                                 {saving ? 'Memproses...' : editingId ? 'Simpan Perubahan' : 'Simpan'}
+=======
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {saving ? 'Menyimpan...' : editingId ? 'Simpan Perubahan' : 'Simpan'}
+>>>>>>> dd35a7beabc81f51341d838300a88cc14f86963f
                             </button>
                         </div>
                     </form>

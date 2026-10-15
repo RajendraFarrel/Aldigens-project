@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿import { useState, useMemo, useEffect, useRef } from 'react';
+=======
+import React, { useState, useEffect, useMemo } from 'react';
+>>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock, ShoppingCart } from 'lucide-react';
 import Select from 'react-select';
 import Pagination from '../components/Pagination';
@@ -7,6 +11,33 @@ import { getProducts } from '../services/api';
 
 export default function PurchaseRequisition() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Ambil daftar barang dari inventory untuk pencarian Part Number / Nama Barang.
+  useEffect(() => {
+    let active = true;
+    const loadProducts = async () => {
+      setLoadingProducts(true);
+      try {
+        const res = await getProducts();
+        if (active) setProducts(res.data?.data ?? []);
+      } catch (err) {
+        console.error('Gagal memuat daftar barang inventory:', err);
+      } finally {
+        if (active) setLoadingProducts(false);
+      }
+    };
+    loadProducts();
+    return () => { active = false; };
+  }, []);
+
+  // Opsi react-select: cari berdasarkan part number, nama barang, atau kode.
+  const productOptions = useMemo(() => products.map((p) => ({
+    value: p.id,
+    label: [p.part_number, p.name].filter(Boolean).join(' - ') || p.name || `#${p.id}`,
+    raw: p,
+  })), [products]);
   const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -86,7 +117,11 @@ export default function PurchaseRequisition() {
     requester: 'Administrator',
     remarks: '',
     status: 'Menunggu',
+<<<<<<< HEAD
     items: [{ id: 1, partNumber: '', quantity: 1, unit: 'PCS' }]
+=======
+    items: [{ id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
+>>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
   });
 
   const handleOpenAddForm = () => {
@@ -98,7 +133,11 @@ export default function PurchaseRequisition() {
       requester: 'Administrator',
       remarks: '',
       status: 'Menunggu',
+<<<<<<< HEAD
       items: [{ id: 1, partNumber: '', quantity: 1, unit: 'PCS' }]
+=======
+      items: [{ id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
+>>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
     });
     setViewMode('form');
   };
@@ -116,10 +155,17 @@ export default function PurchaseRequisition() {
   const nextRowId = () => (Date.now() + (rowSeq.current++));
 
   const handleAddItemRow = () => {
+<<<<<<< HEAD
     setFormData(prevForm => ({
       ...prevForm,
       items: [...prevForm.items, { id: nextRowId(), partNumber: '', quantity: 1, unit: 'PCS' }]
     }));
+=======
+    setFormData({
+      ...formData,
+      items: [...formData.items, { id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
+    });
+>>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
   };
 
   const handleRemoveItemRow = (id) => {
@@ -140,10 +186,31 @@ export default function PurchaseRequisition() {
     }));
   };
 
+  // Saat pengguna memilih barang dari inventory: simpan product_id, part number,
+  // nama barang, dan default satuan agar bisa dikirim ke backend sebagai product_id.
+  const handleProductSelect = (id, option) => {
+    setFormData({
+      ...formData,
+      items: formData.items.map(i => i.id === id ? {
+        ...i,
+        productId: option ? option.value : null,
+        partNumber: option ? option.label : '',
+        unit: option?.raw?.unit || i.unit,
+      } : i)
+    });
+  };
+
   const handleSave = (e) => {
     e.preventDefault();
     if (!formData.department.trim()) {
       alert('Departemen wajib diisi!');
+      return;
+    }
+
+    // Setiap baris wajib memilih barang dari inventory (bukan ketik bebas).
+    const belumDipilih = formData.items.find(i => !i.productId);
+    if (belumDipilih) {
+      alert('Setiap item harus dipilih dari daftar inventory. Ketik Part Number atau Nama Barang pada kolom pencarian.');
       return;
     }
 
@@ -301,6 +368,7 @@ export default function PurchaseRequisition() {
                     {formData.items.map((item, index) => (
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
+<<<<<<< HEAD
                         <td className="px-4 py-3 min-w-[280px]">
                           <Select
                             options={productOptions}
@@ -319,6 +387,24 @@ export default function PurchaseRequisition() {
                               menu: (base) => ({ ...base, zIndex: 9999 }),
                               menuPortal: (base) => ({ ...base, zIndex: 9999 }),
                             }}
+=======
+                        <td className="px-4 py-3">
+                          <Select
+                            inputId={`pr-item-product-${item.id}`}
+                            classNamePrefix="pr-select"
+                            className="react-select-container"
+                            placeholder="Ketik Part Number / Nama Barang..."
+                            isClearable
+                            isSearchable
+                            isLoading={loadingProducts}
+                            options={productOptions}
+                            value={productOptions.find(o => o.value === item.productId) || null}
+                            onChange={(option) => handleProductSelect(item.id, option)}
+                            noOptionsMessage={() => 'Barang tidak ditemukan di inventory'}
+                            loadingMessage={() => 'Memuat daftar barang...'}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                            styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
+>>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
                           />
                         </td>
                         <td className="px-4 py-3">

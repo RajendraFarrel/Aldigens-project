@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { LogOut, ChevronDown, ChevronRight } from 'lucide-react'; // Tambahan ikon panah
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 import { MENU_GROUPS } from '../config/menus';

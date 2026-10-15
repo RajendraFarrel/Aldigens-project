@@ -180,7 +180,7 @@ export default function CustomerPartNumbers() {
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       swalToast('Template berhasil diunduh.', 'success');
-    } catch (e) {
+    } catch {
       swalError('Gagal mengunduh', 'Tidak dapat mengunduh template import.');
     }
   };

@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Save, CheckCircle2, ArrowLeft } from 'lucide-react';
 import {
     createVoucher, updateVoucher, getAccounts,
     VOUCHER_TYPES, VOUCHER_TEMPLATES, rupiah, angka, todayISODate,
 } from '../../services/accountingApi';
-import { swalError, swalSuccess, swalConfirm } from '../../utils/swal';
+import { swalError, swalSuccess } from '../../utils/swal';
 
 /**
  * Form Journal Voucher generik.
@@ -299,7 +299,7 @@ export default function JournalVoucherForm({
                                                 onChange={(e) => pilihAkun(l.uid, e.target.value, l.kredit ? 'kredit' : 'debit')}
                                                 className={`${inputClass} py-1.5 text-xs`}
                                             >
-                                                <option value="">— Pilih akun —</option>
+                                                <option value="">â€” Pilih akun â€”</option>
                                                 {accounts.map((a) => (
                                                     <option key={a.id} value={a.id}>{a.nomor_akun}</option>
                                                 ))}

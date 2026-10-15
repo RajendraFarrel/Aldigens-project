@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 // Import Modul Pembelian
@@ -162,6 +162,7 @@ export default function App() {
       try {
         setCurrentUser(JSON.parse(localStorage.getItem('auth_user') || 'null'));
       } catch {
+        // Abaikan data auth_user yang tidak valid.
       }
     };
 

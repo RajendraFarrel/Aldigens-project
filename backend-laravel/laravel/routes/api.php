@@ -146,6 +146,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/delivery-orders', [DeliveryOrderController::class, 'index']);
     Route::post('/delivery-orders', [DeliveryOrderController::class, 'store']);
     Route::get('/delivery-orders/{id}', [DeliveryOrderController::class, 'show']);
+    // Approve DO: stok Inventory otomatis berkurang di sini.
+    Route::post('/delivery-orders/{id}/approve', [DeliveryOrderController::class, 'approve']);
 
     // Invoices (dari SO + DO)
     Route::get('/invoices', [InvoiceController::class, 'index']);

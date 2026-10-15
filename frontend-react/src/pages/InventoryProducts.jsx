@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, Barcode, X, Save, RefreshCw, Package, Printer, Upload, FileSpreadsheet } from 'lucide-react';
 import { getProducts, createProduct, updateProduct, deleteProduct, importProducts, downloadProductTemplate, downloadExport, getCustomers } from '../services/api';
 import BarcodeLabel, { printBarcodes } from '../components/BarcodeLabel';
@@ -44,7 +44,7 @@ export default function InventoryProducts() {
     try {
       const res = await getProducts(search);
       setProducts(res.data.data || []);
-    } catch (e) {
+    } catch {
       setError('Gagal memuat data produk.');
     } finally {
       setLoading(false);
@@ -55,6 +55,13 @@ export default function InventoryProducts() {
     const timeout = setTimeout(() => fetchProducts(), 400);
     return () => clearTimeout(timeout);
   }, [fetchProducts]);
+
+  // Muat daftar customer untuk dropdown "Customer" pada form produk.
+  useEffect(() => {
+    getCustomers()
+      .then((res) => setCustomers(res.data?.data || res.data || []))
+      .catch(() => setCustomers([]));
+  }, []);
 
   const openAdd = () => {
     setEditingProduct(null);
@@ -156,7 +163,7 @@ export default function InventoryProducts() {
       a.remove();
       window.URL.revokeObjectURL(url);
       swalToast('Template berhasil diunduh.', 'success');
-    } catch (e) {
+    } catch {
       swalError('Gagal mengunduh', 'Tidak dapat mengunduh template import.');
     }
   };
@@ -174,7 +181,7 @@ export default function InventoryProducts() {
       await deleteProduct(product.id);
       swalToast('Produk berhasil dihapus.', 'success');
       fetchProducts();
-    } catch (e) {
+    } catch {
       swalError('Gagal menghapus', 'Terjadi kesalahan saat menghapus produk.');
     }
   };
@@ -221,7 +228,7 @@ export default function InventoryProducts() {
       {/* Alert messages */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
-          <span>✗</span> {error}
+          <span>âœ—</span> {error}
         </div>
       )}
 
@@ -373,7 +380,7 @@ export default function InventoryProducts() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Customer</label>
-                <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option value="">Tanpa Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customer_code} — {customer.customer_name}</option>)}</select>
+                <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option value="">Tanpa Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customer_code} â€” {customer.customer_name}</option>)}</select>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Jenis Item</label>
@@ -529,7 +536,7 @@ export default function InventoryProducts() {
 
             <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs px-3 py-2.5 rounded-xl leading-relaxed">
               Kolom yang dibaca: <b>Part Number, Nama Barang, Jenis Barang, Satuan, Stock Awal</b>.
-              Kode internal tidak perlu diisi — dibuat otomatis oleh sistem.
+              Kode internal tidak perlu diisi â€” dibuat otomatis oleh sistem.
             </div>
 
             <button

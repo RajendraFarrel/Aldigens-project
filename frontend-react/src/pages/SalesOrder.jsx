@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2, Truck } from 'lucide-react';
 import { getProducts } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
@@ -49,7 +49,7 @@ export default function SalesOrder() {
       try {
         const res = await getProducts('');
         setMasterProducts(res.data.data || res.data || []);
-      } catch (e) {
+      } catch {
         const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
         setMasterProducts(fallback);
       }

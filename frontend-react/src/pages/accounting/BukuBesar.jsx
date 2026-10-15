@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { BookOpen, RefreshCw } from 'lucide-react';
 import PrintButton from '../../components/PrintButton';
 import PrintHeader from '../../components/PrintHeader';
@@ -6,7 +6,7 @@ import { getAccounts, getBukuBesar, rupiah, angka, formatTanggal, periodeDefault
 import { swalError } from '../../utils/swal';
 
 /**
- * Buku Besar — dibangun dari jurnal POSTED.
+ * Buku Besar â€” dibangun dari jurnal POSTED.
  * Saldo dihitung dari saldo awal COA + mutasi jurnal, mengikuti saldo normal akun.
  */
 export default function BukuBesar() {
@@ -88,7 +88,7 @@ export default function BukuBesar() {
             className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
             {accounts.length === 0 && <option value="">Belum ada akun</option>}
             {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.nomor_akun} — {a.nama_akun}</option>
+              <option key={a.id} value={a.id}>{a.nomor_akun} â€” {a.nama_akun}</option>
             ))}
           </select>
         </div>
@@ -107,7 +107,7 @@ export default function BukuBesar() {
       <PrintHeader
         judul="BUKU BESAR"
         periode={data
-          ? `${data.account.nomor_akun} — ${data.account.nama_akun} | ${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`
+          ? `${data.account.nomor_akun} â€” ${data.account.nama_akun} | ${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`
           : ''}
       />
 

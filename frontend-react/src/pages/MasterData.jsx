@@ -139,7 +139,7 @@ export default function MasterData({ type = 'customer' }) {
       if (editingId) {
         if (isCustomer) {
           setRows(rows.map(r => (r.id === editingId || r.customer_code === editingId) ? { ...r, ...data } : r));
-          try { await updateCustomer(editingId, data); } catch { }
+          try { await updateCustomer(editingId, data); } catch { /* API offline — perubahan lokal tetap disimpan. */ }
         } else {
           await updateSupplier(editingId, data);
         }
@@ -147,7 +147,7 @@ export default function MasterData({ type = 'customer' }) {
         const newEntry = { id: Date.now(), ...data };
         if (isCustomer) {
           setRows([newEntry, ...rows]);
-          try { await createCustomer(data); } catch { }
+          try { await createCustomer(data); } catch { /* API offline — data lokal tetap ditambahkan. */ }
         } else {
           await createSupplier(data);
         }

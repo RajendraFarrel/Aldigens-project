@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileStack, Plus, RefreshCw, Eye, Undo2, Pencil, CheckCircle2, Trash2 } from 'lucide-react';
 import PrintButton from '../../components/PrintButton';
 import PrintHeader from '../../components/PrintHeader';
 import JournalVoucherForm from '../../components/accounting/JournalVoucherForm';
 import {
   getVouchers, getVoucher, postVoucher, reverseVoucher, deleteVoucher,
-  rupiah, angka, formatTanggal,
+  angka, formatTanggal,
 } from '../../services/accountingApi';
 import { requestVoucherDetail } from '../../Data/accountingStore';
 import { swalSuccess, swalError, swalConfirm } from '../../utils/swal';

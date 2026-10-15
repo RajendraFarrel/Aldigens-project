@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { getSpkSchedules } from '../services/api';
 
 /**
- * Halaman Penjadwalan — daftar jadwal pekerjaan operasional berdasarkan SPK.
+ * Halaman Penjadwalan â€” daftar jadwal pekerjaan operasional berdasarkan SPK.
  *
  * Sumber data: GET /api/spk-schedules (data asli dari backend, tanpa dummy/localStorage).
  * Tahap 4D-1 hanya menampilkan data (read-only): belum ada form Tambah/Edit/Delete.
  */
 
-/** Status lifecycle jadwal — mengikuti konstanta di backend. */
+/** Status lifecycle jadwal â€” mengikuti konstanta di backend. */
 const SCHEDULE_STATUSES = ['SCHEDULED', 'IN_PROGRESS', 'DONE', 'POSTPONED', 'CANCELLED'];
 
 /** Warna badge status, konsisten dengan pola halaman SPK. */
@@ -98,7 +98,7 @@ export default function Scheduling() {
         return Math.max(0, Math.min(100, Math.round(pct)));
     };
 
-    /* ── Filter data di sisi klien ── */
+    /* â”€â”€ Filter data di sisi klien â”€â”€ */
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
 
@@ -156,7 +156,7 @@ export default function Scheduling() {
                 </div>
             )}
 
-            {/* ─── Filter dasar: Search & Status ─── */}
+            {/* â”€â”€â”€ Filter dasar: Search & Status â”€â”€â”€ */}
             <div className="flex flex-col sm:flex-row gap-3 mb-4">
                 <input
                     type="text"

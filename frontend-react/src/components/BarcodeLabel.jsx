@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import JsBarcode from 'jsbarcode';
 
 /**
@@ -118,7 +118,7 @@ export function printBarcodes(products) {
             window.focus();
             window.print();
           };
-        <\/script>
+        </script>
       </body>
     </html>
   `);

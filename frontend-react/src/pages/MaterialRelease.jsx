@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Plus, Filter, MoreVertical, ArrowUpRight } from 'lucide-react';
+﻿import { useState } from 'react';
+import { Search, Plus, Filter, MoreVertical } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 

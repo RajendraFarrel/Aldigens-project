@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     NotebookPen, Plus, Search, RefreshCw, Eye, Pencil, CheckCircle2,
     Undo2, Trash2,
@@ -292,7 +292,7 @@ export default function JurnalUmum() {
                                             <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_debit)}</td>
                                             <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_kredit)}</td>
                                             <td colSpan={3} className="px-2 py-3 text-right">
-                                                Selisih {angka(rekap.selisih)} — {rekap.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
+                                                Selisih {angka(rekap.selisih)} â€” {rekap.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -303,7 +303,7 @@ export default function JurnalUmum() {
 
                     {rekap?.rows?.length > 0 && (
                         <div className="hidden print:block mt-6 text-xs">
-                            <p>Dicetak dari Sistem Terintegrasi Aldigens — {rekap.jumlah_voucher} voucher posted.</p>
+                            <p>Dicetak dari Sistem Terintegrasi Aldigens â€” {rekap.jumlah_voucher} voucher posted.</p>
                         </div>
                     )}
                 </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import { useState } from 'react';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
 import { authLogin } from '../services/api';
 import {
@@ -50,7 +50,7 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
-      {/* ── Latar belakang halaman ── */}
+      {/* â”€â”€ Latar belakang halaman â”€â”€ */}
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-slate-100 to-slate-200 dark:from-slate-950 dark:via-[#0b1526] dark:to-blue-950" />
         {/* pola grid halus */}
@@ -87,7 +87,7 @@ export default function Login({ onLogin }) {
       {/* Kartu utama: sisi kiri branding, sisi kanan form */}
       <div className="relative z-10 w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 grid md:grid-cols-2">
 
-        {/* ── Panel kiri ── */}
+        {/* â”€â”€ Panel kiri â”€â”€ */}
         <div className="relative bg-slate-900 dark:bg-slate-950 text-white p-8 sm:p-10 flex flex-col justify-between">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-[0.07]"
@@ -123,7 +123,7 @@ export default function Login({ onLogin }) {
           </div>
         </div>
 
-        {/* ── Panel kanan: form ── */}
+        {/* â”€â”€ Panel kanan: form â”€â”€ */}
         <div className="p-8 sm:p-10 bg-white dark:bg-slate-900">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Selamat Datang Kembali</h2>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
@@ -163,7 +163,7 @@ export default function Login({ onLogin }) {
                 <input
                   type={showPass ? 'text' : 'password'}
                   required
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className={`${fieldClass} pr-11`}
@@ -215,7 +215,7 @@ export default function Login({ onLogin }) {
       </div>
 
       <p className="absolute bottom-3 left-0 right-0 text-center text-[11px] text-slate-400 dark:text-slate-600">
-        © {new Date().getFullYear()} PT. Aldigens Putera Persada. · Bantuan · Kebijakan Privasi
+        Â© {new Date().getFullYear()} PT. Aldigens Putera Persada. Â· Bantuan Â· Kebijakan Privasi
       </p>
     </div>
   );

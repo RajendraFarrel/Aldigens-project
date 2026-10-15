@@ -1,13 +1,44 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock, ShoppingCart } from 'lucide-react';
+﻿import { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock, ShoppingCart } from 'lucide-react';
+import Select from 'react-select';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
+import { getProducts } from '../services/api';
 
 export default function PurchaseRequisition() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
+
+  // Daftar item Inventory untuk pemilih Part Number (bukan ketik manual).
+  const [inventoryItems, setInventoryItems] = useState([]);
+
+  // Counter untuk menghasilkan id baris item yang unik & stabil.
+  const rowSeq = useRef(0);
+
+  // Muat item Inventory sekali saat halaman dibuka.
+  useEffect(() => {
+    getProducts('')
+      .then((res) => {
+        const rows = res.data?.data || res.data || [];
+        setInventoryItems(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => setInventoryItems([]));
+  }, []);
+
+  // Opsi react-select: value dipakai sebagai `partNumber` (kode — nama).
+  const productOptions = useMemo(() => inventoryItems.map((inv) => {
+    const code = inv.part_number || inv.product_code || inv.barcode;
+    const name = inv.name || inv.description || '';
+    return {
+      value: name ? `${code} — ${name}` : code,
+      code,
+      name,
+      unit: inv.unit || 'PCS',
+      label: name ? `${code} — ${name}` : code,
+    };
+  }), [inventoryItems]);
 
   // Data Dummy Permintaan Pembelian (PR)
   const [dummyPRs, setDummyPRs] = useState([
@@ -55,7 +86,7 @@ export default function PurchaseRequisition() {
     requester: 'Administrator',
     remarks: '',
     status: 'Menunggu',
-    items: [{ id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+    items: [{ id: 1, partNumber: '', quantity: 1, unit: 'PCS' }]
   });
 
   const handleOpenAddForm = () => {
@@ -67,7 +98,7 @@ export default function PurchaseRequisition() {
       requester: 'Administrator',
       remarks: '',
       status: 'Menunggu',
-      items: [{ id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+      items: [{ id: 1, partNumber: '', quantity: 1, unit: 'PCS' }]
     });
     setViewMode('form');
   };
@@ -79,11 +110,16 @@ export default function PurchaseRequisition() {
     setActiveMenuId(null);
   };
 
+  /* Penanda unik per baris item. `Date.now()` bisa sama untuk dua baris yang
+   * dibuat dalam milidetik yang sama — itu membuat update/perubahan baris
+   * tidak konsisten. Gunakan counter yang selalu bertambah. */
+  const nextRowId = () => (Date.now() + (rowSeq.current++));
+
   const handleAddItemRow = () => {
-    setFormData({
-      ...formData,
-      items: [...formData.items, { id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
-    });
+    setFormData(prevForm => ({
+      ...prevForm,
+      items: [...prevForm.items, { id: nextRowId(), partNumber: '', quantity: 1, unit: 'PCS' }]
+    }));
   };
 
   const handleRemoveItemRow = (id) => {
@@ -91,17 +127,17 @@ export default function PurchaseRequisition() {
       alert('Permintaan minimal harus memiliki 1 item barang!');
       return;
     }
-    setFormData({
-      ...formData,
-      items: formData.items.filter(i => i.id !== id)
-    });
+    setFormData(prevForm => ({
+      ...prevForm,
+      items: prevForm.items.filter(i => i.id !== id)
+    }));
   };
 
   const handleItemChange = (id, field, value) => {
-    setFormData({
-      ...formData,
-      items: formData.items.map(i => i.id === id ? { ...i, [field]: value } : i)
-    });
+    setFormData(prevForm => ({
+      ...prevForm,
+      items: prevForm.items.map(i => i.id === id ? { ...i, [field]: value } : i)
+    }));
   };
 
   const handleSave = (e) => {
@@ -129,13 +165,20 @@ export default function PurchaseRequisition() {
   // --- FUNGSI KONVERSI PR KE PURCHASE ORDER (PO) ---
   const handleConvertToPO = (prItem) => {
     setActiveMenuId(null);
-    
-    // Format item PR agar cocok dengan struktur Purchase Order
-    const poItems = prItem.items.map(i => ({
-      description: i.partNumber,
-      qty: i.quantity,
-      unit_price: 0 // Default harga satuan bisa diisi nanti di form PO
-    }));
+
+    // Format item PR agar cocok dengan struktur Purchase Order.
+    // partNumber disimpan sebagai "kode — nama"; pisahkan agar backend PO/DO
+    // tetap bisa menemukan produk berdasarkan part number/kode.
+    const poItems = prItem.items.map(i => {
+      const [code, ...rest] = String(i.partNumber || '').split(' — ');
+      return {
+        part_number: code.trim(),
+        description: rest.join(' — ').trim() || i.partNumber,
+        qty: i.quantity,
+        unit: i.unit || 'PCS',
+        unit_price: 0 // Default harga satuan bisa diisi nanti di form PO
+      };
+    });
 
     const newPO = {
       id: Date.now(),
@@ -183,7 +226,7 @@ export default function PurchaseRequisition() {
     return (
       <div className="p-6 max-w-5xl mx-auto">
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
-          
+
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <button onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
@@ -243,7 +286,7 @@ export default function PurchaseRequisition() {
                 </button>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-xs uppercase font-semibold">
                     <tr>
@@ -258,8 +301,25 @@ export default function PurchaseRequisition() {
                     {formData.items.map((item, index) => (
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
-                        <td className="px-4 py-3">
-                          <input required type="text" placeholder="Pilih Part Number / Nama Barang..." value={item.partNumber} onChange={(e) => handleItemChange(item.id, 'partNumber', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                        <td className="px-4 py-3 min-w-[280px]">
+                          <Select
+                            options={productOptions}
+                            value={productOptions.find((o) => o.value === item.partNumber) || null}
+                            onChange={(opt) => {
+                              handleItemChange(item.id, 'partNumber', opt ? opt.value : '');
+                              if (opt) handleItemChange(item.id, 'unit', opt.unit);
+                            }}
+                            placeholder="Cari & pilih Part Number dari Inventory..."
+                            isSearchable
+                            isClearable
+                            className="text-sm text-slate-800"
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                            styles={{
+                              menu: (base) => ({ ...base, zIndex: 9999 }),
+                              menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                            }}
+                          />
                         </td>
                         <td className="px-4 py-3">
                           <input required type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 import { PlusCircle, X, Trash2, Plus, Printer } from 'lucide-react';
@@ -43,7 +43,7 @@ export default function POList() {
                 const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
                 setPurchaseOrders(localData);
             }
-        } catch (error) {
+        } catch {
             const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
             setPurchaseOrders(localData);
         } finally {
@@ -55,7 +55,7 @@ export default function POList() {
         try {
             const response = await api.get('/inventory/products').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-            
+
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setInventoryItems(apiData);
             } else if (Array.isArray(response?.data)) {
@@ -64,7 +64,7 @@ export default function POList() {
                 const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
                 setInventoryItems(localParts);
             }
-        } catch (err) {
+        } catch {
             const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
             setInventoryItems(localParts);
         }
@@ -83,7 +83,7 @@ export default function POList() {
     }, 0);
 
     const numericTaxPercent = Number(formData.tax_percentage || 0);
-    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100)); 
+    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100));
     const calculatedGrandTotal = calculatedSubTotal + calculatedTaxAmount;
 
     const handleAddItem = () => {
@@ -155,7 +155,7 @@ export default function POList() {
 
             try {
                 await api.post('/purchase-orders', newPOItem);
-            } catch (err) {
+            } catch {
                 console.log('Disimpan ke local storage.');
             }
 
@@ -167,7 +167,7 @@ export default function POList() {
             setIsModalOpen(false);
             resetForm();
             fetchPurchaseOrders();
-        } catch (error) {
+        } catch {
             swalError('Gagal Menyimpan', 'Periksa kembali inputan Anda.');
         }
     };
@@ -211,7 +211,7 @@ export default function POList() {
 
             swalSuccess('Berhasil', 'Barang berhasil diterima di gudang (Receive Item tercatat)!');
             fetchPurchaseOrders();
-        } catch (error) {
+        } catch {
             swalError('Gagal', 'Terjadi kesalahan saat memproses penerimaan barang.');
         }
     };

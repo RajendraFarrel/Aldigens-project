@@ -23,7 +23,7 @@ export default function POList() {
         supplier_email: '-',
         subject: '',
         tax_percentage: 0,
-        items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
+        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }],
     });
 
     useEffect(() => {
@@ -36,7 +36,7 @@ export default function POList() {
         try {
             const response = await api.get('/purchase-orders').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-            
+
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setPurchaseOrders(apiData);
             } else {
@@ -55,7 +55,7 @@ export default function POList() {
         try {
             const response = await api.get('/inventory/products').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-            
+
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setInventoryItems(apiData);
             } else if (Array.isArray(response?.data)) {
@@ -72,9 +72,10 @@ export default function POList() {
 
     // Mapping data inventory ke format options react-select
     const productOptions = inventoryItems.map((inv) => ({
-        value: inv.part_number || inv.product_code,
+        value: inv.id,
         label: `${inv.part_number || inv.product_code} — ${inv.name || inv.description}`,
-        description: inv.name || inv.description || ''
+        description: inv.name || inv.description || '',
+        raw: inv,
     }));
 
     // Kalkulasi Subtotal, PPN, dan Grand Total
@@ -83,11 +84,11 @@ export default function POList() {
     }, 0);
 
     const numericTaxPercent = Number(formData.tax_percentage || 0);
-    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100)); 
+    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100));
     const calculatedGrandTotal = calculatedSubTotal + calculatedTaxAmount;
 
     const handleAddItem = () => {
-        setFormData({ ...formData, items: [...formData.items, { part_number: '', description: '', qty: 1, unit_price: 0 }] });
+        setFormData({ ...formData, items: [...formData.items, { product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }] });
     };
 
     const handleRemoveItem = (index) => {
@@ -100,9 +101,9 @@ export default function POList() {
         updatedItems[index][field] = value;
 
         if (field === 'part_number') {
-            const selectedPart = inventoryItems.find(p => p.part_number === value || p.product_code === value || p.id?.toString() === value);
+            const selectedPart = inventoryItems.find(p => p.id === value);
             if (selectedPart) {
-                updatedItems[index].description = selectedPart.name || selectedPart.description || value;
+                updatedItems[index].description = selectedPart.name || selectedPart.description || '';
             }
         }
 
@@ -118,7 +119,7 @@ export default function POList() {
         supplier_email: '-',
         subject: '',
         tax_percentage: 0,
-        items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
+        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }],
     });
 
     const handleSubmitNewPO = async (e) => {
@@ -127,6 +128,7 @@ export default function POList() {
             const formattedItems = formData.items.map((item) => {
                 const amount = Number(item.qty) * Number(item.unit_price);
                 return {
+                    product_id: item.product_id ?? null,
                     part_number: item.part_number || 'PART-GENERAL',
                     description: item.description,
                     qty: Number(item.qty),
@@ -186,18 +188,25 @@ export default function POList() {
             const targetPO = purchaseOrders.find(po => po.id === id || po.po_number === id);
 
             if (targetPO) {
-                const newRI = {
-                    id: Date.now(),
-                    ri_number: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
-                    po_reference: targetPO.po_number || targetPO.customer_po_number,
-                    supplier_name: targetPO.customer_name || 'Supplier Umum',
-                    date: new Date().toISOString().split('T')[0],
-                    status: 'Completed',
-                    items: targetPO.items || []
-                };
+                const receiveNo = `RI-${Math.floor(100000 + Math.random() * 900000)}`;
+                const riItems = (targetPO.items || [])
+                    .filter((it) => it.product_id)
+                    .map((it) => ({ product_id: it.product_id, quantity: Number(it.qty) || 1 }));
 
-                const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-                localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
+                // Kirim ke API agar stok inventory ikut bertambah otomatis.
+                try {
+                    await api.post('/receive-items', {
+                        receiveNo,
+                        date: new Date().toISOString().split('T')[0],
+                        vendorName: targetPO.customer_name || 'Supplier Umum',
+                        poRef: targetPO.po_number || targetPO.customer_po_number,
+                        status: 'Completed',
+                        notes: `Penerimaan dari PO ${targetPO.po_number || targetPO.customer_po_number}`,
+                        items: riItems,
+                    });
+                } catch (err) {
+                    console.log('Gagal menyimpan Receive Item ke API.', err);
+                }
             }
 
             const updated = purchaseOrders.map(po => {
@@ -441,9 +450,10 @@ export default function POList() {
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Pilih Part Number / Inventory</label>
                                                     <Select
                                                         options={productOptions}
-                                                        value={productOptions.find(opt => opt.value === item.part_number) || null}
+                                                        value={productOptions.find(opt => opt.value === item.product_id) || null}
                                                         onChange={(selectedOption) => {
-                                                            handleItemChange(index, 'part_number', selectedOption ? selectedOption.value : '');
+                                                            handleItemChange(index, 'product_id', selectedOption ? selectedOption.value : null);
+                                                            handleItemChange(index, 'part_number', selectedOption ? selectedOption.raw.part_number : '');
                                                         }}
                                                         placeholder="Cari & Pilih Part Number..."
                                                         isSearchable={true}

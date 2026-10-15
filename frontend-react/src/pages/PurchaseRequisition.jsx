@@ -1,10 +1,39 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock, ShoppingCart } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock, ShoppingCart } from 'lucide-react';
+import Select from 'react-select';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
+import { getProducts } from '../services/api';
 
 export default function PurchaseRequisition() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [products, setProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Ambil daftar barang dari inventory untuk pencarian Part Number / Nama Barang.
+  useEffect(() => {
+    let active = true;
+    const loadProducts = async () => {
+      setLoadingProducts(true);
+      try {
+        const res = await getProducts();
+        if (active) setProducts(res.data?.data ?? []);
+      } catch (err) {
+        console.error('Gagal memuat daftar barang inventory:', err);
+      } finally {
+        if (active) setLoadingProducts(false);
+      }
+    };
+    loadProducts();
+    return () => { active = false; };
+  }, []);
+
+  // Opsi react-select: cari berdasarkan part number, nama barang, atau kode.
+  const productOptions = useMemo(() => products.map((p) => ({
+    value: p.id,
+    label: [p.part_number, p.name].filter(Boolean).join(' - ') || p.name || `#${p.id}`,
+    raw: p,
+  })), [products]);
   const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -55,7 +84,7 @@ export default function PurchaseRequisition() {
     requester: 'Administrator',
     remarks: '',
     status: 'Menunggu',
-    items: [{ id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+    items: [{ id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
   });
 
   const handleOpenAddForm = () => {
@@ -67,7 +96,7 @@ export default function PurchaseRequisition() {
       requester: 'Administrator',
       remarks: '',
       status: 'Menunggu',
-      items: [{ id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+      items: [{ id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
     });
     setViewMode('form');
   };
@@ -82,7 +111,7 @@ export default function PurchaseRequisition() {
   const handleAddItemRow = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { id: Date.now(), partNumber: '', quantity: 1, unit: 'PCS' }]
+      items: [...formData.items, { id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
     });
   };
 
@@ -104,10 +133,31 @@ export default function PurchaseRequisition() {
     });
   };
 
+  // Saat pengguna memilih barang dari inventory: simpan product_id, part number,
+  // nama barang, dan default satuan agar bisa dikirim ke backend sebagai product_id.
+  const handleProductSelect = (id, option) => {
+    setFormData({
+      ...formData,
+      items: formData.items.map(i => i.id === id ? {
+        ...i,
+        productId: option ? option.value : null,
+        partNumber: option ? option.label : '',
+        unit: option?.raw?.unit || i.unit,
+      } : i)
+    });
+  };
+
   const handleSave = (e) => {
     e.preventDefault();
     if (!formData.department.trim()) {
       alert('Departemen wajib diisi!');
+      return;
+    }
+
+    // Setiap baris wajib memilih barang dari inventory (bukan ketik bebas).
+    const belumDipilih = formData.items.find(i => !i.productId);
+    if (belumDipilih) {
+      alert('Setiap item harus dipilih dari daftar inventory. Ketik Part Number atau Nama Barang pada kolom pencarian.');
       return;
     }
 
@@ -259,7 +309,22 @@ export default function PurchaseRequisition() {
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
                         <td className="px-4 py-3">
-                          <input required type="text" placeholder="Pilih Part Number / Nama Barang..." value={item.partNumber} onChange={(e) => handleItemChange(item.id, 'partNumber', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <Select
+                            inputId={`pr-item-product-${item.id}`}
+                            classNamePrefix="pr-select"
+                            className="react-select-container"
+                            placeholder="Ketik Part Number / Nama Barang..."
+                            isClearable
+                            isSearchable
+                            isLoading={loadingProducts}
+                            options={productOptions}
+                            value={productOptions.find(o => o.value === item.productId) || null}
+                            onChange={(option) => handleProductSelect(item.id, option)}
+                            noOptionsMessage={() => 'Barang tidak ditemukan di inventory'}
+                            loadingMessage={() => 'Memuat daftar barang...'}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                            styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
+                          />
                         </td>
                         <td className="px-4 py-3">
                           <input required type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />

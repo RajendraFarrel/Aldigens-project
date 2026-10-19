@@ -39,17 +39,45 @@ export default function InventoryProducts() {
 
   const pagination = usePagination(products, 10);
 
+  // --- FUNGSI FETCH YANG DIPERBAIKI (Tahan Mode Offline) ---
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
+      // 1. Coba ambil dari API (Laravel) terlebih dahulu
       const res = await getProducts(search);
-      setProducts(res.data.data || []);
+      let apiData = res.data?.data || res.data || [];
+      
+      // Jika berhasil, simpan/update ke localStorage agar tersinkronisasi
+      if (apiData.length > 0) {
+        localStorage.setItem('aldigens_inventory', JSON.stringify(apiData));
+        setProducts(apiData);
+      } else {
+        // Fallback jika API kosong tapi tidak error
+        fallbackToLocal(search);
+      }
     } catch (e) {
-      setError('Gagal memuat data produk.');
+      // 2. JIKA API ERROR/MATI, BACA DARI LOCAL STORAGE (SAMA DENGAN RECEIVE ITEM)
+      console.warn("Backend API Offline, membaca data stok dari LocalStorage...");
+      fallbackToLocal(search);
     } finally {
       setLoading(false);
     }
   }, [search]);
+
+  // Fungsi Pembantu untuk membaca LocalStorage
+  const fallbackToLocal = (searchTerm) => {
+    const localInventory = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+    if (!searchTerm) {
+      setProducts(localInventory);
+      return;
+    }
+    const filtered = localInventory.filter(p => 
+      String(p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(p.part_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(p.product_code || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setProducts(filtered);
+  };
 
   useEffect(() => {
     const timeout = setTimeout(() => fetchProducts(), 400);
@@ -72,7 +100,7 @@ export default function InventoryProducts() {
       category: product.category || '',
       item_type: product.item_type || 'BAHAN / COMPONENT',
       unit: product.unit || 'PCS',
-      stock: product.stock ?? 0,
+      stock: product.stock ?? product.qty ?? 0, // Fallback untuk qty dari ReceiveItem
       minimum_stock: product.minimum_stock ?? 0,
       maximum_stock: product.maximum_stock ?? '',
       customer_id: product.customer_id ?? '',
@@ -93,19 +121,35 @@ export default function InventoryProducts() {
     setSaving(true);
     setError('');
     try {
+      // Mencoba simpan via API
       if (editingProduct) {
-        await updateProduct(editingProduct.id, form);
-        swalToast('Produk berhasil diperbarui.', 'success');
+        await updateProduct(editingProduct.id || editingProduct.part_number, form);
       } else {
         await createProduct(form);
-        swalToast('Produk berhasil ditambahkan.', 'success');
       }
-      setShowModal(false);
-      fetchProducts();
+      swalToast('Produk berhasil disimpan via API.', 'success');
     } catch (e) {
-      setError(e.response?.data?.message || 'Terjadi kesalahan, coba lagi.');
+      console.warn("API Error saat simpan, menggunakan LocalStorage fallback...");
+      
+      // Jika API mati, simpan secara lokal ke brankas yang sama
+      let currentLocal = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+      if (editingProduct) {
+        currentLocal = currentLocal.map(item => 
+          (item.id === editingProduct.id || item.part_number === editingProduct.part_number) 
+            ? { ...item, ...form, stock: form.stock } 
+            : item
+        );
+        swalToast('Produk diperbarui (Offline Mode).', 'success');
+      } else {
+        const newProduct = { ...form, id: Date.now() };
+        currentLocal.push(newProduct);
+        swalToast('Produk ditambahkan (Offline Mode).', 'success');
+      }
+      localStorage.setItem('aldigens_inventory', JSON.stringify(currentLocal));
     } finally {
+      setShowModal(false);
       setSaving(false);
+      fetchProducts();
     }
   };
 
@@ -164,18 +208,24 @@ export default function InventoryProducts() {
   const handleDelete = async (product) => {
     const ok = await swalConfirm({
       title: 'Hapus Produk?',
-      text: `Produk "${product.name}" akan dihapus. Tindakan ini tidak dapat dibatalkan.`,
+      text: `Produk "${product.name || product.part_number}" akan dihapus. Tindakan ini tidak dapat dibatalkan.`,
       confirmText: 'Ya, Hapus',
       cancelText: 'Batal',
       danger: true,
     });
     if (!ok) return;
     try {
-      await deleteProduct(product.id);
+      await deleteProduct(product.id || product.part_number);
       swalToast('Produk berhasil dihapus.', 'success');
-      fetchProducts();
     } catch (e) {
-      swalError('Gagal menghapus', 'Terjadi kesalahan saat menghapus produk.');
+      console.warn("API Error saat hapus, menggunakan LocalStorage fallback...");
+      // Fallback penghapusan lokal
+      let currentLocal = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+      currentLocal = currentLocal.filter(item => item.id !== product.id && item.part_number !== product.part_number);
+      localStorage.setItem('aldigens_inventory', JSON.stringify(currentLocal));
+      swalToast('Produk dihapus (Offline Mode).', 'success');
+    } finally {
+      fetchProducts();
     }
   };
 
@@ -275,45 +325,48 @@ export default function InventoryProducts() {
                     Tidak ada produk ditemukan.
                   </td>
                 </tr>
-              ) : pagination.paginatedItems.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50 transition">
-                  <td className="px-4 py-3 text-slate-600 text-xs">{p.part_number || '-'}</td>
-                  <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
-                  <td className="px-4 py-3 text-slate-500">{p.customer?.customer_name || '-'}</td>
-                  <td className="px-4 py-3 text-slate-500">{p.category || '-'}</td>
-                  <td className="px-4 py-3 text-slate-500">{p.unit}</td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`font-bold text-base ${p.stock <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                      {p.stock}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-center gap-2">
-                      <button
-                        onClick={() => setBarcodeProduct(p)}
-                        className="p-1.5 rounded-lg text-violet-600 hover:bg-violet-50 transition cursor-pointer"
-                        title="Lihat Barcode"
-                      >
-                        <Barcode className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition cursor-pointer"
-                        title="Edit"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p)}
-                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition cursor-pointer"
-                        title="Hapus"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              ) : pagination.paginatedItems.map((p, idx) => {
+                const finalStock = Number(p.stock ?? p.qty ?? 0);
+                return (
+                  <tr key={p.id || p.part_number || idx} className="hover:bg-slate-50 transition">
+                    <td className="px-4 py-3 text-slate-600 text-xs">{p.part_number || p.product_code || '-'}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800">{p.name || p.description}</td>
+                    <td className="px-4 py-3 text-slate-500">{p.customer?.customer_name || '-'}</td>
+                    <td className="px-4 py-3 text-slate-500">{p.category || '-'}</td>
+                    <td className="px-4 py-3 text-slate-500">{p.unit || 'PCS'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={`font-bold text-base ${finalStock <= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                        {finalStock}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => setBarcodeProduct(p)}
+                          className="p-1.5 rounded-lg text-violet-600 hover:bg-violet-50 transition cursor-pointer"
+                          title="Lihat Barcode"
+                        >
+                          <Barcode className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                          title="Edit"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p)}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition cursor-pointer"
+                          title="Hapus"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -477,7 +530,7 @@ export default function InventoryProducts() {
             </div>
 
             <div className="text-center space-y-1">
-              <p className="font-semibold text-slate-800">{barcodeProduct.name}</p>
+              <p className="font-semibold text-slate-800">{barcodeProduct.name || barcodeProduct.description}</p>
               {barcodeProduct.part_number && (
                 <p className="text-xs text-slate-500">Part No: {barcodeProduct.part_number}</p>
               )}
@@ -485,7 +538,7 @@ export default function InventoryProducts() {
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-center overflow-x-auto">
               <BarcodeLabel
-                value={barcodeProduct.barcode || barcodeProduct.product_code}
+                value={barcodeProduct.barcode || barcodeProduct.product_code || barcodeProduct.part_number || 'UNKNOWN'}
                 height={70}
                 width={2}
               />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2, Truck } from 'lucide-react';
-import { getProducts } from '../services/api';
+import { getProducts, getCustomers, getCustomerPartNumbers } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
@@ -10,56 +10,69 @@ export default function SalesOrder() {
   const [viewMode, setViewMode] = useState('list');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  
+  // State Master Data
   const [masterProducts, setMasterProducts] = useState([]);
+  const [masterCustomers, setMasterCustomers] = useState([]);
+  const [customerParts, setCustomerParts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const [salesOrders, setSalesOrders] = useState(() => {
     const saved = localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders');
     if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Gagal parse localStorage SO", e);
-      }
+      try { return JSON.parse(saved); } catch (e) { console.error("Gagal parse localStorage SO", e); }
     }
-    return [
-      {
-        id: 1,
-        soNo: 'SO-26090021',
-        so_number: 'SO-26090021',
-        date: '2026-09-28',
-        customer: 'PT. UNITED TRACTORS Tbk',
-        customer_name: 'PT. UNITED TRACTORS Tbk',
-        shipTo: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
-        customer_address: 'Jl. Raya Bekasi Km 22 Cakung, Jakarta Timur',
-        refPo: 'PO-UT-990621159',
-        terms: 'Net 30',
-        estDate: '2026-09-21',
-        sentBy: 'B 1234 SZT',
-        salesman: 'FIKHAY',
-        status: 'Disetujui',
-        items: [
-          { id: 101, code: 'OPT-PRTR-KCMS-P400', part_number: 'OPT-PRTR-KCMS-P400', name: 'HANDRAIL PC400', description: 'HANDRAIL PC400', qty: 1, qty_sent: 1, unit: 'PCS', price: 1500000, disc: 0, tax: 11 }
-        ]
-      }
-    ];
+    return [];
   });
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await getProducts('');
-        setMasterProducts(res.data.data || res.data || []);
-      } catch (e) {
-        const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
-        setMasterProducts(fallback);
-      }
-    };
-    fetchProducts();
+    fetchMasterProducts();
+    fetchMasterCustomers();
+    fetchCustomerParts();
   }, []);
 
   useEffect(() => {
     localStorage.setItem('aldigens_sales_orders', JSON.stringify(salesOrders));
   }, [salesOrders]);
+
+  const fetchMasterProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const res = await getProducts('');
+      setMasterProducts(res.data?.data || res.data || []);
+    } catch (e) {
+      const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
+      setMasterProducts(fallback);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const fetchMasterCustomers = async () => {
+    try {
+      const res = await getCustomers();
+      let dataCust = res.data?.data || res.data || [];
+      if (!Array.isArray(dataCust)) dataCust = Object.values(dataCust);
+      setMasterCustomers(dataCust);
+      localStorage.setItem('aldigens_master_customers', JSON.stringify(dataCust));
+    } catch (e) {
+      const fallback = JSON.parse(localStorage.getItem('aldigens_master_customers') || localStorage.getItem('customers') || '[]');
+      setMasterCustomers(fallback);
+    }
+  };
+
+  const fetchCustomerParts = async () => {
+    try {
+      const res = await getCustomerPartNumbers({ limit: 5000, per_page: 5000, all: true });
+      let parts = res.data?.data || res.data || [];
+      if (!Array.isArray(parts)) parts = Object.values(parts);
+      setCustomerParts(parts);
+      localStorage.setItem('aldigens_customer_parts', JSON.stringify(parts));
+    } catch (e) {
+      const fallback = JSON.parse(localStorage.getItem('aldigens_customer_parts') || localStorage.getItem('customer_part_numbers') || '[]');
+      setCustomerParts(fallback);
+    }
+  };
 
   const filteredSalesOrders = useMemo(() => {
     return salesOrders.filter(item =>
@@ -80,9 +93,10 @@ export default function SalesOrder() {
     terms: 'Net 30',
     estDate: new Date().toISOString().split('T')[0],
     sentBy: 'Kurir Perusahaan',
-    salesman: 'FIKHAY',
+    salesman: 'Diah Ayu Komala',
     status: 'Disetujui',
-    items: [{ id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
+    keterangan: '', // State baru untuk Keterangan
+    items: []
   });
 
   const handleOpenAddForm = () => {
@@ -96,9 +110,10 @@ export default function SalesOrder() {
       terms: 'Net 30',
       estDate: new Date().toISOString().split('T')[0],
       sentBy: 'Kurir Perusahaan',
-      salesman: 'FIKHAY',
+      salesman: 'Diah Ayu Komala',
       status: 'Disetujui',
-      items: [{ id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
+      keterangan: '',
+      items: []
     });
     setViewMode('form');
   };
@@ -111,7 +126,8 @@ export default function SalesOrder() {
       customer: item.customer || item.customer_name || '',
       shipTo: item.shipTo || item.customer_address || '',
       refPo: item.refPo || item.reff_po || item.customer_po || '',
-      salesman: item.salesman || item.admin_sales || 'FIKHAY',
+      salesman: item.salesman || item.admin_sales || 'Diah Ayu Komala',
+      keterangan: item.keterangan || item.subject || '',
       items: (item.items || []).map(i => ({
         id: i.id || Date.now() + Math.random(),
         code: i.code || i.part_number || '',
@@ -119,26 +135,60 @@ export default function SalesOrder() {
         qty: i.qty || i.qty_sent || 1,
         unit: i.unit || 'PCS',
         price: i.price || i.unit_price || 0,
-        disc: i.disc || 0,
-        tax: i.tax || 11
+        disc: i.disc || 0
       }))
     });
     setViewMode('form');
     setActiveMenuId(null);
   };
 
-  const handleAddItemRow = () => {
+  const handleCustomerChange = (customerName) => {
+    const selectedCust = masterCustomers.find(c => (c.customer_name || c.name) === customerName);
+    
     setFormData({
       ...formData,
-      items: [...formData.items, { id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0, tax: 11 }]
+      customer: customerName,
+      shipTo: selectedCust?.customer_address || selectedCust?.address || formData.shipTo,
+      items: [] 
+    });
+  };
+
+  const getFilteredProductsForCustomer = () => {
+    if (!formData.customer) return [];
+
+    let filteredParts = customerParts.filter(cp => {
+      const cpName = cp.customer_name || (cp.customer && cp.customer.customer_name) || cp.customer || '';
+      return String(cpName).toLowerCase() === String(formData.customer).toLowerCase();
+    });
+
+    if (filteredParts.length === 0) {
+      const selectedCust = masterCustomers.find(c => (c.customer_name || c.name) === formData.customer);
+      if (selectedCust) {
+        filteredParts = selectedCust.part_numbers || selectedCust.customer_part_numbers || selectedCust.items || [];
+      }
+    }
+
+    return filteredParts.map(p => ({
+      ...p,
+      _part_number: p.part_number || p.part_no || p.code || p.item_code || '',
+      _description: p.item_description || p.description || p.part_name || p.name || '',
+      _price: p.harga_jual || p.price || p.unit_price || 0,
+      _unit: p.unit || 'PCS'
+    }));
+  };
+
+  const handleAddItemRow = () => {
+    if (!formData.customer) {
+      swalError('Peringatan', 'Silakan pilih Nama Pelanggan terlebih dahulu sebelum menambah barang.');
+      return;
+    }
+    setFormData({
+      ...formData,
+      items: [...formData.items, { id: Date.now(), code: '', name: '', qty: 1, unit: 'PCS', price: 0, disc: 0 }]
     });
   };
 
   const handleRemoveItemRow = (id) => {
-    if (formData.items.length === 1) {
-      swalError('Perhatian', 'Sales Order minimal harus memiliki 1 item barang!');
-      return;
-    }
     setFormData({
       ...formData,
       items: formData.items.filter(i => i.id !== id)
@@ -152,15 +202,16 @@ export default function SalesOrder() {
         if (i.id === id) {
           const updated = { ...i, [field]: value };
           if (field === 'code' || field === 'part_number') {
-            const matched = masterProducts.find(
-              p => (p.part_number && p.part_number.toLowerCase() === value.toLowerCase()) || 
-                   (p.code && p.code.toLowerCase() === value.toLowerCase()) ||
-                   (p.name && p.name.toLowerCase() === value.toLowerCase())
+            const availableList = getFilteredProductsForCustomer();
+            const matched = availableList.find(
+              (p) => String(p._part_number).toLowerCase() === String(value).toLowerCase()
             );
+
             if (matched) {
-              updated.code = matched.part_number || matched.code || value;
-              updated.name = matched.name || matched.description || '';
-              updated.unit = matched.unit || 'PCS';
+              updated.code = matched._part_number || value;
+              updated.name = matched._description || '';
+              updated.unit = matched._unit || 'PCS';
+              updated.price = matched._price || 0;
             }
           }
           return updated;
@@ -176,8 +227,14 @@ export default function SalesOrder() {
       swalError('Perhatian', 'Nama Pelanggan wajib diisi!');
       return;
     }
+    if (formData.items.length === 0) {
+      swalError('Error', 'Minimal ada 1 barang/jasa dalam SO ini.');
+      return;
+    }
 
     const currentSoNo = formData.soNo || 'SO-' + Math.floor(10000000 + Math.random() * 90000000);
+    const subTotalVal = formData.items.reduce((acc, curr) => acc + (Number(curr.qty || 1) * Number(curr.price || 0)), 0);
+
     const payload = {
       ...formData,
       soNo: currentSoNo,
@@ -186,11 +243,15 @@ export default function SalesOrder() {
       customer_address: formData.shipTo,
       customer_po: formData.refPo,
       ref_po: formData.refPo,
+      subject: formData.keterangan, // Simpan keterangan ke object
+      sub_total: subTotalVal,
+      grand_total: subTotalVal, // Tanpa pajak, grand total = sub total
       items: formData.items.map(it => ({
         ...it,
         part_number: it.code || it.part_number,
         description: it.name || it.description,
-        qty_sent: it.qty || 1
+        qty_sent: it.qty || 1,
+        unit_price: it.price || 0
       }))
     };
 
@@ -221,8 +282,8 @@ export default function SalesOrder() {
       id: Date.now(),
       do_number: 'DO-' + Math.floor(1000 + Math.random() * 9000),
       so_number: soNumber,
-      customer_po: customerPo, // Membawa nomor PO Pelanggan ke DO
-      ref_po: customerPo,      // Kompatibilitas cadangan
+      customer_po: customerPo,
+      ref_po: customerPo, 
       do_date: new Date().toISOString().split('T')[0],
       customer_name: item.customer || item.customer_name || 'Pelanggan',
       delivery_address: item.shipTo || item.customer_address || 'Jakarta',
@@ -250,10 +311,9 @@ export default function SalesOrder() {
   const handlePrint = (item) => {
     setActiveMenuId(null);
     const rawItems = item.items || [];
-    const subTotal = rawItems.reduce((acc, curr) => acc + (Number(curr.qty || curr.quantity || 1) * Number(curr.unit_price || curr.price || 0)), 0);
-    const discountTotal = rawItems.reduce((acc, curr) => acc + ((Number(curr.qty || 1) * Number(curr.unit_price || curr.price || 0)) * (curr.disc || 0) / 100), 0);
-    const taxTotal = (subTotal - discountTotal) * 0.11;
-    const grandTotal = (subTotal - discountTotal) + taxTotal;
+    const printSubTotal = rawItems.reduce((acc, curr) => acc + (Number(curr.qty || curr.quantity || 1) * Number(curr.unit_price || curr.price || 0)), 0);
+    const printDiscountTotal = rawItems.reduce((acc, curr) => acc + ((Number(curr.qty || 1) * Number(curr.unit_price || curr.price || 0)) * (curr.disc || 0) / 100), 0);
+    const printGrandTotal = printSubTotal - printDiscountTotal;
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -319,7 +379,7 @@ export default function SalesOrder() {
                 Term Pembayaran : ${item.terms || 'Net 30'}<br/>
                 Est. Tgl Kirim : ${item.estDate || item.est_delivery_date || '-'}<br/>
                 Dikirim Oleh : ${item.sentBy || 'Kurir Perusahaan'}<br/>
-                Salesman : ${item.salesman || 'FIKHAY'}
+                Salesman : ${item.salesman || 'Diah Ayu Komala'}
               </td>
             </tr>
           </table>
@@ -348,7 +408,6 @@ export default function SalesOrder() {
                 <th style="width: 7%;">Satuan</th>
                 <th style="width: 12%;">Harga @</th>
                 <th style="width: 6%;">Disc %</th>
-                <th style="width: 6%;">PPN</th>
                 <th style="width: 14%;">Jumlah</th>
               </tr>
             </thead>
@@ -362,7 +421,6 @@ export default function SalesOrder() {
                   <td align="center">${i.unit || 'PCS'}</td>
                   <td align="right">${Number(i.price || i.unit_price || 0).toLocaleString('id-ID')}</td>
                   <td align="center">${i.disc || 0}</td>
-                  <td align="center">11%</td>
                   <td align="right">${(Number(i.qty || i.qty_sent || 1) * Number(i.price || i.unit_price || 0)).toLocaleString('id-ID')}</td>
                 </tr>
               `).join('')}
@@ -373,29 +431,24 @@ export default function SalesOrder() {
             <tr>
               <td class="keterangan-box">
                 <strong>Keterangan :</strong><br/>
-                <span>${item.subject || 'Pesanan penjualan sistem terintegrasi ERP.'}</span><br/>
+                <span>${item.keterangan || item.subject || 'Pesanan penjualan sistem terintegrasi ERP.'}</span><br/>
                 <span style="font-size: 8.5px; color: #444; margin-top: 4px; display:block;">
-                  - Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada.<br/>
-                  - Harga sudah termasuk PPN 11%.
+                  - Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada.
                 </span>
               </td>
               <td class="summary-box">
                 <table class="summary-table">
                   <tr>
                     <td>Sub Total</td>
-                    <td align="right"><strong>${subTotal.toLocaleString('id-ID')}</strong></td>
+                    <td align="right"><strong>${printSubTotal.toLocaleString('id-ID')}</strong></td>
                   </tr>
                   <tr>
                     <td>Discount</td>
-                    <td align="right">${discountTotal.toLocaleString('id-ID')}</td>
-                  </tr>
-                  <tr>
-                    <td>PPN 11%</td>
-                    <td align="right">${taxTotal.toLocaleString('id-ID')}</td>
+                    <td align="right">${printDiscountTotal.toLocaleString('id-ID')}</td>
                   </tr>
                   <tr class="total-row">
-                    <td>Total</td>
-                    <td align="right">IDR ${grandTotal.toLocaleString('id-ID')}</td>
+                    <td>Grand Total</td>
+                    <td align="right">IDR ${printGrandTotal.toLocaleString('id-ID')}</td>
                   </tr>
                 </table>
               </td>
@@ -424,10 +477,7 @@ export default function SalesOrder() {
           </div>
 
           <script>
-            window.onload = function() { 
-              window.focus(); 
-              setTimeout(() => { window.print(); }, 500); 
-            };
+            window.onload = function() { window.focus(); setTimeout(() => { window.print(); }, 500); };
           </script>
         </body>
       </html>
@@ -473,12 +523,24 @@ export default function SalesOrder() {
                 <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Nama Pelanggan</label>
-                <input required type="text" placeholder="Contoh: PT. UNITED TRACTORS Tbk" value={formData.customer} onChange={(e) => setFormData({...formData, customer: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Nama Pelanggan <span className="text-red-500">*</span></label>
+                <select
+                  required
+                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer"
+                  value={formData.customer}
+                  onChange={(e) => handleCustomerChange(e.target.value)}
+                >
+                  <option value="">-- Pilih Customer --</option>
+                  {masterCustomers.map((cust, idx) => {
+                    const cName = cust.customer_name || cust.name || '-';
+                    return <option key={idx} value={cName}>{cName}</option>;
+                  })}
+                </select>
               </div>
+
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Alamat Kirim (Ship To)</label>
-                <input type="text" placeholder="Alamat pengiriman barang..." value={formData.shipTo} onChange={(e) => setFormData({...formData, shipTo: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                <input type="text" placeholder="Alamat pengiriman otomatis..." value={formData.shipTo} onChange={(e) => setFormData({...formData, shipTo: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">No. PO Pelanggan (Customer PO)</label>
@@ -492,83 +554,102 @@ export default function SalesOrder() {
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Salesman</label>
                 <input type="text" value={formData.salesman} onChange={(e) => setFormData({...formData, salesman: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
+
+              {/* KOLOM KETERANGAN DITAMBAHKAN DI SINI */}
+              <div className="md:col-span-3 mt-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Keterangan / Memo</label>
+                <textarea 
+                  rows="2"
+                  placeholder="Tambahkan catatan atau keterangan khusus untuk Sales Order ini..." 
+                  value={formData.keterangan} 
+                  onChange={(e) => setFormData({...formData, keterangan: e.target.value})} 
+                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none" 
+                />
+              </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-3 mt-4">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4 text-blue-500" /> Detail Item Penjualan
                 </h3>
-                <button type="button" onClick={handleAddItemRow} className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg transition">
+                <button type="button" onClick={handleAddItemRow} className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer">
                   <Plus className="h-3.5 w-3.5" /> Tambah Baris Barang
                 </button>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-xs uppercase font-semibold">
-                    <tr>
-                      <th className="px-4 py-3 w-12 text-center">#</th>
-                      <th className="px-4 py-3">Kode Barang / Part No</th>
-                      <th className="px-4 py-3">Nama Barang</th>
-                      <th className="px-4 py-3 w-24">Qty</th>
-                      <th className="px-4 py-3 w-28">Satuan</th>
-                      <th className="px-4 py-3 w-36">Harga (Rp)</th>
-                      <th className="px-4 py-3 w-16 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {formData.items.map((item, index) => (
-                      <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                        <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
-                        <td className="px-4 py-3">
-                          <input 
-                            required 
-                            type="text" 
-                            list={`master-parts-list-${item.id}`}
-                            placeholder="Ketik Part No..." 
-                            value={item.code || item.part_number || ''} 
-                            onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} 
-                            className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" 
-                          />
-                          <datalist id={`master-parts-list-${item.id}`}>
-                            {masterProducts.map((p, idx) => (
-                              <option key={idx} value={p.part_number || p.code}>{p.name || p.description}</option>
-                            ))}
-                          </datalist>
-                        </td>
-                        <td className="px-4 py-3">
-                          <input required type="text" placeholder="Nama barang..." value={item.name || item.description || ''} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input required type="number" min="1" value={item.qty || item.qty_sent || 1} onChange={(e) => handleItemChange(item.id, 'qty', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <select value={item.unit || 'PCS'} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
-                            <option value="PCS">PCS</option>
-                            <option value="Unit">Unit</option>
-                            <option value="Set">Set</option>
-                            <option value="Batang">Batang</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-3">
-                          <input required type="number" min="0" value={item.price || item.unit_price || 0} onChange={(e) => handleItemChange(item.id, 'price', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button type="button" onClick={() => handleRemoveItemRow(item.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition" title="Hapus Baris">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
+              {formData.items.length === 0 ? (
+                <p className="text-sm text-slate-400 bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-6 text-center">
+                  Belum ada item ditambahkan. Silakan klik "Tambah Baris Barang".
+                </p>
+              ) : (
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-xs uppercase font-semibold">
+                      <tr>
+                        <th className="px-4 py-3 w-12 text-center">#</th>
+                        <th className="px-4 py-3">Kode Barang / Part No</th>
+                        <th className="px-4 py-3">Nama Barang</th>
+                        <th className="px-4 py-3 w-24">Qty</th>
+                        <th className="px-4 py-3 w-28">Satuan</th>
+                        <th className="px-4 py-3 w-36">Harga (Rp)</th>
+                        <th className="px-4 py-3 w-16 text-center">Aksi</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {formData.items.map((item, index) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
+                          <td className="px-4 py-3">
+                            <input 
+                              required 
+                              type="text" 
+                              list={`master-parts-list-${item.id}`}
+                              placeholder={loadingProducts ? "Memuat..." : "Ketik Part No..."}
+                              value={item.code || item.part_number || ''} 
+                              onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} 
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" 
+                              disabled={!formData.customer}
+                            />
+                            <datalist id={`master-parts-list-${item.id}`}>
+                              {getFilteredProductsForCustomer().map((p, idx) => (
+                                <option key={idx} value={p._part_number}>{p._description}</option>
+                              ))}
+                            </datalist>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input required type="text" placeholder="Nama barang..." value={item.name || item.description || ''} onChange={(e) => handleItemChange(item.id, 'name', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input required type="number" min="1" value={item.qty || item.qty_sent || 1} onChange={(e) => handleItemChange(item.id, 'qty', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-center" />
+                          </td>
+                          <td className="px-4 py-3">
+                            <select value={item.unit || 'PCS'} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white cursor-pointer">
+                              <option value="PCS">PCS</option>
+                              <option value="Unit">Unit</option>
+                              <option value="Set">Set</option>
+                              <option value="Batang">Batang</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input required type="number" min="0" value={item.price || item.unit_price || 0} onChange={(e) => handleItemChange(item.id, 'price', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-right" />
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button type="button" onClick={() => handleRemoveItemRow(item.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition cursor-pointer" title="Hapus Baris">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
-              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition">Batal</button>
-              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition">
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800 mt-6">
+              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition cursor-pointer">Batal</button>
+              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition cursor-pointer">
                 <Save className="h-4 w-4" /> Simpan Sales Order
               </button>
             </div>
@@ -595,7 +676,7 @@ export default function SalesOrder() {
             </div>
           </div>
           
-          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition">
+          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition cursor-pointer">
             <Plus className="h-4 w-4" />
             Buat Sales Order (SO) Baru
           </button>
@@ -646,25 +727,25 @@ export default function SalesOrder() {
                       <div className="absolute right-12 top-10 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
                         <button 
                           onClick={() => handleConvertToDO(item)}
-                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400"
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 cursor-pointer"
                         >
                           <Truck className="h-4 w-4" /> Proses ke DO
                         </button>
                         <button 
                           onClick={() => handleOpenEditForm(item)}
-                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Edit3 className="h-4 w-4 text-blue-500" /> Edit SO
                         </button>
                         <button 
                           onClick={() => handlePrint(item)}
-                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Printer className="h-4 w-4 text-emerald-500" /> Cetak Dokumen
                         </button>
                         <button 
                           onClick={() => handleDelete(item.id)}
-                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700"
+                          className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700 cursor-pointer"
                         >
                           <Trash2 className="h-4 w-4" /> Hapus SO
                         </button>

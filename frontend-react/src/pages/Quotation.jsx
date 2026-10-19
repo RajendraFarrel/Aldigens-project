@@ -18,6 +18,9 @@ export default function Quotation() {
   const [successMsg, setSuccessMsg] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
 
+  // State PPN
+  const [taxPercentage, setTaxPercentage] = useState(11);
+
   const pagination = usePagination(quotations, 10);
 
   const [formData, setFormData] = useState({
@@ -33,6 +36,11 @@ export default function Quotation() {
     items: [],
   });
 
+  // Kalkulasi Real-time
+  const subTotal = formData.items.reduce((acc, curr) => acc + (Number(curr.qty || 1) * Number(curr.unit_price || 0)), 0);
+  const taxAmount = subTotal * (taxPercentage / 100);
+  const grandTotal = subTotal + taxAmount;
+
   useEffect(() => {
     fetchMasterProducts();
     fetchMasterCustomers();
@@ -45,7 +53,7 @@ export default function Quotation() {
     setLoadingProducts(true);
     try {
       const res = await getProducts('');
-      const dataProducts = res.data.data || res.data || [];
+      const dataProducts = res.data?.data || res.data || [];
       setMasterProducts(dataProducts);
     } catch (e) {
       console.error("Gagal memuat produk dari API", e);
@@ -57,71 +65,60 @@ export default function Quotation() {
   const fetchMasterCustomers = async () => {
     try {
       const res = await getCustomers();
-      let dataCust = [];
-      if (res.data && Array.isArray(res.data.data)) {
-        dataCust = res.data.data;
-      } else if (Array.isArray(res.data)) {
-        dataCust = res.data;
-      }
+      let dataCust = res.data?.data || res.data || [];
+      if (!Array.isArray(dataCust)) dataCust = Object.values(dataCust);
+      
       setMasterCustomers(dataCust);
+      localStorage.setItem('aldigens_master_customers', JSON.stringify(dataCust));
     } catch (e) {
       console.error("Gagal memuat master customer", e);
+      const fallback = JSON.parse(localStorage.getItem('aldigens_master_customers') || localStorage.getItem('customers') || '[]');
+      setMasterCustomers(fallback);
     }
   };
 
   const fetchCustomerParts = async () => {
     try {
-      // Ambil limit ekstra besar agar data part customer tidak terpotong pagination
       const res = await getCustomerPartNumbers({ limit: 5000, per_page: 5000, all: true });
-      let parts = [];
-      if (res.data && Array.isArray(res.data.data)) {
-        parts = res.data.data;
-      } else if (Array.isArray(res.data)) {
-        parts = res.data;
-      }
+      let parts = res.data?.data || res.data || [];
+      if (!Array.isArray(parts)) parts = Object.values(parts);
+      
       setCustomerParts(parts);
+      localStorage.setItem('aldigens_customer_parts', JSON.stringify(parts));
     } catch (e) {
       console.error("Gagal memuat master part number customer", e);
+      const fallback = JSON.parse(localStorage.getItem('aldigens_customer_parts') || localStorage.getItem('customer_part_numbers') || '[]');
+      setCustomerParts(fallback);
     }
   };
 
   const handleCustomerChange = (customerName) => {
-    const selectedCust = masterCustomers.find(c => c.customer_name === customerName);
+    const selectedCust = masterCustomers.find(c => (c.customer_name || c.name) === customerName);
+    
     setFormData({
       ...formData,
       customer_name: customerName,
-      customer_address: selectedCust?.address || formData.customer_address,
-      attention_person: selectedCust?.phone || formData.attention_person,
-      items: [] // Hapus list item lama agar tidak bentrok dengan part customer baru
+      customer_address: selectedCust?.customer_address || selectedCust?.address || formData.customer_address,
+      attention_person: selectedCust?.attention_person || selectedCust?.pic || selectedCust?.contact_person || selectedCust?.phone || formData.attention_person,
+      items: [] 
     });
   };
 
-  // FUNGSI FILTER BULLETPROOF UNTUK MENJAMIN DATA SINKRON 100%
   const getFilteredProductsForCustomer = () => {
     if (!formData.customer_name) return [];
 
-    const selectedCust = masterCustomers.find(c => c.customer_name === formData.customer_name);
-    if (!selectedCust) return [];
+    let filteredParts = customerParts.filter(cp => {
+      const cpName = cp.customer_name || (cp.customer && cp.customer.customer_name) || cp.customer || '';
+      return String(cpName).toLowerCase() === String(formData.customer_name).toLowerCase();
+    });
 
-    let filteredParts = [];
-
-    // 1. Filter dengan mencocokkan berbagai format ID atau Nama dari API
-    if (customerParts && customerParts.length > 0) {
-      filteredParts = customerParts.filter(cp => {
-        const matchId = String(cp.customer_id) === String(selectedCust.id) || 
-                        (cp.customer && String(cp.customer.id) === String(selectedCust.id));
-        const matchName = (cp.customer_name === selectedCust.customer_name) || 
-                          (cp.customer && cp.customer.customer_name === selectedCust.customer_name);
-        return matchId || matchName;
-      });
-    }
-
-    // 2. Jika filter di atas kosong, cek apakah relasinya sudah di-nest oleh Laravel
     if (filteredParts.length === 0) {
-      filteredParts = selectedCust.part_numbers || selectedCust.customer_part_numbers || selectedCust.items || [];
+      const selectedCust = masterCustomers.find(c => (c.customer_name || c.name) === formData.customer_name);
+      if (selectedCust) {
+        filteredParts = selectedCust.part_numbers || selectedCust.customer_part_numbers || selectedCust.items || [];
+      }
     }
 
-    // 3. STANDARISASI KEY DATABASE: Mengunci & menyamakan key agar tidak ada field yang meleset 
     return filteredParts.map(p => ({
       ...p,
       _part_number: p.part_number || p.part_no || p.code || p.item_code || '',
@@ -137,7 +134,6 @@ export default function Quotation() {
 
     if (field === 'part_number') {
       const availableList = getFilteredProductsForCustomer();
-      // Bandingkan menggunakan key standar _part_number
       const matched = availableList.find(
         (p) => String(p._part_number).toLowerCase() === String(value).toLowerCase()
       );
@@ -181,6 +177,7 @@ export default function Quotation() {
       admin_sales: 'Diah Ayu Komala',
       items: [],
     });
+    setTaxPercentage(11);
   };
 
   const handleSubmit = (e) => {
@@ -193,6 +190,10 @@ export default function Quotation() {
     
     const newQuotation = {
       ...formData,
+      tax_percentage: taxPercentage,
+      sub_total: subTotal,
+      tax_amount: taxAmount,
+      grand_total: grandTotal,
       id: Date.now(),
       status: 'Pending'
     };
@@ -211,6 +212,30 @@ export default function Quotation() {
     }, 400);
   };
 
+  // FUNGSI UNTUK GENERATE NOMOR SO OTOMATIS BERURUTAN (SUDAH DIPERBAIKI)
+  const generateNextSoNumber = (existingSOs) => {
+    if (!existingSOs || existingSOs.length === 0) {
+      return 'SO-00001';
+    }
+
+    let maxNumber = 0;
+    existingSOs.forEach(so => {
+      const soStr = so.soNo || so.so_number || '';
+      const match = soStr.match(/SO-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        // PENTING: Hanya hitung jika angkanya di bawah 100.000
+        // Agar sistem mengabaikan nomor acak lama (yang digitnya panjang/ratusan ribu)
+        if (num < 100000 && num > maxNumber) {
+          maxNumber = num;
+        }
+      }
+    });
+
+    const nextNumStr = String(maxNumber + 1).padStart(5, '0');
+    return `SO-${nextNumStr}`;
+  };
+
   const handleActionStatus = (q, newStatus, e) => {
     e.stopPropagation();
     
@@ -218,10 +243,14 @@ export default function Quotation() {
       const existingSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
       const filteredSOs = existingSOs.filter(so => so.quotation_number !== q.quotation_number && so.source_quotation !== q.quotation_number);
       
+      // Menggunakan fungsi yang sudah tahan terhadap nomor acak lama
+      const newSoNumber = generateNextSoNumber(existingSOs);
+      
       const newSO = {
         ...q,
         id: Date.now(),
-        so_number: `SO-${Math.floor(100000 + Math.random() * 900000)}`,
+        so_number: newSoNumber,
+        soNo: newSoNumber, 
         date: new Date().toISOString().split('T')[0],
         source_quotation: q.quotation_number,
         ref_po: '',
@@ -229,7 +258,7 @@ export default function Quotation() {
       };
       
       localStorage.setItem('aldigens_sales_orders', JSON.stringify([newSO, ...filteredSOs]));
-      setSuccessMsg(`Penawaran ${q.quotation_number} berstatus Deal dan dialihkan ke Sales Order (SO)!`);
+      setSuccessMsg(`Penawaran ${q.quotation_number} berstatus Deal dan dialihkan ke Sales Order (${newSoNumber})!`);
     } else {
       setSuccessMsg(`Penawaran ${q.quotation_number} ditandai Not Deal.`);
     }
@@ -271,9 +300,11 @@ export default function Quotation() {
     }
 
     const itemsList = qData.items || [];
-    const subTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0);
-    const taxTotal = subTotal * 0.11;
-    const grandTotal = subTotal + taxTotal;
+    const printSubTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0);
+    const printTaxRate = qData.tax_percentage !== undefined ? (qData.tax_percentage / 100) : 0.11;
+    const printTaxAmount = printSubTotal * printTaxRate;
+    const printGrandTotal = printSubTotal + printTaxAmount;
+    const printTaxLabel = qData.tax_percentage !== undefined ? qData.tax_percentage : 11;
 
     const rows = itemsList.map((it, i) => `
       <tr>
@@ -380,21 +411,21 @@ export default function Quotation() {
               - Terms of Delivery: Indent 3-5 days<br/>
               - Terms of Payment: Full payment 30 days after invoice received<br/>
               - Terms of Warranty: 1 Year<br/>
-              <em>* Harga di atas sudah termasuk PPN 11%.<br/>* Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada.</em>
+              <em>* Harga di atas sudah termasuk PPN ${printTaxLabel}%.<br/>* Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada.</em>
             </div>
             
             <table class="summary-table">
               <tr>
                 <td><strong>Total</strong></td>
-                <td align="right">${subTotal.toLocaleString('id-ID')}</td>
+                <td align="right">${printSubTotal.toLocaleString('id-ID')}</td>
               </tr>
               <tr>
-                <td><strong>PPN 11%</strong></td>
-                <td align="right">${taxTotal.toLocaleString('id-ID')}</td>
+                <td><strong>PPN ${printTaxLabel}%</strong></td>
+                <td align="right">${printTaxAmount.toLocaleString('id-ID')}</td>
               </tr>
               <tr class="total-row">
                 <td>Grand Total</td>
-                <td align="right">IDR ${grandTotal.toLocaleString('id-ID')}</td>
+                <td align="right">IDR ${printGrandTotal.toLocaleString('id-ID')}</td>
               </tr>
             </table>
           </div>
@@ -502,11 +533,15 @@ export default function Quotation() {
                 onChange={(e) => handleCustomerChange(e.target.value)}
               >
                 <option value="">-- Pilih Customer dari Master --</option>
-                {masterCustomers.map((cust, idx) => (
-                  <option key={idx} value={cust.customer_name}>
-                    {cust.customer_name} ({cust.customer_code})
-                  </option>
-                ))}
+                {masterCustomers.map((cust, idx) => {
+                  const cName = cust.customer_name || cust.name || '-';
+                  const cCode = cust.customer_code ? `(${cust.customer_code})` : '';
+                  return (
+                    <option key={idx} value={cName}>
+                      {cName} {cCode}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -562,7 +597,6 @@ export default function Quotation() {
                       />
                       <datalist id={`master-parts-${index}`}>
                         {getFilteredProductsForCustomer().map((prod, idx) => (
-                          // Menggunakan key hasil standarisasi agar tidak ada yang meleset
                           <option key={idx} value={prod._part_number}>
                             {prod._description}
                           </option>
@@ -586,16 +620,69 @@ export default function Quotation() {
                       <input type="number" min="0" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-500 text-right" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} />
                     </div>
                     <div className="md:col-span-1 text-right">
-                      {formData.items.length > 1 && (
-                        <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer mt-4">
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      )}
+                      <button type="button" onClick={() => handleRemoveItem(index)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer mt-4">
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+            
+            {/* Bagian Perhitungan Sub Total, PPN, dan Grand Total */}
+            {formData.items.length > 0 && (
+              <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 space-y-4 mt-6 shadow-sm">
+                <div className="flex justify-between items-center text-sm font-semibold text-slate-500">
+                  <span>Sub Total:</span>
+                  <span className="text-slate-700">
+                    Rp {subTotal.toLocaleString('id-ID')}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-slate-700">PPN (%):</span>
+                    <div className="flex gap-1.5">
+                      <button 
+                        type="button" 
+                        onClick={() => setTaxPercentage(11)}
+                        className={`px-3 py-1 rounded text-xs font-semibold border transition ${taxPercentage === 11 ? 'bg-teal-600 text-white border-teal-600' : 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'}`}
+                      >
+                        11%
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setTaxPercentage(0)}
+                        className={`px-3 py-1 rounded text-xs font-semibold border transition ${taxPercentage === 0 ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-200 text-slate-600 border-slate-300 hover:bg-slate-300'}`}
+                      >
+                        0%
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      min="0" 
+                      max="100"
+                      value={taxPercentage} 
+                      onChange={(e) => setTaxPercentage(Number(e.target.value))}
+                      className="w-16 px-2 py-1 bg-white border border-slate-300 rounded text-center text-sm font-medium outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                    <span className="text-slate-500 font-medium">
+                      (+ Rp {taxAmount.toLocaleString('id-ID')})
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="border-t border-slate-300 pt-4 flex justify-between items-center text-lg font-bold">
+                  <span className="text-slate-800">Grand Total:</span>
+                  <span className="text-teal-600">
+                    Rp {grandTotal.toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+            )}
+            
           </div>
         </form>
       ) : selectedQuotation ? (
@@ -668,6 +755,28 @@ export default function Quotation() {
                 ))}
               </tbody>
             </table>
+            
+            {/* Bagian Perhitungan di Halaman Lihat Detail */}
+            <div className="bg-slate-100 border-t border-slate-200 p-5 space-y-2 text-sm">
+              <div className="flex justify-end items-center gap-6">
+                <span className="font-semibold text-slate-500">Sub Total:</span>
+                <span className="font-bold text-slate-700 w-32 text-right">
+                  {formatRupiah(selectedQuotation.sub_total || selectedQuotation.items?.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0))}
+                </span>
+              </div>
+              <div className="flex justify-end items-center gap-6">
+                <span className="font-semibold text-slate-500">PPN ({selectedQuotation.tax_percentage ?? 11}%):</span>
+                <span className="font-bold text-slate-700 w-32 text-right">
+                  {formatRupiah(selectedQuotation.tax_amount || (selectedQuotation.items?.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0) * ((selectedQuotation.tax_percentage ?? 11) / 100)))}
+                </span>
+              </div>
+              <div className="flex justify-end items-center gap-6 pt-3 mt-3 border-t border-slate-300">
+                <span className="font-bold text-slate-800 text-base">Grand Total:</span>
+                <span className="font-black text-teal-600 text-base w-32 text-right">
+                  {formatRupiah(selectedQuotation.grand_total || (selectedQuotation.items?.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0) * (1 + ((selectedQuotation.tax_percentage ?? 11) / 100))))}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       ) : (

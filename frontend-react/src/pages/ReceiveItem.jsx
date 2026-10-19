@@ -12,7 +12,7 @@ export default function ReceiveItem() {
   const [receiveItems, setReceiveItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Form State, sekarang dengan tambahan deliveryOrder dan spkSupplier
+  // Form State, sekarang dengan tambahan item barang untuk masuk inventory
   const [formData, setFormData] = useState({
     receiveNo: 'RI-' + Math.floor(100000 + Math.random() * 900000),
     date: new Date().toISOString().split('T')[0],
@@ -21,7 +21,10 @@ export default function ReceiveItem() {
     deliveryOrder: '',
     spkSupplier: '',
     status: 'Completed',
-    notes: ''
+    notes: '',
+    items: [
+      { description: '', qty: 1, unit: 'PCS' } // Contoh struktur item barang
+    ]
   });
 
   // Ambil data dari API Laravel atau LocalStorage saat halaman dibuka
@@ -38,13 +41,11 @@ export default function ReceiveItem() {
       if (Array.isArray(apiData) && apiData.length > 0) {
         setReceiveItems(apiData);
       } else {
-        // Fallback: Ambil data dari local storage
         const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
         setReceiveItems(localData);
       }
     } catch (error) {
       console.error('API Error, memuat data lokal...', error);
-      // Fallback: Jika API error, langsung ambil dari local storage
       const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
       setReceiveItems(localData);
     } finally {
@@ -66,6 +67,25 @@ export default function ReceiveItem() {
 
   const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
+  // Handler untuk mengubah item barang di form
+  const handleItemChange = (index, field, value) => {
+    const updatedItems = [...formData.items];
+    updatedItems[index][field] = value;
+    setFormData({ ...formData, items: updatedItems });
+  };
+
+  const handleAddItemRow = () => {
+    setFormData({
+      ...formData,
+      items: [...formData.items, { description: '', qty: 1, unit: 'PCS' }]
+    });
+  };
+
+  const handleRemoveItemRow = (index) => {
+    const updatedItems = formData.items.filter((_, i) => i !== index);
+    setFormData({ ...formData, items: updatedItems });
+  };
+
   const handleOpenAddForm = () => {
     setEditingId(null);
     setFormData({
@@ -76,12 +96,12 @@ export default function ReceiveItem() {
       deliveryOrder: '',
       spkSupplier: '',
       status: 'Completed',
-      notes: ''
+      notes: '',
+      items: [{ description: '', qty: 1, unit: 'PCS' }]
     });
     setViewMode('form');
   };
 
-  // Buka Form untuk Edit Data
   const handleEdit = (item) => {
     setActiveMenuId(null);
     setEditingId(item.id);
@@ -93,16 +113,53 @@ export default function ReceiveItem() {
       deliveryOrder: item.delivery_order || '',
       spkSupplier: item.spk_supplier || '',
       status: item.status || 'Completed',
-      notes: item.notes || ''
+      notes: item.notes || '',
+      items: item.items || [{ description: '', qty: 1, unit: 'PCS' }]
     });
     setViewMode('form');
   };
 
-  // Simpan data ke Database (Create & Update)
+  // --- FUNGSI UTAMA: MENAMBAHKAN STOK KE INVENTORY OTOMATIS ---
+  const updateInventoryStock = (receivedItems) => {
+    // Ambil data inventory yang ada di localStorage (sesuaikan key inventory-mu, misal 'aldigens_inventory' atau 'inventory')
+    const inventoryKey = 'aldigens_inventory';
+    let currentInventory = JSON.parse(localStorage.getItem(inventoryKey) || '[]');
+
+    receivedItems.forEach(incomingItem => {
+      const itemName = incomingItem.description || incomingItem.part_number || '';
+      const qtyToAdd = Number(incomingItem.qty || incomingItem.qty_received || 0);
+
+      if (!itemName || qtyToAdd <= 0) return;
+
+      // Cari apakah barang sudah ada di inventory
+      const existingProductIndex = currentInventory.findIndex(prod => 
+        String(prod.name || prod.description || prod.part_number).toLowerCase() === String(itemName).toLowerCase()
+      );
+
+      if (existingProductIndex !== -1) {
+        // Jika sudah ada, tambahkan stoknya
+        currentInventory[existingProductIndex].qty = Number(currentInventory[existingProductIndex].qty || currentInventory[existingProductIndex].stock || 0) + qtyToAdd;
+      } else {
+        // Jika belum ada barangnya di inventory, buat data baru otomatis
+        currentInventory.push({
+          id: Date.now() + Math.random(),
+          part_number: incomingItem.part_number || itemName,
+          name: itemName,
+          description: itemName,
+          qty: qtyToAdd,
+          unit: incomingItem.unit || 'PCS'
+        });
+      }
+    });
+
+    // Simpan kembali ke localStorage inventory
+    localStorage.setItem(inventoryKey, JSON.stringify(currentInventory));
+  };
+
+  // Simpan data ke Database & LocalStorage serta Update Inventory
   const handleSave = async (e) => {
     e.preventDefault();
     
-    // Sesuaikan properti untuk disimpan ke localStorage jika API error
     const newRI = {
       id: editingId || Date.now(),
       receive_no: formData.receiveNo,
@@ -114,16 +171,15 @@ export default function ReceiveItem() {
       delivery_order: formData.deliveryOrder,
       spk_supplier: formData.spkSupplier,
       status: formData.status,
-      notes: formData.notes
+      notes: formData.notes,
+      items: formData.items
     };
 
     try {
       if (editingId) {
-        // Proses Update (Edit)
         await axios.put(`http://127.0.0.1:8000/api/receive-items/${editingId}`, formData);
         alert('Data Penerimaan Barang berhasil diperbarui!');
       } else {
-        // Proses Tambah Baru
         await axios.post('http://127.0.0.1:8000/api/receive-items', formData);
         alert('Data Penerimaan Barang berhasil disimpan!');
       }
@@ -136,7 +192,11 @@ export default function ReceiveItem() {
       } else {
         localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
       }
-      alert('Disimpan ke penyimpanan lokal (Offline Mode). Pastikan backend Laravel menyala.');
+    }
+
+    // OTOMATIS TAMBAHKAN STOK KE INVENTORY KETIKA PENERIMAAN BARANG SELESAI/DISIMPAN
+    if (formData.status === 'Completed' || formData.status === 'Selesai Diterima') {
+      updateInventoryStock(formData.items);
     }
     
     fetchReceiveItems();
@@ -166,20 +226,50 @@ export default function ReceiveItem() {
     const vendor = item.vendor_name || item.supplier_name || '-';
     const poRef = item.po_ref || item.po_reference || '-';
 
+    const itemsRows = (item.items || []).map((it, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${it.description || '-'}</td>
+        <td>${it.qty || 0} ${it.unit || 'PCS'}</td>
+      </tr>
+    `).join('');
+
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
-      <html><head><title>Penerimaan Barang - ${receiveNo}</title><style>body{font-family:sans-serif;padding:20px} table{width:100%;border-collapse:collapse;margin-top:15px} td{padding:8px;border:1px solid #ddd}</style></head>
-      <body><h2>PT. ALDIGENS PUTERA PERSADA</h2><h3>BUKTI PENERIMAAN BARANG (RECEIVE ITEM)</h3>
-      <table>
-        <tr><td><strong>No. Penerimaan</strong></td><td>${receiveNo}</td></tr>
-        <tr><td><strong>Tanggal</strong></td><td>${item.date || item.receive_date}</td></tr>
-        <tr><td><strong>Vendor</strong></td><td>${vendor}</td></tr>
-        <tr><td><strong>Ref. PO</strong></td><td>${poRef}</td></tr>
-        <tr><td><strong>Delivery Order (DO)</strong></td><td>${item.delivery_order || '-'}</td></tr>
-        <tr><td><strong>No. SPK</strong></td><td>${item.spk_supplier || '-'}</td></tr>
-        <tr><td><strong>Status</strong></td><td>${item.status}</td></tr>
-        <tr><td><strong>Catatan</strong></td><td>${item.notes || '-'}</td></tr>
-      </table></body></html>
+      <html>
+        <head>
+          <title>Penerimaan Barang - ${receiveNo}</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+            th { background-color: #f4f4f4; }
+          </style>
+        </head>
+        <body>
+          <h2>PT. ALDIGENS PUTERA PERSADA</h2>
+          <h3>BUKTI PENERIMAAN BARANG (RECEIVE ITEM)</h3>
+          <table>
+            <tr><td><strong>No. Penerimaan</strong></td><td>${receiveNo}</td></tr>
+            <tr><td><strong>Tanggal</strong></td><td>${item.date || item.receive_date}</td></tr>
+            <tr><td><strong>Vendor</strong></td><td>${vendor}</td></tr>
+            <tr><td><strong>Ref. PO</strong></td><td>${poRef}</td></tr>
+            <tr><td><strong>Delivery Order (DO)</strong></td><td>${item.delivery_order || '-'}</td></tr>
+            <tr><td><strong>No. SPK</strong></td><td>${item.spk_supplier || '-'}</td></tr>
+            <tr><td><strong>Status</strong></td><td>${item.status}</td></tr>
+            <tr><td><strong>Catatan</strong></td><td>${item.notes || '-'}</td></tr>
+          </table>
+          <h4>Daftar Barang Diterima:</h4>
+          <table>
+            <thead>
+              <tr><th>No</th><th>Deskripsi Barang</th><th>Jumlah</th></tr>
+            </thead>
+            <tbody>
+              ${itemsRows || '<tr><td colspan="3" style="text-align:center;">Tidak ada rincian barang</td></tr>'}
+            </tbody>
+          </table>
+        </body>
+      </html>
     `);
     printWindow.document.close(); printWindow.print();
   };
@@ -189,27 +279,19 @@ export default function ReceiveItem() {
       <div className="p-6">
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
-            <button onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ArrowLeft className="h-5 w-5 text-slate-500" /></button>
+            <button type="button" onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer"><ArrowLeft className="h-5 w-5 text-slate-500" /></button>
             <h2 className="text-xl font-semibold dark:text-white">
               {editingId ? 'Edit Terima Barang' : 'Form Terima Barang Baru'}
             </h2>
           </div>
           <form onSubmit={handleSave} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">No. Penerimaan (RI)</label><input required type="text" name="receiveNo" value={formData.receiveNo} onChange={handleInputChange} disabled={!!editingId} className={`w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500 ${editingId ? 'bg-slate-100 dark:bg-slate-800 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-950'}`} /></div>
-              
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Tanggal</label><input required type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" /></div>
-              
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Vendor</label><input required type="text" name="vendorName" value={formData.vendorName} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nama Pemasok..." /></div>
-              
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Ref. PO</label><input type="text" name="poRef" value={formData.poRef} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nomor PO..." /></div>
-
-              {/* INPUT BARU UNTUK DO DAN SPK */}
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Delivery Order (DO) Supplier</label><input type="text" name="deliveryOrder" value={formData.deliveryOrder} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nomor DO / Surat Jalan..." /></div>
-
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Ref. SPK Supplier</label><input type="text" name="spkSupplier" value={formData.spkSupplier} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nomor SPK dari Pemasok..." /></div>
-
               <div>
                 <label className="block text-sm font-medium dark:text-slate-300 mb-1">Status</label>
                 <select name="status" value={formData.status} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500">
@@ -217,16 +299,65 @@ export default function ReceiveItem() {
                   <option value="Partial">Diterima Sebagian (Partial)</option>
                 </select>
               </div>
-              
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium dark:text-slate-300 mb-1">Catatan</label>
-                <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="3" className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Catatan penerimaan..."></textarea>
+                <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="2" className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Catatan penerimaan..."></textarea>
               </div>
+            </div>
+
+            {/* TABEL INPUT RINCIAN BARANG MASUK */}
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Rincian Barang yang Diterima</h3>
+                <button type="button" onClick={handleAddItemRow} className="bg-slate-900 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg cursor-pointer">
+                  + Tambah Baris Barang
+                </button>
+              </div>
+
+              {formData.items.map((it, idx) => (
+                <div key={idx} className="flex gap-3 items-center bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                  <div className="flex-1">
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Nama / Deskripsi Barang..." 
+                      value={it.description} 
+                      onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm dark:text-white outline-none"
+                    />
+                  </div>
+                  <div className="w-24">
+                    <input 
+                      type="number" 
+                      min="1" 
+                      required 
+                      placeholder="Qty" 
+                      value={it.qty} 
+                      onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm text-center dark:text-white outline-none"
+                    />
+                  </div>
+                  <div className="w-28">
+                    <input 
+                      type="text" 
+                      placeholder="Satuan" 
+                      value={it.unit} 
+                      onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm text-center dark:text-white outline-none"
+                    />
+                  </div>
+                  {formData.items.length > 1 && (
+                    <button type="button" onClick={() => handleRemoveItemRow(idx)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded cursor-pointer">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
             
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onClick={() => setViewMode('list')} className="px-5 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-medium cursor-pointer">Batal</button>
-              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium cursor-pointer"><Save className="h-4 w-4" /> Simpan Data</button>
+              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium cursor-pointer"><Save className="h-4 w-4" /> Simpan & Update Stok</button>
             </div>
           </form>
         </div>
@@ -247,7 +378,6 @@ export default function ReceiveItem() {
           ) : (
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
-                {/* PENAMBAHAN HEADER KOLOM DO DAN SPK DI SINI */}
                 <tr>
                   <th className="px-6 py-3">Tanggal</th>
                   <th className="px-6 py-3">No. Penerimaan</th>
@@ -277,14 +407,11 @@ export default function ReceiveItem() {
                         <td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400">{receiveNo}</td>
                         <td className="px-6 py-3">{vendor}</td>
                         <td className="px-6 py-3 text-slate-500">{poRef}</td>
-                        
-                        {/* PENAMBAHAN DATA BARIS KOLOM DO DAN SPK DI SINI */}
                         <td className="px-6 py-3 text-slate-500">{deliveryOrder}</td>
                         <td className="px-6 py-3 text-slate-500">{spkSupplier}</td>
-
                         <td className="px-6 py-3">
                             <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                item.status?.includes('Completed') || item.status === 'Diterima Penuh' 
+                                item.status?.includes('Completed') || item.status === 'Selesai Diterima' 
                                 ? 'bg-emerald-100 text-emerald-700' 
                                 : 'bg-amber-100 text-amber-700'
                             }`}>
@@ -296,7 +423,6 @@ export default function ReceiveItem() {
                           {activeMenuId === keyId && (
                             <div className="absolute right-12 top-8 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 text-left">
                               <button onClick={() => handleEdit(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Edit2 className="h-3.5 w-3.5 text-blue-500" /> Edit</button>
-                              
                               <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
                               <button onClick={() => handleDelete(keyId)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 cursor-pointer"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
                             </div>
@@ -311,7 +437,6 @@ export default function ReceiveItem() {
           )}
         </div>
 
-        {/* Pagination Controller */}
         <Pagination
           currentPage={pagination.currentPage}
           totalItems={pagination.totalItems}

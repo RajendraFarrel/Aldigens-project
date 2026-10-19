@@ -43,6 +43,11 @@ export default function Invoice() {
     items: [],
   });
 
+  // Kalkulasi Real-time untuk form
+  const formSubTotal = formData.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || 0)), 0);
+  const formTaxAmount = formSubTotal * 0.11;
+  const formGrandTotal = formSubTotal + formTaxAmount;
+
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
@@ -115,28 +120,51 @@ export default function Invoice() {
     }
   }, []);
 
+  // FUNGSI INI TELAH DIPERBAIKI UNTUK MELACAK HARGA DARI SALES ORDER (SO)
   const handleSelectDO = (doNumber) => {
     setFormData((prev) => ({ ...prev, do_reference: doNumber, items: [] }));
     if (!doNumber) return;
 
     const selDO = deliveryOrders.find((d) => d.do_number === doNumber);
     if (selDO) {
+      // 1. Coba lacak Sales Order (SO) aslinya dari localStorage
+      const allSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
+      const relatedSO = allSOs.find(so => so.so_number === selDO.so_number || so.soNo === selDO.so_number);
+
+      const mappedItems = (selDO.items || []).map(it => {
+        let finalPrice = Number(it.unit_price || it.price || it.harga || 0);
+
+        // 2. Jika harga dari DO ternyata 0, ambil harganya dari SO yang bersangkutan
+        if (finalPrice === 0 && relatedSO && relatedSO.items) {
+          const matchedSoItem = relatedSO.items.find(soItem => 
+            soItem.description === it.description || 
+            soItem.part_number === it.part_number ||
+            soItem.description === it.part_number // Mengantisipasi part_number masuk ke kolom description
+          );
+          if (matchedSoItem) {
+            finalPrice = Number(matchedSoItem.unit_price || matchedSoItem.price || 0);
+          }
+        }
+
+        return {
+          description: it.description || it.part_number || '-',
+          qty: Number(it.qty_sent || it.qty || 1),
+          unit_price: finalPrice
+        };
+      });
+
       setFormData((prev) => ({
         ...prev,
         customer_name: selDO.customer_name || '',
-        customer_address: selDO.delivery_address || '',
-        items: (selDO.items || []).map(it => ({
-          description: it.description || '-',
-          qty: it.qty_sent || 1,
-          unit_price: 0
-        }))
+        customer_address: selDO.delivery_address || selDO.customer_address || '',
+        items: mappedItems
       }));
     }
   };
 
   const handleItemChange = (index, field, value) => {
     const items = [...formData.items];
-    items[index][field] = value;
+    items[index][field] = (field === 'qty' || field === 'unit_price') ? Number(value) : value;
     setFormData({ ...formData, items });
   };
 
@@ -177,7 +205,8 @@ export default function Invoice() {
       const newInvoice = {
         id: Date.now(),
         ...formData,
-        status: 'Unpaid'
+        status: 'Unpaid',
+        total_amount: formGrandTotal 
       };
 
       const existing = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
@@ -251,7 +280,7 @@ export default function Invoice() {
     }
 
     const itemsList = invData.items || [];
-    const subTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0);
+    const subTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || curr.price || 0)), 0);
     const taxTotal = subTotal * 0.11;
     const grandTotal = subTotal + taxTotal;
     const textTerbilang = terbilang(grandTotal).trim() + ' Rupiah';
@@ -261,8 +290,8 @@ export default function Invoice() {
         <td align="center">${i + 1}</td>
         <td>${escapeHtml(it.description || '-')}</td>
         <td align="center">${it.qty}</td>
-        <td align="right">${Number(it.unit_price || 0).toLocaleString('id-ID')}</td>
-        <td align="right">${(Number(it.qty) * Number(it.unit_price || 0)).toLocaleString('id-ID')}</td>
+        <td align="right">${Number(it.unit_price || it.price || 0).toLocaleString('id-ID')}</td>
+        <td align="right">${(Number(it.qty) * Number(it.unit_price || it.price || 0)).toLocaleString('id-ID')}</td>
       </tr>`).join('');
 
     win.document.write(`
@@ -446,7 +475,7 @@ export default function Invoice() {
               <select
                 value={formData.do_reference}
                 onChange={(e) => handleSelectDO(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
               >
                 <option value="">-- Pilih D.O --</option>
                 {deliveryOrders.map((d) => (
@@ -520,6 +549,24 @@ export default function Invoice() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* RINGKASAN HARGA DI FORM PEMBUATAN INVOICE */}
+            {formData.items.length > 0 && (
+              <div className="bg-indigo-50/50 rounded-xl p-5 border border-indigo-100 space-y-3 mt-6 shadow-sm">
+                <div className="flex justify-between items-center text-sm font-semibold text-slate-500">
+                  <span>Sub Total:</span>
+                  <span className="text-slate-700">{formatRupiah(formSubTotal)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm font-semibold text-slate-500">
+                  <span>PPN 11%:</span>
+                  <span className="text-slate-700">{formatRupiah(formTaxAmount)}</span>
+                </div>
+                <div className="border-t border-indigo-200 pt-3 flex justify-between items-center text-lg font-bold">
+                  <span className="text-slate-800">Grand Total:</span>
+                  <span className="text-indigo-600">{formatRupiah(formGrandTotal)}</span>
+                </div>
               </div>
             )}
           </div>
@@ -599,17 +646,46 @@ export default function Invoice() {
               <tbody className="divide-y divide-slate-100">
                 {(selectedInvoice.items || []).length === 0 ? (
                   <tr><td colSpan="5" className="p-12 text-center text-sm text-slate-400">Tidak ada rincian.</td></tr>
-                ) : selectedInvoice.items.map((it, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition">
-                    <td className="p-4 text-sm font-semibold text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-4 text-sm font-medium text-slate-700">{it.description}</td>
-                    <td className="p-4 text-sm text-center font-bold text-slate-800">{it.qty}</td>
-                    <td className="p-4 text-sm text-right text-slate-600">{formatRupiah(it.unit_price)}</td>
-                    <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(it.qty * it.unit_price)}</td>
-                  </tr>
-                ))}
+                ) : selectedInvoice.items.map((it, idx) => {
+                  const safeQty = Number(it.qty) || 1;
+                  const safePrice = Number(it.unit_price || it.price || 0); // Handle fallback key
+                  
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition">
+                      <td className="p-4 text-sm font-semibold text-slate-500 text-center">{idx + 1}</td>
+                      <td className="p-4 text-sm font-medium text-slate-700">{it.description}</td>
+                      <td className="p-4 text-sm text-center font-bold text-slate-800">{safeQty}</td>
+                      <td className="p-4 text-sm text-right text-slate-600">{formatRupiah(safePrice)}</td>
+                      <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(safeQty * safePrice)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
+            
+            {/* RINGKASAN HARGA DI HALAMAN DETAIL */}
+            {selectedInvoice.items && selectedInvoice.items.length > 0 && (
+              <div className="bg-slate-100 border-t border-slate-200 p-5 space-y-2 text-sm">
+                <div className="flex justify-end items-center gap-6">
+                  <span className="font-semibold text-slate-500">Sub Total:</span>
+                  <span className="font-bold text-slate-700 w-32 text-right">
+                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0))}
+                  </span>
+                </div>
+                <div className="flex justify-end items-center gap-6">
+                  <span className="font-semibold text-slate-500">PPN 11%:</span>
+                  <span className="font-bold text-slate-700 w-32 text-right">
+                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0) * 0.11)}
+                  </span>
+                </div>
+                <div className="flex justify-end items-center gap-6 pt-3 mt-3 border-t border-slate-300">
+                  <span className="font-bold text-slate-800 text-base">Grand Total:</span>
+                  <span className="font-black text-indigo-600 text-base w-32 text-right">
+                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0) * 1.11)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

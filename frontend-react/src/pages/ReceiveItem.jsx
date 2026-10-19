@@ -1,23 +1,23 @@
-<<<<<<< HEAD
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, ArrowLeft, Save, Trash2, Printer, MoreVertical, Edit2 } from 'lucide-react';
 import Select from 'react-select';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 import api, { getProducts } from '../services/api';
-=======
-import React, { useState, useEffect, useMemo } from 'react';
-<<<<<<< HEAD
-import { Search, Plus, ArrowLeft, Save, Trash2, Printer, MoreVertical } from 'lucide-react';
-import Select from 'react-select';
-=======
-import { Search, Plus, ArrowLeft, Save, Trash2, Printer, MoreVertical, Edit2 } from 'lucide-react';
->>>>>>> 791cde976e81c37ebfa6340787232644d6015c14
-import Pagination from '../components/Pagination';
-import usePagination from '../hooks/usePagination';
-import { getProducts } from '../services/api';
-import api from '../services/api';
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
+
+const emptyItem = () => ({ part_number: '', description: '', qty: 1, unit: 'PCS' });
+
+const emptyForm = () => ({
+  receiveNo: 'RI-' + Math.floor(100000 + Math.random() * 900000),
+  date: new Date().toISOString().split('T')[0],
+  vendorName: '',
+  poRef: '',
+  deliveryOrder: '',
+  spkSupplier: '',
+  status: 'Completed',
+  notes: '',
+  items: [emptyItem()],
+});
 
 export default function ReceiveItem() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,76 +26,11 @@ export default function ReceiveItem() {
   const [editingId, setEditingId] = useState(null);
   const [receiveItems, setReceiveItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState([]);
 
   // Daftar item Inventory untuk pemilih Part Number (bukan ketik manual).
   const [inventoryItems, setInventoryItems] = useState([]);
 
-  // Form State, sekarang dengan tambahan deliveryOrder, spkSupplier, dan items
-  const [formData, setFormData] = useState({
-    receiveNo: 'RI-' + Math.floor(100000 + Math.random() * 900000),
-    date: new Date().toISOString().split('T')[0],
-    vendorName: '',
-    poRef: '',
-    deliveryOrder: '',
-    spkSupplier: '',
-    status: 'Completed',
-    notes: '',
-<<<<<<< HEAD
-    items: [{ part_number: '', description: '', qty: 1, unit: 'PCS' }],
-=======
-    items: [{ id: Date.now(), productId: null, quantity: 1 }],
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
-  });
-
-  // Opsi pencarian barang dari inventory (Part Number / Nama Barang).
-  const productOptions = useMemo(() => products.map((p) => ({
-    value: p.id,
-    label: [p.part_number, p.name].filter(Boolean).join(' - ') || p.name || `#${p.id}`,
-    raw: p,
-  })), [products]);
-
-  // Ambil data dari API Laravel atau LocalStorage saat halaman dibuka
-  useEffect(() => {
-    const fetchReceiveItems = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get('/receive-items').catch(() => null);
-        const apiData = response?.data?.data || response?.data;
-
-        if (Array.isArray(apiData) && apiData.length > 0) {
-          setReceiveItems(apiData);
-        } else {
-          // Fallback: Ambil data dari local storage (hasil konversi dari PO)
-          const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-          setReceiveItems(localData);
-        }
-      } catch (error) {
-        console.error('API Error, memuat data lokal...', error);
-        // Fallback: Jika API error, langsung ambil dari local storage
-        const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-        setReceiveItems(localData);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const fetchProducts = async () => {
-      try {
-        const res = await getProducts();
-        setProducts(res.data?.data ?? []);
-      } catch (error) {
-        console.error('Gagal memuat daftar barang inventory:', error);
-      }
-    };
-
-    fetchReceiveItems();
-<<<<<<< HEAD
-    fetchInventoryItems();
-=======
-    fetchProducts();
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
-  }, []);
+  const [formData, setFormData] = useState(emptyForm());
 
   /** Muat daftar produk Inventory untuk dropdown Part Number. */
   const fetchInventoryItems = async () => {
@@ -113,22 +48,62 @@ export default function ReceiveItem() {
     }
   };
 
+  const fetchReceiveItems = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/receive-items').catch(() => null);
+      const apiData = response?.data?.data || response?.data;
+
+      if (Array.isArray(apiData) && apiData.length > 0) {
+        setReceiveItems(apiData);
+      } else {
+        // Fallback: Ambil data dari local storage
+        const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
+        setReceiveItems(localData);
+      }
+    } catch (error) {
+      console.error('API Error, memuat data lokal...', error);
+      const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
+      setReceiveItems(localData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Ambil data dari API Laravel atau LocalStorage saat halaman dibuka
+  useEffect(() => {
+    fetchReceiveItems();
+    fetchInventoryItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Opsi react-select: value = part_number/kode, label = kode — nama.
   const productOptions = useMemo(() => inventoryItems.map((inv) => {
     const code = inv.part_number || inv.product_code || inv.barcode;
+    const name = inv.name || inv.description || '';
     return {
       value: code,
-      label: `${code} — ${inv.name || inv.description || ''}`,
-      name: inv.name || inv.description || '',
+      label: `${code} — ${name}`,
+      name,
       unit: inv.unit || 'PCS',
     };
   }), [inventoryItems]);
 
+  const filteredReceiveItems = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return receiveItems.filter((item) => {
+      const receiveNo = item.receive_no || item.ri_number || item.document_number || '';
+      const vendor = item.vendor_name || item.supplier_name || '';
+      return receiveNo.toLowerCase().includes(term) || vendor.toLowerCase().includes(term);
+    });
+  }, [receiveItems, searchTerm]);
+
+  const pagination = usePagination(filteredReceiveItems, 10);
+
+  const handleInputChange = (e) => setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
   const handleAddItem = () => {
-    setFormData((prev) => ({
-      ...prev,
-      items: [...prev.items, { part_number: '', description: '', qty: 1, unit: 'PCS' }],
-    }));
+    setFormData((prev) => ({ ...prev, items: [...prev.items, emptyItem()] }));
   };
 
   const handleRemoveItem = (index) => {
@@ -146,112 +121,12 @@ export default function ReceiveItem() {
     });
   };
 
-  const fetchReceiveItems = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/receive-items').catch(() => null);
-      const apiData = response?.data?.data || response?.data;
-
-      if (Array.isArray(apiData) && apiData.length > 0) {
-        setReceiveItems(apiData);
-      } else {
-        // Fallback: Ambil data dari local storage
-        const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-        setReceiveItems(localData);
-      }
-    } catch (error) {
-      console.error('API Error, memuat data lokal...', error);
-      // Fallback: Jika API error, langsung ambil dari local storage
-      const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-      setReceiveItems(localData);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredReceiveItems = useMemo(() => {
-    return receiveItems.filter(item => {
-      const receiveNo = item.receive_no || item.ri_number || item.document_number || '';
-      const vendor = item.vendor_name || item.supplier_name || '';
-
-      return receiveNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             vendor.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-  }, [receiveItems, searchTerm]);
-
-  const pagination = usePagination(filteredReceiveItems, 10);
-
-  const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
-
   const handleOpenAddForm = () => {
     setEditingId(null);
-    setFormData({
-      receiveNo: 'RI-' + Math.floor(100000 + Math.random() * 900000),
-      date: new Date().toISOString().split('T')[0],
-      vendorName: '',
-      poRef: '',
-      deliveryOrder: '',
-      spkSupplier: '',
-      status: 'Completed',
-      notes: '',
-<<<<<<< HEAD
-      items: [{ part_number: '', description: '', qty: 1, unit: 'PCS' }],
-=======
-      items: [{ id: Date.now(), productId: null, quantity: 1 }],
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
-    });
+    setFormData(emptyForm());
     setViewMode('form');
   };
 
-<<<<<<< HEAD
-  const handleAddItemRow = () => {
-    setFormData({
-      ...formData,
-      items: [...formData.items, { id: Date.now(), productId: null, quantity: 1 }],
-    });
-  };
-
-  const handleRemoveItemRow = (id) => {
-    if (formData.items.length === 1) {
-      alert('Penerimaan minimal harus memiliki 1 item barang!');
-      return;
-    }
-    setFormData({ ...formData, items: formData.items.filter((i) => i.id !== id) });
-  };
-
-  const handleItemChange = (id, field, value) => {
-    setFormData({
-      ...formData,
-      items: formData.items.map((i) => (i.id === id ? { ...i, [field]: value } : i)),
-    });
-  };
-
-  const handleProductSelect = (id, option) => {
-    setFormData({
-      ...formData,
-      items: formData.items.map((i) => (i.id === id ? {
-        ...i,
-        productId: option ? option.value : null,
-        partNumber: option ? option.label : '',
-      } : i)),
-    });
-  };
-
-  // Simpan data ke Database via API Laravel (dengan fallback ke localStorage)
-  const handleSave = async (e) => {
-    e.preventDefault();
-
-    if (formData.items.some((i) => !i.productId)) {
-      alert('Setiap item harus dipilih dari daftar inventory. Ketik Part Number atau Nama Barang pada kolom pencarian.');
-      return;
-    }
-
-    const newRI = {
-      receiveNo: formData.receiveNo,
-      date: formData.date,
-      vendorName: formData.vendorName,
-      poRef: formData.poRef,
-=======
   // Buka Form untuk Edit Data
   const handleEdit = (item) => {
     setActiveMenuId(null);
@@ -265,20 +140,19 @@ export default function ReceiveItem() {
       spkSupplier: item.spk_supplier || '',
       status: item.status || 'Completed',
       notes: item.notes || '',
-      items: (item.items || []).map((it) => ({
-        part_number: it.part_number || it.product?.part_number || '',
-        description: it.product?.name || it.description || '',
-        qty: it.quantity || it.qty || 1,
-        unit: it.unit || 'PCS',
-      })),
+      items: (item.items || []).length > 0
+        ? item.items.map((it) => ({
+          part_number: it.part_number || it.product?.part_number || '',
+          description: it.product?.name || it.description || '',
+          qty: it.quantity || it.qty || 1,
+          unit: it.unit || 'PCS',
+        }))
+        : [emptyItem()],
     });
-    if (!item.items || item.items.length === 0) {
-      setFormData((prev) => ({ ...prev, items: [{ part_number: '', description: '', qty: 1, unit: 'PCS' }] }));
-    }
     setViewMode('form');
   };
 
-  // Simpan data ke Database (Create & Update)
+  // Simpan data ke Database via API Laravel (dengan fallback ke localStorage)
   const handleSave = async (e) => {
     e.preventDefault();
 
@@ -293,92 +167,89 @@ export default function ReceiveItem() {
         unit: it.unit || 'PCS',
       }));
 
-    // Sesuaikan properti untuk disimpan ke localStorage jika API error
-    const newRI = {
-      id: editingId || Date.now(),
+    if (validItems.length === 0) {
+      alert('Pilih minimal 1 barang dari daftar inventory sebelum menyimpan.');
+      return;
+    }
+
+    const payload = {
+      document_number: formData.receiveNo,
       receive_no: formData.receiveNo,
-      ri_number: formData.receiveNo,
+      receive_date: formData.date,
       date: formData.date,
       vendor_name: formData.vendorName,
       supplier_name: formData.vendorName,
       po_ref: formData.poRef,
       delivery_order: formData.deliveryOrder,
       spk_supplier: formData.spkSupplier,
->>>>>>> 791cde976e81c37ebfa6340787232644d6015c14
       status: formData.status,
       notes: formData.notes,
-<<<<<<< HEAD
       items: validItems,
-=======
-      items: formData.items.map((i) => ({
-        product_id: i.productId,
-        quantity: Number(i.quantity),
-      })),
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
+    };
+
+    const localRecord = {
+      id: editingId || Date.now(),
+      receive_no: formData.receiveNo,
+      ri_number: formData.receiveNo,
+      document_number: formData.receiveNo,
+      date: formData.date,
+      receive_date: formData.date,
+      vendor_name: formData.vendorName,
+      supplier_name: formData.vendorName,
+      po_ref: formData.poRef,
+      delivery_order: formData.deliveryOrder,
+      spk_supplier: formData.spkSupplier,
+      status: formData.status,
+      notes: formData.notes,
+      items: validItems,
     };
 
     try {
       if (editingId) {
-        // Proses Update (Edit)
-        await api.put(`/receive-items/${editingId}`, { ...formData, items: validItems });
+        await api.put(`/receive-items/${editingId}`, payload);
         alert('Data Penerimaan Barang berhasil diperbarui!');
       } else {
-<<<<<<< HEAD
-        // Proses Tambah Baru — backend akan menambah stok Inventory dari items.
-        await api.post('/receive-items', { ...formData, items: validItems });
+        await api.post('/receive-items', payload);
         alert('Data Penerimaan Barang berhasil disimpan dan stok Inventory bertambah!');
-=======
-<<<<<<< HEAD
-        await api.post('/receive-items', newRI);
-        alert('Data Penerimaan Barang berhasil disimpan dan stok inventory otomatis bertambah!');
       }
+      await fetchReceiveItems();
     } catch (error) {
       console.error('Gagal menyimpan penerimaan barang:', error);
-      alert(error?.response?.data?.message || 'Gagal menyimpan data penerimaan barang.');
-      return;
-=======
-        // Proses Tambah Baru
-        await axios.post('http://127.0.0.1:8000/api/receive-items', formData);
-        alert('Data Penerimaan Barang berhasil disimpan!');
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
-      }
-    } catch {
-      console.log('API Error, menyimpan ke local storage...');
+      // Fallback: simpan ke localStorage agar UI tetap berfungsi (Offline Mode).
       const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-      if (editingId) {
-        const updated = existingRIs.map(i => i.id === editingId ? newRI : i);
-        localStorage.setItem('aldigens_receive_items', JSON.stringify(updated));
-      } else {
-        localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
-      }
-      alert('Disimpan ke penyimpanan lokal (Offline Mode). Pastikan backend Laravel menyala.');
->>>>>>> 791cde976e81c37ebfa6340787232644d6015c14
+      const updated = editingId
+        ? existingRIs.map((i) => (i.id === editingId ? localRecord : i))
+        : [localRecord, ...existingRIs];
+      localStorage.setItem('aldigens_receive_items', JSON.stringify(updated));
+      setReceiveItems(updated);
+      alert(
+        error?.response?.data?.message
+        || 'Gagal menyimpan ke server. Data disimpan ke penyimpanan lokal (Offline Mode). Pastikan backend Laravel menyala.'
+      );
     }
 
-    fetchReceiveItems();
     setViewMode('list');
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus data penerimaan barang ini?')) {
-      try {
-        await api.delete(`/receive-items/${id}`);
-<<<<<<< HEAD
-      } catch {
-        console.log('Menghapus data dari penyimpanan lokal...');
-=======
-      } catch (error) {
-        console.log('Gagal menghapus data penerimaan.', error);
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
-      }
-      
-      const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-      const updatedRIs = existingRIs.filter(item => item.id !== id && item.receive_no !== id && item.ri_number !== id);
-      localStorage.setItem('aldigens_receive_items', JSON.stringify(updatedRIs));
-      
-      fetchReceiveItems();
-      setActiveMenuId(null);
+    if (!window.confirm('Apakah Anda yakin ingin menghapus data penerimaan barang ini?')) {
+      return;
     }
+
+    try {
+      await api.delete(`/receive-items/${id}`);
+    } catch (error) {
+      console.log('Gagal menghapus dari server, menghapus dari penyimpanan lokal...', error);
+    }
+
+    const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
+    const updatedRIs = existingRIs.filter(
+      (item) => item.id !== id && item.receive_no !== id && item.ri_number !== id
+    );
+    localStorage.setItem('aldigens_receive_items', JSON.stringify(updatedRIs));
+
+    await fetchReceiveItems();
+    setActiveMenuId(null);
   };
 
   const handlePrint = (item) => {
@@ -388,21 +259,24 @@ export default function ReceiveItem() {
     const poRef = item.po_ref || item.po_reference || '-';
 
     const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
     printWindow.document.write(`
       <html><head><title>Penerimaan Barang - ${receiveNo}</title><style>body{font-family:sans-serif;padding:20px} table{width:100%;border-collapse:collapse;margin-top:15px} td{padding:8px;border:1px solid #ddd}</style></head>
       <body><h2>PT. ALDIGENS PUTERA PERSADA</h2><h3>BUKTI PENERIMAAN BARANG (RECEIVE ITEM)</h3>
       <table>
         <tr><td><strong>No. Penerimaan</strong></td><td>${receiveNo}</td></tr>
-        <tr><td><strong>Tanggal</strong></td><td>${item.date || item.receive_date}</td></tr>
+        <tr><td><strong>Tanggal</strong></td><td>${item.date || item.receive_date || '-'}</td></tr>
         <tr><td><strong>Vendor</strong></td><td>${vendor}</td></tr>
         <tr><td><strong>Ref. PO</strong></td><td>${poRef}</td></tr>
         <tr><td><strong>Delivery Order (DO)</strong></td><td>${item.delivery_order || '-'}</td></tr>
         <tr><td><strong>No. SPK</strong></td><td>${item.spk_supplier || '-'}</td></tr>
-        <tr><td><strong>Status</strong></td><td>${item.status}</td></tr>
+        <tr><td><strong>Status</strong></td><td>${item.status || '-'}</td></tr>
         <tr><td><strong>Catatan</strong></td><td>${item.notes || '-'}</td></tr>
       </table></body></html>
     `);
-    printWindow.document.close(); printWindow.print();
+    printWindow.document.close();
+    printWindow.print();
   };
 
   if (viewMode === 'form') {
@@ -417,13 +291,13 @@ export default function ReceiveItem() {
           </div>
           <form onSubmit={handleSave} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
+
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">No. Penerimaan (RI)</label><input required type="text" name="receiveNo" value={formData.receiveNo} onChange={handleInputChange} disabled={!!editingId} className={`w-full px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500 ${editingId ? 'bg-slate-100 dark:bg-slate-800 cursor-not-allowed' : 'bg-slate-50 dark:bg-slate-950'}`} /></div>
-              
+
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Tanggal</label><input required type="date" name="date" value={formData.date} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" /></div>
-              
+
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Vendor</label><input required type="text" name="vendorName" value={formData.vendorName} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nama Pemasok..." /></div>
-              
+
               <div><label className="block text-sm font-medium dark:text-slate-300 mb-1">Ref. PO</label><input type="text" name="poRef" value={formData.poRef} onChange={handleInputChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nomor PO..." /></div>
 
               {/* INPUT BARU UNTUK DO DAN SPK */}
@@ -438,13 +312,12 @@ export default function ReceiveItem() {
                   <option value="Partial">Diterima Sebagian (Partial)</option>
                 </select>
               </div>
-              
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium dark:text-slate-300 mb-1">Catatan</label>
                 <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="3" className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:ring-2 focus:ring-blue-500" placeholder="Catatan penerimaan..."></textarea>
               </div>
             </div>
-<<<<<<< HEAD
 
             {/* Daftar barang yang diterima — stok akan otomatis bertambah */}
             <div>
@@ -452,7 +325,7 @@ export default function ReceiveItem() {
                 <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                   Daftar Barang Diterima
                 </h3>
-                <button type="button" onClick={handleAddItemRow} className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer">
+                <button type="button" onClick={handleAddItem} className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer">
                   <Plus className="h-3.5 w-3.5" /> Tambah Baris Item
                 </button>
               </div>
@@ -463,70 +336,14 @@ export default function ReceiveItem() {
                       <th className="px-4 py-3 w-12 text-center">#</th>
                       <th className="px-4 py-3">Part Number / Nama Barang</th>
                       <th className="px-4 py-3 w-36">Jumlah Diterima</th>
-                      <th className="px-4 py-3 w-16 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                    {formData.items.map((item, index) => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
-                        <td className="px-4 py-3">
-                          <Select
-                            inputId={`ri-item-product-${item.id}`}
-                            placeholder="Ketik Part Number / Nama Barang..."
-                            isClearable
-                            isSearchable
-                            options={productOptions}
-                            value={productOptions.find(o => o.value === item.productId) || null}
-                            onChange={(option) => handleProductSelect(item.id, option)}
-                            noOptionsMessage={() => 'Barang tidak ditemukan di inventory'}
-                            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
-                            styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input required type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button type="button" onClick={() => handleRemoveItemRow(item.id)} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition cursor-pointer" title="Hapus Baris">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                Jumlah barang yang diterima akan otomatis menambah stok pada menu Inventory.
-              </p>
-            </div>
-=======
-            
-<<<<<<< HEAD
-            {/* Daftar item yang diterima — stok Inventory bertambah dari sini. */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Daftar Barang Diterima</h3>
-                <button type="button" onClick={handleAddItem} className="flex items-center gap-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer">
-                  <Plus className="h-3.5 w-3.5" /> Tambah Baris
-                </button>
-              </div>
-              <div className="border border-slate-200 dark:border-slate-800 rounded-xl">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 text-xs uppercase font-semibold">
-                    <tr>
-                      <th className="px-4 py-3 w-12 text-center">#</th>
-                      <th className="px-4 py-3">Part Number / Nama Barang</th>
-                      <th className="px-4 py-3 w-28">Kuantitas</th>
-                      <th className="px-4 py-3 w-24">Satuan</th>
+                      <th className="px-4 py-3 w-28">Satuan</th>
                       <th className="px-4 py-3 w-16 text-center">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                     {formData.items.map((item, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-3 text-center text-slate-400 text-xs">{index + 1}</td>
+                        <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
                         <td className="px-4 py-3">
                           <Select
                             options={productOptions}
@@ -568,10 +385,6 @@ export default function ReceiveItem() {
               </div>
               <p className="text-[11px] text-slate-400 mt-2">Stok Inventory akan bertambah otomatis saat data penerimaan disimpan.</p>
             </div>
-
-=======
->>>>>>> 791cde976e81c37ebfa6340787232644d6015c14
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onClick={() => setViewMode('list')} className="px-5 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-medium cursor-pointer">Batal</button>
               <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium cursor-pointer"><Save className="h-4 w-4" /> Simpan Data</button>
@@ -625,33 +438,32 @@ export default function ReceiveItem() {
                         <td className="px-6 py-3 font-medium text-blue-600 dark:text-blue-400">{receiveNo}</td>
                         <td className="px-6 py-3">{vendor}</td>
                         <td className="px-6 py-3 text-slate-500">{poRef}</td>
-                        
+
                         {/* PENAMBAHAN DATA BARIS KOLOM DO DAN SPK DI SINI */}
                         <td className="px-6 py-3 text-slate-500">{deliveryOrder}</td>
                         <td className="px-6 py-3 text-slate-500">{spkSupplier}</td>
 
                         <td className="px-6 py-3">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                                item.status?.includes('Completed') || item.status === 'Diterima Penuh' 
-                                ? 'bg-emerald-100 text-emerald-700' 
-                                : 'bg-amber-100 text-amber-700'
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${item.status?.includes('Completed') || item.status === 'Diterima Penuh'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
                             }`}>
-                                {item.status || 'Diterima'}
-                            </span>
+                            {item.status || 'Diterima'}
+                          </span>
                         </td>
                         <td className="px-6 py-3 text-center">
                           <button onClick={() => setActiveMenuId(activeMenuId === keyId ? null : keyId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md cursor-pointer"><MoreVertical className="h-4 w-4" /></button>
                           {activeMenuId === keyId && (
                             <div className="absolute right-12 top-8 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 text-left">
                               <button onClick={() => handleEdit(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Edit2 className="h-3.5 w-3.5 text-blue-500" /> Edit</button>
-                              
+
                               <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"><Printer className="h-3.5 w-3.5 text-emerald-500" /> Cetak</button>
                               <button onClick={() => handleDelete(keyId)} className="w-full px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 cursor-pointer"><Trash2 className="h-3.5 w-3.5" /> Hapus</button>
                             </div>
                           )}
                         </td>
                       </tr>
-                    )
+                    );
                   })
                 )}
               </tbody>

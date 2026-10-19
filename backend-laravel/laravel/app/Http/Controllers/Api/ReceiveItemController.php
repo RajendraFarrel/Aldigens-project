@@ -5,27 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ReceiveItem;
-<<<<<<< HEAD
 use App\Models\ReceiveItemLine;
 use App\Models\Supplier;
-=======
-<<<<<<< HEAD
+use App\Models\Warehouse;
 use App\Services\InventoryStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-=======
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
-use App\Models\Product;
-use App\Models\Warehouse;
-use App\Services\InventoryStockService;
-use Illuminate\Http\Request;
-<<<<<<< HEAD
-use Illuminate\Support\Facades\DB;
-=======
-use Illuminate\Support\Facades\DB; // Tambahkan ini untuk fitur Transaksi Database
->>>>>>> 791cde976e81c37ebfa6340787232644d6015c14
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
 
 class ReceiveItemController extends Controller
 {

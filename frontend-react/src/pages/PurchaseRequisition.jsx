@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿import { useState, useMemo, useEffect, useRef } from 'react';
-=======
-import React, { useState, useEffect, useMemo } from 'react';
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, FileText, CheckCircle2, Clock, ShoppingCart } from 'lucide-react';
 import Select from 'react-select';
 import Pagination from '../components/Pagination';
@@ -11,19 +7,23 @@ import { getProducts } from '../services/api';
 
 export default function PurchaseRequisition() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
-  // Ambil daftar barang dari inventory untuk pencarian Part Number / Nama Barang.
+  // Daftar item Inventory untuk pemilih Part Number (bukan ketik manual).
+  const [inventoryItems, setInventoryItems] = useState([]);
+
+  // Muat item Inventory sekali saat halaman dibuka.
   useEffect(() => {
     let active = true;
     const loadProducts = async () => {
       setLoadingProducts(true);
       try {
-        const res = await getProducts();
-        if (active) setProducts(res.data?.data ?? []);
+        const res = await getProducts('');
+        const rows = res.data?.data || res.data || [];
+        if (active) setInventoryItems(Array.isArray(rows) ? rows : []);
       } catch (err) {
         console.error('Gagal memuat daftar barang inventory:', err);
+        if (active) setInventoryItems([]);
       } finally {
         if (active) setLoadingProducts(false);
       }
@@ -32,44 +32,26 @@ export default function PurchaseRequisition() {
     return () => { active = false; };
   }, []);
 
-  // Opsi react-select: cari berdasarkan part number, nama barang, atau kode.
-  const productOptions = useMemo(() => products.map((p) => ({
-    value: p.id,
-    label: [p.part_number, p.name].filter(Boolean).join(' - ') || p.name || `#${p.id}`,
-    raw: p,
-  })), [products]);
-  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
-  const [activeMenuId, setActiveMenuId] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-
-  // Daftar item Inventory untuk pemilih Part Number (bukan ketik manual).
-  const [inventoryItems, setInventoryItems] = useState([]);
-
-  // Counter untuk menghasilkan id baris item yang unik & stabil.
-  const rowSeq = useRef(0);
-
-  // Muat item Inventory sekali saat halaman dibuka.
-  useEffect(() => {
-    getProducts('')
-      .then((res) => {
-        const rows = res.data?.data || res.data || [];
-        setInventoryItems(Array.isArray(rows) ? rows : []);
-      })
-      .catch(() => setInventoryItems([]));
-  }, []);
-
-  // Opsi react-select: value dipakai sebagai `partNumber` (kode — nama).
+  // Opsi react-select: value dipakai sebagai id produk, label = kode — nama.
   const productOptions = useMemo(() => inventoryItems.map((inv) => {
     const code = inv.part_number || inv.product_code || inv.barcode;
     const name = inv.name || inv.description || '';
     return {
-      value: name ? `${code} — ${name}` : code,
+      value: inv.id,
       code,
       name,
       unit: inv.unit || 'PCS',
       label: name ? `${code} — ${name}` : code,
+      raw: inv,
     };
   }), [inventoryItems]);
+
+  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
+  const [activeMenuId, setActiveMenuId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+
+  // Counter untuk menghasilkan id baris item yang unik & stabil.
+  const rowSeq = useRef(0);
 
   // Data Dummy Permintaan Pembelian (PR)
   const [dummyPRs, setDummyPRs] = useState([
@@ -111,33 +93,25 @@ export default function PurchaseRequisition() {
 
   // State Form Input
   const [formData, setFormData] = useState({
-    prNo: 'PR-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(1000 + Math.random() * 9000),
+    prNo: 'PR-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.floor(1000 + Math.random() * 9000),
     date: new Date().toISOString().split('T')[0],
     department: 'Produksi',
     requester: 'Administrator',
     remarks: '',
     status: 'Menunggu',
-<<<<<<< HEAD
-    items: [{ id: 1, partNumber: '', quantity: 1, unit: 'PCS' }]
-=======
     items: [{ id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
   });
 
   const handleOpenAddForm = () => {
     setEditingId(null);
     setFormData({
-      prNo: 'PR-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + Math.floor(1000 + Math.random() * 9000),
+      prNo: 'PR-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.floor(1000 + Math.random() * 9000),
       date: new Date().toISOString().split('T')[0],
       department: 'Produksi',
       requester: 'Administrator',
       remarks: '',
       status: 'Menunggu',
-<<<<<<< HEAD
-      items: [{ id: 1, partNumber: '', quantity: 1, unit: 'PCS' }]
-=======
       items: [{ id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
     });
     setViewMode('form');
   };
@@ -155,17 +129,10 @@ export default function PurchaseRequisition() {
   const nextRowId = () => (Date.now() + (rowSeq.current++));
 
   const handleAddItemRow = () => {
-<<<<<<< HEAD
     setFormData(prevForm => ({
       ...prevForm,
-      items: [...prevForm.items, { id: nextRowId(), partNumber: '', quantity: 1, unit: 'PCS' }]
+      items: [...prevForm.items, { id: nextRowId(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
     }));
-=======
-    setFormData({
-      ...formData,
-      items: [...formData.items, { id: Date.now(), productId: null, partNumber: '', quantity: 1, unit: 'PCS' }]
-    });
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
   };
 
   const handleRemoveItemRow = (id) => {
@@ -195,7 +162,7 @@ export default function PurchaseRequisition() {
         ...i,
         productId: option ? option.value : null,
         partNumber: option ? option.label : '',
-        unit: option?.raw?.unit || i.unit,
+        unit: option ? (option.unit || option.raw?.unit || i.unit) : i.unit,
       } : i)
     });
   };
@@ -280,7 +247,7 @@ export default function PurchaseRequisition() {
         <table>
           <thead><tr><th>No</th><th>Part Number / Nama Barang</th><th>Kuantitas</th><th>Satuan</th></tr></thead>
           <tbody>
-            ${item.items.map((i, idx) => `<tr><td>${idx+1}</td><td>${i.partNumber}</td><td>${i.quantity}</td><td>${i.unit}</td></tr>`).join('')}
+            ${item.items.map((i, idx) => `<tr><td>${idx + 1}</td><td>${i.partNumber}</td><td>${i.quantity}</td><td>${i.unit}</td></tr>`).join('')}
           </tbody>
         </table>
       </body></html>
@@ -319,26 +286,26 @@ export default function PurchaseRequisition() {
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Tanggal Permintaan</label>
-                <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                <input required type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Departemen</label>
-                <input required type="text" placeholder="Contoh: Produksi / Maintenance" value={formData.department} onChange={(e) => setFormData({...formData, department: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                <input required type="text" placeholder="Contoh: Produksi / Maintenance" value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Pemohon (Requester)</label>
-                <input required type="text" placeholder="Nama pemohon..." value={formData.requester} onChange={(e) => setFormData({...formData, requester: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                <input required type="text" placeholder="Nama pemohon..." value={formData.requester} onChange={(e) => setFormData({ ...formData, requester: e.target.value })} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Status</label>
-                <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
                   <option value="Menunggu">Menunggu (Pending)</option>
                   <option value="Disetujui">Disetujui (Approved)</option>
                 </select>
               </div>
               <div className="md:col-span-3">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Keterangan / Catatan</label>
-                <textarea rows="2" placeholder="Catatan atau alasan permintaan..." value={formData.remarks} onChange={(e) => setFormData({...formData, remarks: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"></textarea>
+                <textarea rows="2" placeholder="Catatan atau alasan permintaan..." value={formData.remarks} onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"></textarea>
               </div>
             </div>
 
@@ -368,26 +335,6 @@ export default function PurchaseRequisition() {
                     {formData.items.map((item, index) => (
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
-<<<<<<< HEAD
-                        <td className="px-4 py-3 min-w-[280px]">
-                          <Select
-                            options={productOptions}
-                            value={productOptions.find((o) => o.value === item.partNumber) || null}
-                            onChange={(opt) => {
-                              handleItemChange(item.id, 'partNumber', opt ? opt.value : '');
-                              if (opt) handleItemChange(item.id, 'unit', opt.unit);
-                            }}
-                            placeholder="Cari & pilih Part Number dari Inventory..."
-                            isSearchable
-                            isClearable
-                            className="text-sm text-slate-800"
-                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                            menuPosition="fixed"
-                            styles={{
-                              menu: (base) => ({ ...base, zIndex: 9999 }),
-                              menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                            }}
-=======
                         <td className="px-4 py-3">
                           <Select
                             inputId={`pr-item-product-${item.id}`}
@@ -404,7 +351,6 @@ export default function PurchaseRequisition() {
                             loadingMessage={() => 'Memuat daftar barang...'}
                             menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
                             styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
->>>>>>> 7c884ac67d259c58448c0de8c19d7fd3b5e482f3
                           />
                         </td>
                         <td className="px-4 py-3">
@@ -448,21 +394,21 @@ export default function PurchaseRequisition() {
   return (
     <div className="p-6">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
-        
+
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Cari no. PR atau departemen..." 
+              <input
+                type="text"
+                placeholder="Cari no. PR atau departemen..."
                 className="pl-10 pr-4 py-2.5 w-full sm:w-80 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
-          
+
           <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition cursor-pointer">
             <Plus className="h-4 w-4" />
             Simpan PR
@@ -503,7 +449,7 @@ export default function PurchaseRequisition() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center relative">
-                    <button 
+                    <button
                       onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
                       className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                     >
@@ -513,26 +459,26 @@ export default function PurchaseRequisition() {
                     {activeMenuId === item.id && (
                       <div className="absolute right-12 top-10 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
                         {item.status === 'Disetujui' && (
-                          <button 
+                          <button
                             onClick={() => handleConvertToPO(item)}
                             className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-700"
                           >
                             <ShoppingCart className="h-4 w-4" /> Proses ke PO
                           </button>
                         )}
-                        <button 
+                        <button
                           onClick={() => handleOpenEditForm(item)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
                         >
                           <Edit3 className="h-4 w-4 text-blue-500" /> Edit PR
                         </button>
-                        <button 
+                        <button
                           onClick={() => handlePrint(item)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
                         >
                           <Printer className="h-4 w-4 text-emerald-500" /> Cetak Dokumen
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleDelete(item.id)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700"
                         >

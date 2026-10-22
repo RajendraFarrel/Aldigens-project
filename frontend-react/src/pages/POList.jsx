@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 import { PlusCircle, X, Trash2, Plus, Printer } from 'lucide-react';
@@ -58,16 +58,20 @@ export default function POList() {
             
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setInventoryItems(apiData);
-            } else if (Array.isArray(response?.data)) {
-                setInventoryItems(response.data);
-            } else {
-                const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
-                setInventoryItems(localParts);
+                return;
             }
         } catch (err) {
-            const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
-            setInventoryItems(localParts);
+            // Lanjut ke local storage
         }
+
+        const localProducts = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
+        const localInventory = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+        const localCustomerParts = JSON.parse(localStorage.getItem('aldigens_customer_part_numbers') || '[]');
+        
+        const combined = [...localProducts, ...localInventory, ...localCustomerParts];
+        const uniqueItems = Array.from(new Map(combined.map(item => [item.part_number || item.product_code || item.id, item])).values());
+
+        setInventoryItems(uniqueItems);
     };
 
     // Mapping data inventory ke format options react-select
@@ -172,10 +176,11 @@ export default function POList() {
         }
     };
 
+    // --- FUNGSI BARU YANG 100% MENEMBAK API LARAVEL ---
     const handleConvertToReceiveItem = async (id) => {
         const ok = await swalConfirm({
             title: 'Proses ke Receive Item (RI)?',
-            text: 'Purchase Order ini akan diterima di gudang dan otomatis mencatat stok masuk.',
+            text: 'Purchase Order ini akan diterima di gudang dan otomatis mencatat stok masuk ke Database.',
             confirmText: 'Ya, Terima Barang',
             cancelText: 'Batal',
             icon: 'question',
@@ -186,20 +191,21 @@ export default function POList() {
             const targetPO = purchaseOrders.find(po => po.id === id || po.po_number === id);
 
             if (targetPO) {
-                const newRI = {
-                    id: Date.now(),
-                    ri_number: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
-                    po_reference: targetPO.po_number || targetPO.customer_po_number,
-                    supplier_name: targetPO.customer_name || 'Supplier Umum',
+                // FORMAT DATA HARUS SAMA PERSIS DENGAN VALIDASI LARAVEL
+                const payloadRI = {
+                    receiveNo: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
                     date: new Date().toISOString().split('T')[0],
+                    vendorName: targetPO.customer_name || 'Supplier Umum',
+                    poRef: targetPO.po_number || targetPO.customer_po_number,
                     status: 'Completed',
                     items: targetPO.items || []
                 };
 
-                const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-                localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
+                // TEMBAK API KE BACKEND LARAVEL
+                await api.post('/receive-items', payloadRI);
             }
 
+            // Update status PO di tampilan React menjadi Received
             const updated = purchaseOrders.map(po => {
                 if (po.id === id || po.po_number === id) {
                     return { ...po, status: 'Received (RI)' };
@@ -209,10 +215,13 @@ export default function POList() {
             setPurchaseOrders(updated);
             localStorage.setItem('aldigens_purchase_orders', JSON.stringify(updated));
 
-            swalSuccess('Berhasil', 'Barang berhasil diterima di gudang (Receive Item tercatat)!');
+            swalSuccess('Berhasil', 'Barang berhasil diterima & stok Inventory otomatis bertambah di Database!');
             fetchPurchaseOrders();
+            
         } catch (error) {
-            swalError('Gagal', 'Terjadi kesalahan saat memproses penerimaan barang.');
+            console.error("Error dari backend:", error);
+            const errMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang ke database.';
+            swalError('Gagal', errMsg);
         }
     };
 

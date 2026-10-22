@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, Barcode, X, Save, RefreshCw, Package, Printer, Upload, FileSpreadsheet } from 'lucide-react';
 import { getProducts, createProduct, updateProduct, deleteProduct, importProducts, downloadProductTemplate, downloadExport, getCustomers } from '../services/api';
 import BarcodeLabel, { printBarcodes } from '../components/BarcodeLabel';
@@ -39,34 +39,30 @@ export default function InventoryProducts() {
 
   const pagination = usePagination(products, 10);
 
-  // --- FUNGSI FETCH YANG DIPERBAIKI (Tahan Mode Offline) ---
+  // --- FUNGSI FETCH DISINKRONKAN KE ALDIGENS_PRODUCTS ---
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Coba ambil dari API (Laravel) terlebih dahulu
       const res = await getProducts(search);
       let apiData = res.data?.data || res.data || [];
       
-      // Jika berhasil, simpan/update ke localStorage agar tersinkronisasi
       if (apiData.length > 0) {
-        localStorage.setItem('aldigens_inventory', JSON.stringify(apiData));
+        localStorage.setItem('aldigens_products', JSON.stringify(apiData));
         setProducts(apiData);
       } else {
-        // Fallback jika API kosong tapi tidak error
         fallbackToLocal(search);
       }
     } catch (e) {
-      // 2. JIKA API ERROR/MATI, BACA DARI LOCAL STORAGE (SAMA DENGAN RECEIVE ITEM)
-      console.warn("Backend API Offline, membaca data stok dari LocalStorage...");
+      console.warn("Backend API Offline, membaca data stok dari aldigens_products...");
       fallbackToLocal(search);
     } finally {
       setLoading(false);
     }
   }, [search]);
 
-  // Fungsi Pembantu untuk membaca LocalStorage
+  // Fungsi Pembantu membaca LocalStorage aldigens_products
   const fallbackToLocal = (searchTerm) => {
-    const localInventory = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+    const localInventory = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
     if (!searchTerm) {
       setProducts(localInventory);
       return;
@@ -96,11 +92,11 @@ export default function InventoryProducts() {
     setForm({
       product_code: product.product_code || '',
       part_number: product.part_number || '',
-      name: product.name || '',
+      name: product.name || product.description || '',
       category: product.category || '',
       item_type: product.item_type || 'BAHAN / COMPONENT',
       unit: product.unit || 'PCS',
-      stock: product.stock ?? product.qty ?? 0, // Fallback untuk qty dari ReceiveItem
+      stock: product.stock ?? product.qty ?? product.stok ?? 0,
       minimum_stock: product.minimum_stock ?? 0,
       maximum_stock: product.maximum_stock ?? '',
       customer_id: product.customer_id ?? '',
@@ -121,7 +117,6 @@ export default function InventoryProducts() {
     setSaving(true);
     setError('');
     try {
-      // Mencoba simpan via API
       if (editingProduct) {
         await updateProduct(editingProduct.id || editingProduct.part_number, form);
       } else {
@@ -131,21 +126,20 @@ export default function InventoryProducts() {
     } catch (e) {
       console.warn("API Error saat simpan, menggunakan LocalStorage fallback...");
       
-      // Jika API mati, simpan secara lokal ke brankas yang sama
-      let currentLocal = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+      let currentLocal = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
       if (editingProduct) {
         currentLocal = currentLocal.map(item => 
           (item.id === editingProduct.id || item.part_number === editingProduct.part_number) 
-            ? { ...item, ...form, stock: form.stock } 
+            ? { ...item, ...form, stock: form.stock, stok: form.stock, qty: form.stock } 
             : item
         );
         swalToast('Produk diperbarui (Offline Mode).', 'success');
       } else {
-        const newProduct = { ...form, id: Date.now() };
+        const newProduct = { ...form, id: Date.now(), stok: form.stock, stock: form.stock, qty: form.stock };
         currentLocal.push(newProduct);
         swalToast('Produk ditambahkan (Offline Mode).', 'success');
       }
-      localStorage.setItem('aldigens_inventory', JSON.stringify(currentLocal));
+      localStorage.setItem('aldigens_products', JSON.stringify(currentLocal));
     } finally {
       setShowModal(false);
       setSaving(false);
@@ -219,10 +213,9 @@ export default function InventoryProducts() {
       swalToast('Produk berhasil dihapus.', 'success');
     } catch (e) {
       console.warn("API Error saat hapus, menggunakan LocalStorage fallback...");
-      // Fallback penghapusan lokal
-      let currentLocal = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+      let currentLocal = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
       currentLocal = currentLocal.filter(item => item.id !== product.id && item.part_number !== product.part_number);
-      localStorage.setItem('aldigens_inventory', JSON.stringify(currentLocal));
+      localStorage.setItem('aldigens_products', JSON.stringify(currentLocal));
       swalToast('Produk dihapus (Offline Mode).', 'success');
     } finally {
       fetchProducts();
@@ -231,8 +224,6 @@ export default function InventoryProducts() {
 
   return (
     <div className="p-6 space-y-5">
-
-      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2.5 rounded-xl shadow">
@@ -244,38 +235,24 @@ export default function InventoryProducts() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={openImport}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer"
-          >
-            <Upload className="h-4 w-4" />
-            Import Excel
+          <button onClick={openImport} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer">
+            <Upload className="h-4 w-4" /> Import Excel
           </button>
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Export Excel
+          <button onClick={handleExport} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer">
+            <FileSpreadsheet className="h-4 w-4" /> Export Excel
           </button>
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            Tambah Produk
+          <button onClick={openAdd} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer">
+            <Plus className="h-4 w-4" /> Tambah Produk
           </button>
         </div>
       </div>
 
-      {/* Alert messages */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
           <span>✗</span> {error}
         </div>
       )}
 
-      {/* Search & Refresh */}
       <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -287,16 +264,11 @@ export default function InventoryProducts() {
             className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           />
         </div>
-        <button
-          onClick={fetchProducts}
-          className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-100 transition text-slate-600 cursor-pointer"
-          title="Refresh"
-        >
+        <button onClick={fetchProducts} className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-100 transition text-slate-600 cursor-pointer" title="Refresh">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -313,20 +285,11 @@ export default function InventoryProducts() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-10 text-slate-400">
-                    <RefreshCw className="h-5 w-5 animate-spin inline mr-2" />
-                    Memuat data...
-                  </td>
-                </tr>
+                <tr><td colSpan={7} className="text-center py-10 text-slate-400"><RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data...</td></tr>
               ) : pagination.paginatedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-10 text-slate-400">
-                    Tidak ada produk ditemukan.
-                  </td>
-                </tr>
+                <tr><td colSpan={7} className="text-center py-10 text-slate-400">Tidak ada produk ditemukan.</td></tr>
               ) : pagination.paginatedItems.map((p, idx) => {
-                const finalStock = Number(p.stock ?? p.qty ?? 0);
+                const finalStock = Number(p.stock ?? p.stok ?? p.qty ?? 0);
                 return (
                   <tr key={p.id || p.part_number || idx} className="hover:bg-slate-50 transition">
                     <td className="px-4 py-3 text-slate-600 text-xs">{p.part_number || p.product_code || '-'}</td>
@@ -341,27 +304,9 @@ export default function InventoryProducts() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => setBarcodeProduct(p)}
-                          className="p-1.5 rounded-lg text-violet-600 hover:bg-violet-50 transition cursor-pointer"
-                          title="Lihat Barcode"
-                        >
-                          <Barcode className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition cursor-pointer"
-                          title="Edit"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p)}
-                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition cursor-pointer"
-                          title="Hapus"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <button onClick={() => setBarcodeProduct(p)} className="p-1.5 rounded-lg text-violet-600 hover:bg-violet-50 transition cursor-pointer" title="Lihat Barcode"><Barcode className="h-4 w-4" /></button>
+                        <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition cursor-pointer" title="Edit"><Edit2 className="h-4 w-4" /></button>
+                        <button onClick={() => handleDelete(p)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition cursor-pointer" title="Hapus"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -370,142 +315,51 @@ export default function InventoryProducts() {
             </tbody>
           </table>
         </div>
-
-        {/* Pagination Controller */}
-        <Pagination
-          currentPage={pagination.currentPage}
-          totalItems={pagination.totalItems}
-          pageSize={pagination.pageSize}
-          onPageChange={pagination.setCurrentPage}
-          onPageSizeChange={pagination.setPageSize}
-        />
+        <Pagination currentPage={pagination.currentPage} totalItems={pagination.totalItems} pageSize={pagination.pageSize} onPageChange={pagination.setCurrentPage} onPageSizeChange={pagination.setPageSize} />
       </div>
 
       {/* Modal Tambah/Edit */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">
-                {editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
-              </h3>
-              <button onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
-                <X className="h-5 w-5" />
-              </button>
+              <h3 className="text-lg font-bold text-slate-900">{editingProduct ? 'Edit Produk' : 'Tambah Produk Baru'}</h3>
+              <button onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"><X className="h-5 w-5" /></button>
             </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">
-                {error}
-              </div>
-            )}
+            {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">{error}</div>}
 
             <div className="space-y-3">
               <div>
-                <div className="text-xs text-slate-500">Kode internal/barcode dikelola sistem.</div>
-                <input
-                  type="text"
-                  value={form.product_code}
-                  onChange={(e) => setForm({ ...form, product_code: e.target.value })}
-                  placeholder="Kode internal dikelola sistem"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Part Number</label>
-                <input
-                  type="text"
-                  value={form.part_number}
-                  onChange={(e) => setForm({ ...form, part_number: e.target.value })}
-                  placeholder="Part number dari supplier"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Customer</label>
-                <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option value="">Tanpa Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customer_code} — {customer.customer_name}</option>)}</select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">Jenis Item</label>
-                <select value={form.item_type} onChange={(e) => setForm({ ...form, item_type: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option>BAHAN / COMPONENT</option><option>PRODUK JADI</option><option>PRODUKSI</option></select>
+                <input type="text" value={form.part_number} onChange={(e) => setForm({ ...form, part_number: e.target.value })} placeholder="Part number dari supplier" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Nama Produk <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Nama produk/barang"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama produk/barang" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-600 block mb-1">Kategori</label>
-                  <input
-                    type="text"
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    placeholder="Sparepart, Alat, dll"
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <input type="text" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Kategori" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 block mb-1">Satuan</label>
-                  <select
-                    value={form.unit}
-                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  >
-                    <option>PCS</option>
-                    <option>SET</option>
-                    <option>ROLL</option>
-                    <option>METER</option>
-                    <option>KG</option>
-                    <option>LITER</option>
-                    <option>BOX</option>
-                    <option>LUSIN</option>
+                  <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                    <option>PCS</option><option>SET</option><option>ROLL</option><option>METER</option><option>KG</option><option>BOX</option>
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">
-                    {editingProduct ? 'Jumlah Stok' : 'Stok Awal'}
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.stock}
-                    onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  />
-                  {editingProduct && (
-                    <p className="text-[11px] text-amber-600 mt-1 leading-relaxed">
-                      Perubahan jumlah stok dicatat sebagai adjustment pada histori mutasi.
-                    </p>
-                  )}
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Stok Awal</label>
+                <input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) || 0 })} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white" />
               </div>
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition disabled:opacity-60 cursor-pointer"
-              >
-                {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {saving ? 'Menyimpan...' : 'Simpan'}
+              <button onClick={() => setShowModal(false)} className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition cursor-pointer">Batal</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition disabled:opacity-60 cursor-pointer">
+                {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Simpan
               </button>
             </div>
           </div>
@@ -515,49 +369,21 @@ export default function InventoryProducts() {
       {/* Modal Barcode */}
       {barcodeProduct && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setBarcodeProduct(null)}>
-          <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Barcode className="h-5 w-5 text-violet-600" />
-                Barcode Produk
-              </h3>
-              <button onClick={() => setBarcodeProduct(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
-                <X className="h-5 w-5" />
-              </button>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Barcode className="h-5 w-5 text-violet-600" /> Barcode Produk</h3>
+              <button onClick={() => setBarcodeProduct(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"><X className="h-5 w-5" /></button>
             </div>
-
             <div className="text-center space-y-1">
               <p className="font-semibold text-slate-800">{barcodeProduct.name || barcodeProduct.description}</p>
-              {barcodeProduct.part_number && (
-                <p className="text-xs text-slate-500">Part No: {barcodeProduct.part_number}</p>
-              )}
+              {barcodeProduct.part_number && <p className="text-xs text-slate-500">Part No: {barcodeProduct.part_number}</p>}
             </div>
-
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex justify-center overflow-x-auto">
-              <BarcodeLabel
-                value={barcodeProduct.barcode || barcodeProduct.product_code || barcodeProduct.part_number || 'UNKNOWN'}
-                height={70}
-                width={2}
-              />
+              <BarcodeLabel value={barcodeProduct.barcode || barcodeProduct.product_code || barcodeProduct.part_number || 'UNKNOWN'} height={70} width={2} />
             </div>
-
             <div className="flex gap-3">
-              <button
-                onClick={() => setBarcodeProduct(null)}
-                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition cursor-pointer"
-              >
-                Tutup
-              </button>
-              <button
-                onClick={() => { handlePrintBarcode(barcodeProduct); }}
-                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition cursor-pointer"
-              >
-                <Printer className="h-4 w-4" />
-                Cetak
-              </button>
+              <button onClick={() => setBarcodeProduct(null)} className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-medium">Tutup</button>
+              <button onClick={() => handlePrintBarcode(barcodeProduct)} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2"><Printer className="h-4 w-4" /> Cetak</button>
             </div>
           </div>
         </div>
@@ -566,84 +392,20 @@ export default function InventoryProducts() {
       {/* Modal Import Excel */}
       {showImport && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
-          <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
-                Import Data Produk
-              </h3>
-              <button onClick={() => setShowImport(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
-                <X className="h-5 w-5" />
-              </button>
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-emerald-600" /> Import Data Produk</h3>
+              <button onClick={() => setShowImport(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"><X className="h-5 w-5" /></button>
             </div>
-
-            <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs px-3 py-2.5 rounded-xl leading-relaxed">
-              Kolom yang dibaca: <b>Part Number, Nama Barang, Jenis Barang, Satuan, Stock Awal</b>.
-              Kode internal tidak perlu diisi — dibuat otomatis oleh sistem.
-            </div>
-
-            <button
-              onClick={handleDownloadTemplate}
-              className="w-full flex items-center justify-center gap-2 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-medium px-4 py-2.5 rounded-xl transition cursor-pointer"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Download Template Excel
+            <button onClick={handleDownloadTemplate} className="w-full flex items-center justify-center gap-2 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-medium px-4 py-2.5 rounded-xl transition cursor-pointer">
+              <FileSpreadsheet className="h-4 w-4" /> Download Template Excel
             </button>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1">Pilih File (.xlsx / .xls / .csv)</label>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={(e) => { setImportFile(e.target.files[0] || null); setImportResult(null); }}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white file:text-xs file:font-medium cursor-pointer"
-              />
-            </div>
-
-            {importResult && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Berhasil diimpor</span>
-                  <span className="font-bold text-emerald-600">{importResult.imported}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Dilewati</span>
-                  <span className="font-bold text-amber-600">{importResult.skipped}</span>
-                </div>
-                {importResult.errors && importResult.errors.length > 0 && (
-                  <div className="pt-1 border-t border-slate-200 max-h-32 overflow-y-auto">
-                    <p className="text-[11px] font-semibold text-slate-500 mb-1">Catatan:</p>
-                    {importResult.errors.map((msg, i) => (
-                      <p key={i} className="text-[11px] text-slate-500">{msg}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
+            {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">{error}</div>}
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => { setImportFile(e.target.files[0] || null); setImportResult(null); }} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white file:text-xs cursor-pointer" />
             <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setShowImport(false)}
-                className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition cursor-pointer"
-              >
-                Tutup
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={importing || !importFile}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition disabled:opacity-60 cursor-pointer"
-              >
-                {importing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {importing ? 'Mengimpor...' : 'Mulai Import'}
+              <button onClick={() => setShowImport(false)} className="flex-1 border border-slate-200 text-slate-600 py-2.5 rounded-xl text-sm font-medium">Tutup</button>
+              <button onClick={handleImport} disabled={importing || !importFile} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer">
+                {importing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Mulai Import
               </button>
             </div>
           </div>

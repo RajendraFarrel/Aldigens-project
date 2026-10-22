@@ -11,6 +11,9 @@ export default function ReceiveItem() {
   const [editingId, setEditingId] = useState(null);
   const [receiveItems, setReceiveItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // TAMBAHAN: State untuk menampung daftar produk dari Inventory untuk Auto-Complete
+  const [masterProducts, setMasterProducts] = useState([]);
 
   // Form State, sekarang dengan tambahan item barang untuk masuk inventory
   const [formData, setFormData] = useState({
@@ -23,13 +26,16 @@ export default function ReceiveItem() {
     status: 'Completed',
     notes: '',
     items: [
-      { description: '', qty: 1, unit: 'PCS' } // Contoh struktur item barang
+      { description: '', qty: 1, unit: 'PCS' }
     ]
   });
 
   // Ambil data dari API Laravel atau LocalStorage saat halaman dibuka
   useEffect(() => {
     fetchReceiveItems();
+    // Ambil data Inventory untuk fitur Auto-Complete dropdown
+    const localInv = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+    setMasterProducts(localInv);
   }, []);
 
   const fetchReceiveItems = async () => {
@@ -99,6 +105,10 @@ export default function ReceiveItem() {
       notes: '',
       items: [{ description: '', qty: 1, unit: 'PCS' }]
     });
+    
+    // Refresh master produk tiap kali form dibuka
+    const localInv = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+    setMasterProducts(localInv);
     setViewMode('form');
   };
 
@@ -121,31 +131,36 @@ export default function ReceiveItem() {
 
   // --- FUNGSI UTAMA: MENAMBAHKAN STOK KE INVENTORY OTOMATIS ---
   const updateInventoryStock = (receivedItems) => {
-    // Ambil data inventory yang ada di localStorage (sesuaikan key inventory-mu, misal 'aldigens_inventory' atau 'inventory')
     const inventoryKey = 'aldigens_inventory';
     let currentInventory = JSON.parse(localStorage.getItem(inventoryKey) || '[]');
 
     receivedItems.forEach(incomingItem => {
-      const itemName = incomingItem.description || incomingItem.part_number || '';
-      const qtyToAdd = Number(incomingItem.qty || incomingItem.qty_received || 0);
+      const itemName = String(incomingItem.description || incomingItem.part_number || '').trim().toLowerCase();
+      const qtyToAdd = Number(incomingItem.qty || 0);
 
       if (!itemName || qtyToAdd <= 0) return;
 
-      // Cari apakah barang sudah ada di inventory
+      // Cari apakah barang sudah ada di inventory berdasarkan name atau part_number
       const existingProductIndex = currentInventory.findIndex(prod => 
-        String(prod.name || prod.description || prod.part_number).toLowerCase() === String(itemName).toLowerCase()
+        String(prod.name || '').trim().toLowerCase() === itemName ||
+        String(prod.description || '').trim().toLowerCase() === itemName ||
+        String(prod.part_number || '').trim().toLowerCase() === itemName
       );
 
       if (existingProductIndex !== -1) {
-        // Jika sudah ada, tambahkan stoknya
-        currentInventory[existingProductIndex].qty = Number(currentInventory[existingProductIndex].qty || currentInventory[existingProductIndex].stock || 0) + qtyToAdd;
+        // Jika sudah ada, tambahkan ke 'stock' DAN 'qty' agar sinkron dengan semua halaman
+        const currentStock = Number(currentInventory[existingProductIndex].stock || currentInventory[existingProductIndex].qty || 0);
+        currentInventory[existingProductIndex].stock = currentStock + qtyToAdd;
+        currentInventory[existingProductIndex].qty = currentStock + qtyToAdd;
       } else {
-        // Jika belum ada barangnya di inventory, buat data baru otomatis
+        // Jika belum ada, buat data baru otomatis di inventory
         currentInventory.push({
           id: Date.now() + Math.random(),
-          part_number: incomingItem.part_number || itemName,
-          name: itemName,
-          description: itemName,
+          part_number: incomingItem.part_number || incomingItem.description,
+          name: incomingItem.description,
+          description: incomingItem.description,
+          category: 'Barang Masuk',
+          stock: qtyToAdd,
           qty: qtyToAdd,
           unit: incomingItem.unit || 'PCS'
         });
@@ -305,7 +320,7 @@ export default function ReceiveItem() {
               </div>
             </div>
 
-            {/* TABEL INPUT RINCIAN BARANG MASUK */}
+            {/* TABEL INPUT RINCIAN BARANG MASUK DENGAN AUTO-COMPLETE */}
             <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Rincian Barang yang Diterima</h3>
@@ -319,12 +334,21 @@ export default function ReceiveItem() {
                   <div className="flex-1">
                     <input 
                       type="text" 
+                      list="inventory-products-list"
                       required 
-                      placeholder="Nama / Deskripsi Barang..." 
+                      placeholder="Pilih atau Ketik Nama / Part Number..." 
                       value={it.description} 
                       onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
                       className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-sm dark:text-white outline-none"
                     />
+                    {/* Datalist untuk dropdown otomatis */}
+                    <datalist id="inventory-products-list">
+                      {masterProducts.map((p, i) => (
+                        <option key={i} value={p.name || p.description || p.part_number}>
+                          {p.name || p.description} (Stok: {p.stock ?? p.qty ?? 0})
+                        </option>
+                      ))}
+                    </datalist>
                   </div>
                   <div className="w-24">
                     <input 

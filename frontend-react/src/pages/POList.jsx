@@ -23,7 +23,7 @@ export default function POList() {
         supplier_email: '-',
         subject: '',
         tax_percentage: 0,
-        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }],
+        items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
     });
 
     useEffect(() => {
@@ -36,14 +36,14 @@ export default function POList() {
         try {
             const response = await api.get('/purchase-orders').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-
+            
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setPurchaseOrders(apiData);
             } else {
                 const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
                 setPurchaseOrders(localData);
             }
-        } catch {
+        } catch (error) {
             const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
             setPurchaseOrders(localData);
         } finally {
@@ -55,14 +55,13 @@ export default function POList() {
         try {
             const response = await api.get('/inventory/products').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-
+            
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setInventoryItems(apiData);
                 return;
             }
         } catch (err) {
-            const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
-            setInventoryItems(localParts);
+            // Lanjut ke local storage
         }
 
         const localProducts = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
@@ -77,10 +76,9 @@ export default function POList() {
 
     // Mapping data inventory ke format options react-select
     const productOptions = inventoryItems.map((inv) => ({
-        value: inv.id,
+        value: inv.part_number || inv.product_code,
         label: `${inv.part_number || inv.product_code} — ${inv.name || inv.description}`,
-        description: inv.name || inv.description || '',
-        raw: inv,
+        description: inv.name || inv.description || ''
     }));
 
     // Kalkulasi Subtotal, PPN, dan Grand Total
@@ -89,11 +87,11 @@ export default function POList() {
     }, 0);
 
     const numericTaxPercent = Number(formData.tax_percentage || 0);
-    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100));
+    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100)); 
     const calculatedGrandTotal = calculatedSubTotal + calculatedTaxAmount;
 
     const handleAddItem = () => {
-        setFormData({ ...formData, items: [...formData.items, { product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }] });
+        setFormData({ ...formData, items: [...formData.items, { part_number: '', description: '', qty: 1, unit_price: 0 }] });
     };
 
     const handleRemoveItem = (index) => {
@@ -106,9 +104,9 @@ export default function POList() {
         updatedItems[index][field] = value;
 
         if (field === 'part_number') {
-            const selectedPart = inventoryItems.find(p => p.id === value);
+            const selectedPart = inventoryItems.find(p => p.part_number === value || p.product_code === value || p.id?.toString() === value);
             if (selectedPart) {
-                updatedItems[index].description = selectedPart.name || selectedPart.description || '';
+                updatedItems[index].description = selectedPart.name || selectedPart.description || value;
             }
         }
 
@@ -124,7 +122,7 @@ export default function POList() {
         supplier_email: '-',
         subject: '',
         tax_percentage: 0,
-        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }],
+        items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
     });
 
     const handleSubmitNewPO = async (e) => {
@@ -133,7 +131,6 @@ export default function POList() {
             const formattedItems = formData.items.map((item) => {
                 const amount = Number(item.qty) * Number(item.unit_price);
                 return {
-                    product_id: item.product_id ?? null,
                     part_number: item.part_number || 'PART-GENERAL',
                     description: item.description,
                     qty: Number(item.qty),
@@ -162,7 +159,7 @@ export default function POList() {
 
             try {
                 await api.post('/purchase-orders', newPOItem);
-            } catch {
+            } catch (err) {
                 console.log('Disimpan ke local storage.');
             }
 
@@ -174,7 +171,7 @@ export default function POList() {
             setIsModalOpen(false);
             resetForm();
             fetchPurchaseOrders();
-        } catch {
+        } catch (error) {
             swalError('Gagal Menyimpan', 'Periksa kembali inputan Anda.');
         }
     };
@@ -194,20 +191,21 @@ export default function POList() {
             const targetPO = purchaseOrders.find(po => po.id === id || po.po_number === id);
 
             if (targetPO) {
-                const newRI = {
-                    id: Date.now(),
-                    ri_number: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
-                    po_reference: targetPO.po_number || targetPO.customer_po_number,
-                    supplier_name: targetPO.customer_name || 'Supplier Umum',
+                // FORMAT DATA HARUS SAMA PERSIS DENGAN VALIDASI LARAVEL
+                const payloadRI = {
+                    receiveNo: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
                     date: new Date().toISOString().split('T')[0],
+                    vendorName: targetPO.customer_name || 'Supplier Umum',
+                    poRef: targetPO.po_number || targetPO.customer_po_number,
                     status: 'Completed',
                     items: targetPO.items || []
                 };
 
-                const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-                localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
+                // TEMBAK API KE BACKEND LARAVEL
+                await api.post('/receive-items', payloadRI);
             }
 
+            // Update status PO di tampilan React menjadi Received
             const updated = purchaseOrders.map(po => {
                 if (po.id === id || po.po_number === id) {
                     return { ...po, status: 'Received (RI)' };
@@ -219,8 +217,11 @@ export default function POList() {
 
             swalSuccess('Berhasil', 'Barang berhasil diterima & stok Inventory otomatis bertambah di Database!');
             fetchPurchaseOrders();
+            
         } catch (error) {
-            swalError('Gagal', 'Terjadi kesalahan saat memproses penerimaan barang.');
+            console.error("Error dari backend:", error);
+            const errMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang ke database.';
+            swalError('Gagal', errMsg);
         }
     };
 
@@ -449,10 +450,9 @@ export default function POList() {
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Pilih Part Number / Inventory</label>
                                                     <Select
                                                         options={productOptions}
-                                                        value={productOptions.find(opt => opt.value === item.product_id) || null}
+                                                        value={productOptions.find(opt => opt.value === item.part_number) || null}
                                                         onChange={(selectedOption) => {
-                                                            handleItemChange(index, 'product_id', selectedOption ? selectedOption.value : null);
-                                                            handleItemChange(index, 'part_number', selectedOption ? selectedOption.raw.part_number : '');
+                                                            handleItemChange(index, 'part_number', selectedOption ? selectedOption.value : '');
                                                         }}
                                                         placeholder="Cari & Pilih Part Number..."
                                                         isSearchable={true}

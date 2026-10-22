@@ -178,7 +178,18 @@ export default function InventoryProducts() {
   };
 
   const handleExport = async () => {
-    try { const res = await downloadExport('products'); const url = window.URL.createObjectURL(new Blob([res.data])); const a = document.createElement('a'); a.href = url; a.download = 'master-part-number.csv'; a.click(); window.URL.revokeObjectURL(url); swalToast('Export berhasil diunduh.', 'success'); } catch { swalError('Gagal export', 'Tidak dapat mengunduh data.'); }
+    try { 
+      const res = await downloadExport('products'); 
+      const url = window.URL.createObjectURL(new Blob([res.data])); 
+      const a = document.createElement('a'); 
+      a.href = url; 
+      a.download = 'master-part-number.csv'; 
+      a.click(); 
+      window.URL.revokeObjectURL(url); 
+      swalToast('Export berhasil diunduh.', 'success'); 
+    } catch { 
+      swalError('Gagal export', 'Tidak dapat mengunduh data.'); 
+    }
   };
 
   const handleDownloadTemplate = async () => {
@@ -218,8 +229,6 @@ export default function InventoryProducts() {
       swalToast('Produk dihapus (Offline Mode).', 'success');
     } finally {
       fetchProducts();
-    } catch {
-      swalError('Gagal menghapus', 'Terjadi kesalahan saat menghapus produk.');
     }
   };
 
@@ -250,7 +259,7 @@ export default function InventoryProducts() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
-          <span>âœ—</span> {error}
+          <span>✕</span> {error}
         </div>
       )}
 
@@ -343,7 +352,7 @@ export default function InventoryProducts() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Customer</label>
-                <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option value="">Tanpa Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customer_code} â€” {customer.customer_name}</option>)}</select>
+                <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option value="">Tanpa Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customer_code} — {customer.customer_name}</option>)}</select>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Jenis Item</label>
@@ -415,7 +424,7 @@ export default function InventoryProducts() {
 
             <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs px-3 py-2.5 rounded-xl leading-relaxed">
               Kolom yang dibaca: <b>Part Number, Nama Barang, Jenis Barang, Satuan, Stock Awal</b>.
-              Kode internal tidak perlu diisi â€” dibuat otomatis oleh sistem.
+              Kode internal tidak perlu diisi — dibuat otomatis oleh sistem.
             </div>
 
             <button

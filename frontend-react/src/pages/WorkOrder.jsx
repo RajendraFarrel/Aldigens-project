@@ -1,13 +1,12 @@
-﻿import React, { useState } from 'react';
-import { Search, Plus, Filter, MoreVertical, FileCog } from 'lucide-react';
+﻿import React, { useState, useEffect } from 'react';
+import { Search, Plus, Filter, Edit2, Printer, X, Save, FileText } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
-import { swalToast } from '../utils/swal'; // Pastikan path ini sesuai dengan utilitas swal-mu
+import { swalToast } from '../utils/swal'; 
 
 export default function WorkOrder() {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Ubah dummy data menjadi state agar bisa diedit dan disimpan di local storage
   const [workOrders, setWorkOrders] = useState(() => {
     const saved = localStorage.getItem('aldigens_wo');
     if (saved) return JSON.parse(saved);
@@ -62,9 +61,9 @@ export default function WorkOrder() {
       start_date: wo.start_date || '',
       finish_date: wo.finish_date || '',
       qty: wo.targetQty || parseInt(wo.targetQty) || 0,
-      raw_materials: wo.raw_materials || [{ desc: '', unit: 'pcs' }],
-      consumables_b: wo.consumables_b || [{ desc: '', unit: 'Ea' }],
-      consumables_c: wo.consumables_c || [{ desc: '', unit: 'Ea' }],
+      raw_materials: wo.raw_materials?.length ? wo.raw_materials : [{ desc: '', unit: 'pcs' }],
+      consumables_b: wo.consumables_b?.length ? wo.consumables_b : [{ desc: '', unit: 'Ea' }],
+      consumables_c: wo.consumables_c?.length ? wo.consumables_c : [{ desc: '', unit: 'Ea' }],
     });
     setShowEditModal(true);
   };
@@ -111,6 +110,7 @@ export default function WorkOrder() {
       return rows;
     };
 
+    // Generate baris untuk Raw Material
     const rawRows = (wo.raw_materials || []).map((item, idx) => `
       <tr class="item-row">
         <td class="center">${idx + 1}</td>
@@ -120,6 +120,32 @@ export default function WorkOrder() {
         <td>${item.part_no2 || ''}</td>
         <td class="center">${item.unit || 'pcs'}</td>
         <td class="center">${item.unit || 'pcs'}</td>
+      </tr>
+    `).join('');
+
+    // Generate baris untuk Consumable B
+    const bRows = (wo.consumables_b || []).map((item, idx) => `
+      <tr class="item-row">
+        <td class="center">${idx + 1}</td>
+        <td>${item.desc || ''}</td>
+        <td>${item.supplier || ''}</td>
+        <td>${item.part_no1 || ''}</td>
+        <td>${item.part_no2 || ''}</td>
+        <td class="center">${item.unit || 'Ea'}</td>
+        <td class="center">${item.unit || 'Ea'}</td>
+      </tr>
+    `).join('');
+
+    // Generate baris untuk Consumable C
+    const cRows = (wo.consumables_c || []).map((item, idx) => `
+      <tr class="item-row">
+        <td class="center">${idx + 1}</td>
+        <td>${item.desc || ''}</td>
+        <td>${item.supplier || ''}</td>
+        <td>${item.part_no1 || ''}</td>
+        <td>${item.part_no2 || ''}</td>
+        <td class="center">${item.unit || 'Ea'}</td>
+        <td class="center">${item.unit || 'Ea'}</td>
       </tr>
     `).join('');
 
@@ -174,13 +200,19 @@ export default function WorkOrder() {
               <td style="width: 15%;">Part No.</td><td style="width: 15%;">Part No.</td>
               <td style="width: 10.5%;">Usage Q'ty</td><td style="width: 10.5%;">Usage Q'ty</td>
             </tr>
+            
             <tr><td colspan="7" class="section-title">Main Asay Parts<br/>A. Raw Material</td></tr>
             ${rawRows || renderEmptyRows(7, 'pcs')}
             ${(wo.raw_materials?.length > 0 && wo.raw_materials?.length < 7) ? renderEmptyRows(7 - wo.raw_materials.length, 'pcs') : ''}
+            
             <tr><td colspan="7" class="section-title">B. Consumable</td></tr>
-            ${renderEmptyRows(12, 'Ea')}
+            ${bRows || renderEmptyRows(12, 'Ea')}
+            ${(wo.consumables_b?.length > 0 && wo.consumables_b?.length < 12) ? renderEmptyRows(12 - wo.consumables_b.length, 'Ea') : ''}
+            
             <tr><td colspan="7" class="section-title">C. Consumable</td></tr>
-            ${renderEmptyRows(5, 'Ea')}
+            ${cRows || renderEmptyRows(5, 'Ea')}
+            ${(wo.consumables_c?.length > 0 && wo.consumables_c?.length < 5) ? renderEmptyRows(5 - wo.consumables_c.length, 'Ea') : ''}
+            
             <tr class="signature-row"><td colspan="3" style="border-right: none;">TTd</td><td colspan="2" style="border-right: none; border-left: none;">TTd</td><td colspan="2" style="border-left: none;">TTd</td></tr>
             <tr class="note-row"><td colspan="7">Note :</td></tr>
           </table>
@@ -282,7 +314,7 @@ export default function WorkOrder() {
       {/* Modal Edit WO */}
       {showEditModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden border border-slate-200 dark:border-slate-800 my-8">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden border border-slate-200 dark:border-slate-800 my-8">
             <div className="flex justify-between items-center p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
               <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <FileText className="h-5 w-5 text-blue-500" /> Edit Dokumen Cetak WO
@@ -320,6 +352,7 @@ export default function WorkOrder() {
                 </div>
               </div>
 
+              {/* SECTION A: RAW MATERIAL */}
               <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">A. Raw Material</h4>
@@ -329,6 +362,34 @@ export default function WorkOrder() {
                   <div key={i} className="flex gap-2 mb-2">
                     <input type="text" value={rm.desc} onChange={e => { const newRm = [...form.raw_materials]; newRm[i].desc = e.target.value; setForm({...form, raw_materials: newRm})}} placeholder={`Description ${i+1}`} className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
                     <input type="text" value={rm.unit} onChange={e => { const newRm = [...form.raw_materials]; newRm[i].unit = e.target.value; setForm({...form, raw_materials: newRm})}} placeholder="Unit" className="w-20 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
+                  </div>
+                ))}
+              </div>
+
+              {/* SECTION B: CONSUMABLE */}
+              <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">B. Consumable</h4>
+                  <button onClick={() => setForm({...form, consumables_b: [...form.consumables_b, {desc: '', unit: 'Ea'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700"><Plus className="h-3 w-3"/> Tambah Baris</button>
+                </div>
+                {form.consumables_b.map((rm, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <input type="text" value={rm.desc} onChange={e => { const newRm = [...form.consumables_b]; newRm[i].desc = e.target.value; setForm({...form, consumables_b: newRm})}} placeholder={`Description B ${i+1}`} className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
+                    <input type="text" value={rm.unit} onChange={e => { const newRm = [...form.consumables_b]; newRm[i].unit = e.target.value; setForm({...form, consumables_b: newRm})}} placeholder="Unit" className="w-20 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
+                  </div>
+                ))}
+              </div>
+
+              {/* SECTION C: CONSUMABLE */}
+              <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">C. Consumable</h4>
+                  <button onClick={() => setForm({...form, consumables_c: [...form.consumables_c, {desc: '', unit: 'Ea'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700"><Plus className="h-3 w-3"/> Tambah Baris</button>
+                </div>
+                {form.consumables_c.map((rm, i) => (
+                  <div key={i} className="flex gap-2 mb-2">
+                    <input type="text" value={rm.desc} onChange={e => { const newRm = [...form.consumables_c]; newRm[i].desc = e.target.value; setForm({...form, consumables_c: newRm})}} placeholder={`Description C ${i+1}`} className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
+                    <input type="text" value={rm.unit} onChange={e => { const newRm = [...form.consumables_c]; newRm[i].unit = e.target.value; setForm({...form, consumables_c: newRm})}} placeholder="Unit" className="w-20 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
                   </div>
                 ))}
               </div>

@@ -107,10 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/customer-part-numbers', [CustomerPartNumberController::class, 'store']);
     Route::put('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'update']);
     Route::delete('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'destroy']);
-    Route::get('/suppliers', [MasterDataController::class, 'suppliers']);
-    Route::put('/customers/{id}', [MasterDataController::class, 'updateCustomer']);
-    Route::delete('/customers/{id}', [MasterDataController::class, 'deleteCustomer']);
-
+    
     // Suppliers
     Route::get('/suppliers', [MasterDataController::class, 'getSuppliers']);
     Route::post('/suppliers', [MasterDataController::class, 'storeSupplier']);
@@ -137,6 +134,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/boms', BomController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('/productions', ProductionController::class)->only(['index', 'store']);
 
+    // --- PURCHASE ORDERS & RECEIVE ITEMS (DIPERTEGAS) ---
+    // Mendaftarkan route secara eksplisit untuk mencegah konflik 405 Method Not Allowed
+    Route::post('/purchase-orders', [PurchaseOrderController::class, 'store']);
+    Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
+    Route::put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
+    Route::delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
+    Route::post('/purchase-orders/{id}/convert-to-so', [SalesOrderController::class, 'storeFromPO']);
+    
+    Route::post('/receive-items', [ReceiveItemController::class, 'store']);
+    Route::get('/receive-items', [ReceiveItemController::class, 'index']);
+    Route::put('/receive-items/{id}', [ReceiveItemController::class, 'update']);
+    Route::delete('/receive-items/{id}', [ReceiveItemController::class, 'destroy']);
+    // (Route::apiResource('receive-items') dinonaktifkan di bawah untuk mencegah route bertumpuk ganda)
+
     // --- Existing routes ---
     Route::apiResource('quotations', QuotationController::class);
     Route::get('/sales-orders', [SalesOrderController::class, 'index']);
@@ -146,6 +157,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/delivery-orders', [DeliveryOrderController::class, 'index']);
     Route::post('/delivery-orders', [DeliveryOrderController::class, 'store']);
     Route::get('/delivery-orders/{id}', [DeliveryOrderController::class, 'show']);
+    
     // Approve DO: stok Inventory otomatis berkurang di sini.
     Route::post('/delivery-orders/{id}/approve', [DeliveryOrderController::class, 'approve']);
 
@@ -155,8 +167,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
     Route::put('/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
     Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, 'storeFromQuotation']);
-    Route::post('/purchase-orders/{id}/convert-to-so', [SalesOrderController::class, 'storeFromPO']);
-    Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     Route::put('/quotations/{id}', [QuotationController::class, 'update']);
 
     // --- Modul Akuntansi ---
@@ -190,7 +200,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('sales-returns', SalesReturnController::class);
     Route::apiResource('sales-receipts', SalesReceiptController::class);
-    Route::apiResource('receive-items', ReceiveItemController::class);
 
     Route::get('/commissionings', [CommissioningController::class, 'index']);
     Route::post('/commissionings', [CommissioningController::class, 'store']);

@@ -9,20 +9,38 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PurchaseOrder extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+    'po_number',
+    'customer_po_number',
+    'date',
+    'customer_name',
+    'customer_address',
+    'subject',
+    'terms',      // <-- Pastikan ini ada
+    'ship_via',   // <-- Pastikan ini ada
+    'sub_total',
+    'tax_amount',
+    'tax_percentage',
+    'grand_total',
+    'status'
+];
 
-    public function quotation(): BelongsTo
-    {
-        return $this->belongsTo(Quotation::class);
-    }
+    protected $casts = [
+        'date' => 'date',
+    ];
 
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseOrderItem::class);
     }
 
-    public function salesOrder(): HasOne
+    public function customer(): BelongsTo
     {
-        return $this->hasOne(SalesOrder::class);
+        return $this->belongsTo(Customer::class, 'customer_name', 'name');
+    }
+
+    public function receiveItem(): HasOne
+    {
+        return $this->hasOne(ReceiveItem::class, 'purchase_order_id');
     }
 }

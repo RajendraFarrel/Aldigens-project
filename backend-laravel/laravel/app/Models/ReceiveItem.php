@@ -19,10 +19,6 @@ class ReceiveItem extends Model
         'created_by'
     ];
     
-    protected $casts = [
-        'receive_date' => 'date'
-    ];
-    
     public function items()
     {
         return $this->hasMany(ReceiveItemLine::class);

@@ -22,8 +22,10 @@ export default function POList() {
         supplier_phone: '-',
         supplier_email: '-',
         subject: '',
+        terms: 'FOB',
+        ship_via: '',
         tax_percentage: 0,
-        items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
+        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit: 'PCS', unit_price: 0 }],
     });
 
     useEffect(() => {
@@ -36,14 +38,14 @@ export default function POList() {
         try {
             const response = await api.get('/purchase-orders').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-            
+
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setPurchaseOrders(apiData);
             } else {
                 const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
                 setPurchaseOrders(localData);
             }
-        } catch (error) {
+        } catch {
             const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
             setPurchaseOrders(localData);
         } finally {
@@ -55,13 +57,14 @@ export default function POList() {
         try {
             const response = await api.get('/inventory/products').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-            
+
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setInventoryItems(apiData);
                 return;
             }
         } catch (err) {
-            // Lanjut ke local storage
+            const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
+            setInventoryItems(localParts);
         }
 
         const localProducts = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
@@ -74,24 +77,24 @@ export default function POList() {
         setInventoryItems(uniqueItems);
     };
 
-    // Mapping data inventory ke format options react-select
     const productOptions = inventoryItems.map((inv) => ({
-        value: inv.part_number || inv.product_code,
+        value: inv.id || inv.part_number,
         label: `${inv.part_number || inv.product_code} — ${inv.name || inv.description}`,
-        description: inv.name || inv.description || ''
+        description: inv.name || inv.description || '',
+        part_number: inv.part_number || inv.product_code || '',
+        raw: inv,
     }));
 
-    // Kalkulasi Subtotal, PPN, dan Grand Total
     const calculatedSubTotal = formData.items.reduce((acc, item) => {
         return acc + (Number(item.qty || 0) * Number(item.unit_price || 0));
     }, 0);
 
     const numericTaxPercent = Number(formData.tax_percentage || 0);
-    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100)); 
+    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100));
     const calculatedGrandTotal = calculatedSubTotal + calculatedTaxAmount;
 
     const handleAddItem = () => {
-        setFormData({ ...formData, items: [...formData.items, { part_number: '', description: '', qty: 1, unit_price: 0 }] });
+        setFormData({ ...formData, items: [...formData.items, { product_id: null, part_number: '', description: '', qty: 1, unit: 'PCS', unit_price: 0 }] });
     };
 
     const handleRemoveItem = (index) => {
@@ -102,14 +105,6 @@ export default function POList() {
     const handleItemChange = (index, field, value) => {
         const updatedItems = [...formData.items];
         updatedItems[index][field] = value;
-
-        if (field === 'part_number') {
-            const selectedPart = inventoryItems.find(p => p.part_number === value || p.product_code === value || p.id?.toString() === value);
-            if (selectedPart) {
-                updatedItems[index].description = selectedPart.name || selectedPart.description || value;
-            }
-        }
-
         setFormData({ ...formData, items: updatedItems });
     };
 
@@ -121,8 +116,10 @@ export default function POList() {
         supplier_phone: '-',
         supplier_email: '-',
         subject: '',
+        terms: 'FOB',
+        ship_via: '',
         tax_percentage: 0,
-        items: [{ part_number: '', description: '', qty: 1, unit_price: 0 }],
+        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit: 'PCS', unit_price: 0 }],
     });
 
     const handleSubmitNewPO = async (e) => {
@@ -131,10 +128,11 @@ export default function POList() {
             const formattedItems = formData.items.map((item) => {
                 const amount = Number(item.qty) * Number(item.unit_price);
                 return {
+                    product_id: item.product_id ?? null,
                     part_number: item.part_number || 'PART-GENERAL',
                     description: item.description,
                     qty: Number(item.qty),
-                    unit: 'PCS',
+                    unit: item.unit || 'PCS',
                     unit_price: Number(item.unit_price),
                     amount: amount,
                 };
@@ -149,6 +147,8 @@ export default function POList() {
                 customer_name: formData.supplier_name,
                 customer_address: formData.supplier_address,
                 subject: formData.subject,
+                terms: formData.terms,
+                ship_via: formData.ship_via,
                 sub_total: calculatedSubTotal,
                 tax_amount: calculatedTaxAmount,
                 tax_percentage: numericTaxPercent,
@@ -159,7 +159,7 @@ export default function POList() {
 
             try {
                 await api.post('/purchase-orders', newPOItem);
-            } catch (err) {
+            } catch {
                 console.log('Disimpan ke local storage.');
             }
 
@@ -171,16 +171,15 @@ export default function POList() {
             setIsModalOpen(false);
             resetForm();
             fetchPurchaseOrders();
-        } catch (error) {
+        } catch {
             swalError('Gagal Menyimpan', 'Periksa kembali inputan Anda.');
         }
     };
 
-    // --- FUNGSI BARU YANG 100% MENEMBAK API LARAVEL ---
     const handleConvertToReceiveItem = async (id) => {
         const ok = await swalConfirm({
             title: 'Proses ke Receive Item (RI)?',
-            text: 'Purchase Order ini akan diterima di gudang dan otomatis mencatat stok masuk ke Database.',
+            text: 'PO ini akan diterima di gudang dan otomatis mencatat stok masuk ke Database Laravel.',
             confirmText: 'Ya, Terima Barang',
             cancelText: 'Batal',
             icon: 'question',
@@ -191,21 +190,30 @@ export default function POList() {
             const targetPO = purchaseOrders.find(po => po.id === id || po.po_number === id);
 
             if (targetPO) {
-                // FORMAT DATA HARUS SAMA PERSIS DENGAN VALIDASI LARAVEL
-                const payloadRI = {
+                // Pastikan targetPO.items ada dan tidak kosong
+                const poItems = targetPO.items || [];
+
+                const payload = {
                     receiveNo: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
                     date: new Date().toISOString().split('T')[0],
-                    vendorName: targetPO.customer_name || 'Supplier Umum',
+                    vendorName: targetPO.customer_name || targetPO.supplier_name || 'Supplier Umum',
                     poRef: targetPO.po_number || targetPO.customer_po_number,
                     status: 'Completed',
-                    items: targetPO.items || []
+                    notes: `Penerimaan otomatis dari ${targetPO.po_number || 'PO'}`,
+                    // KUNCI UTAMA: Menyertakan item barang dari PO agar masuk ke Receive Item
+                    items: poItems.map(item => ({
+                        part_number: item.part_number || '',
+                        description: item.description || '',
+                        qty: Number(item.qty || item.quantity || 1),
+                        unit: item.unit || 'PCS'
+                    }))
                 };
 
-                // TEMBAK API KE BACKEND LARAVEL
-                await api.post('/receive-items', payloadRI);
+                // Kirim ke Backend Laravel
+                await api.post('/receive-items', payload);
             }
 
-            // Update status PO di tampilan React menjadi Received
+            // Update status PO lokal menjadi "Received (RI)"
             const updated = purchaseOrders.map(po => {
                 if (po.id === id || po.po_number === id) {
                     return { ...po, status: 'Received (RI)' };
@@ -215,13 +223,15 @@ export default function POList() {
             setPurchaseOrders(updated);
             localStorage.setItem('aldigens_purchase_orders', JSON.stringify(updated));
 
-            swalSuccess('Berhasil', 'Barang berhasil diterima & stok Inventory otomatis bertambah di Database!');
+            swalSuccess('Berhasil', 'Barang diterima dan rincian item masuk ke Receive Item!');
             fetchPurchaseOrders();
+       } catch (error) {
+            console.error(error);
+            // Trik untuk menangkap pesan error asli dari backend Laravel
+            const errorMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang.';
             
-        } catch (error) {
-            console.error("Error dari backend:", error);
-            const errMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang ke database.';
-            swalError('Gagal', errMsg);
+            // Tampilkan pesan asli tersebut di pop-up merah
+            swalError('Gagal', errorMsg);
         }
     };
 
@@ -280,7 +290,11 @@ export default function POList() {
                     <table class="recipient-table">
                         <tr>
                             <td><strong>Vendor :</strong><br/><strong>${po.customer_name || '-'}</strong><br/><span>${po.customer_address || '-'}</span></td>
-                            <td><strong>PO Date :</strong> ${po.date || '-'}<br/><strong>Terms :</strong> C.O.D</td>
+                            <td>
+                                <strong>PO Date :</strong> ${po.date || '-'}<br/>
+                                <strong>Terms :</strong> ${po.terms || '-'}<br/>
+                                <strong>Ship Via :</strong> ${po.ship_via || '-'}
+                            </td>
                         </tr>
                     </table>
                     <table class="items-table">
@@ -288,10 +302,11 @@ export default function POList() {
                             <tr>
                                 <th style="width: 5%;">No</th>
                                 <th style="width: 25%;">Part Number</th>
-                                <th style="width: 30%;">Description</th>
+                                <th style="width: 25%;">Description</th>
                                 <th style="width: 10%;">Qty</th>
-                                <th style="width: 15%;">Unit Price</th>
-                                <th style="width: 15%;">Amount</th>
+                                <th style="width: 10%;">Unit</th>
+                                <th style="width: 12%;">Unit Price</th>
+                                <th style="width: 13%;">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -301,6 +316,7 @@ export default function POList() {
                                     <td>${item.part_number || '-'}</td>
                                     <td>${item.description || '-'}</td>
                                     <td align="center">${item.qty}</td>
+                                    <td align="center">${item.unit || 'PCS'}</td>
                                     <td align="right">${Number(item.unit_price || 0).toLocaleString('id-ID')}</td>
                                     <td align="right">${(Number(item.qty) * Number(item.unit_price || 0)).toLocaleString('id-ID')}</td>
                                 </tr>
@@ -429,6 +445,17 @@ export default function POList() {
                                 <input type="text" required placeholder="Alamat lengkap supplier" value={formData.supplier_address} onChange={(e) => setFormData({ ...formData, supplier_address: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Terms (Ketentuan)</label>
+                                    <input type="text" placeholder="Contoh: FOB, COD, Net 30" value={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Ship Via (Pengiriman)</label>
+                                    <input type="text" placeholder="Contoh: Kurir Internal, Ekspedisi" value={formData.ship_via} onChange={(e) => setFormData({ ...formData, ship_via: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
+                                </div>
+                            </div>
+
                             <div className="border-t border-slate-800 pt-4 mt-2">
                                 <div className="flex justify-between items-center mb-3">
                                     <h4 className="font-semibold text-sm text-slate-300">Daftar Item / Part Number</h4>
@@ -450,9 +477,21 @@ export default function POList() {
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Pilih Part Number / Inventory</label>
                                                     <Select
                                                         options={productOptions}
-                                                        value={productOptions.find(opt => opt.value === item.part_number) || null}
+                                                        value={productOptions.find(opt => opt.value === item.product_id || opt.part_number === item.part_number) || null}
                                                         onChange={(selectedOption) => {
-                                                            handleItemChange(index, 'part_number', selectedOption ? selectedOption.value : '');
+                                                            const updatedItems = [...formData.items];
+                                                            if (selectedOption) {
+                                                                updatedItems[index].product_id = selectedOption.value;
+                                                                updatedItems[index].part_number = selectedOption.part_number;
+                                                                updatedItems[index].description = selectedOption.description;
+                                                                updatedItems[index].unit = selectedOption.raw.unit || 'PCS';
+                                                            } else {
+                                                                updatedItems[index].product_id = null;
+                                                                updatedItems[index].part_number = '';
+                                                                updatedItems[index].description = '';
+                                                                updatedItems[index].unit = 'PCS';
+                                                            }
+                                                            setFormData({ ...formData, items: updatedItems });
                                                         }}
                                                         placeholder="Cari & Pilih Part Number..."
                                                         isSearchable={true}
@@ -510,10 +549,22 @@ export default function POList() {
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-3 gap-4">
                                                 <div>
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Kuantitas (QTY)</label>
                                                     <input type="number" min="1" required value={item.qty} onChange={(e) => handleItemChange(index, 'qty', e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Satuan (Unit)</label>
+                                                    <select value={item.unit} onChange={(e) => handleItemChange(index, 'unit', e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm">
+                                                        <option value="PCS">PCS</option>
+                                                        <option value="KG">KG</option>
+                                                        <option value="SET">SET</option>
+                                                        <option value="METER">METER</option>
+                                                        <option value="LITER">LITER</option>
+                                                        <option value="BOX">BOX</option>
+                                                        <option value="UNIT">UNIT</option>
+                                                    </select>
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Harga Satuan (IDR)</label>
@@ -525,7 +576,6 @@ export default function POList() {
                                 </div>
                             </div>
 
-                            {/* Bagian Ringkasan Harga & PPN Persentase */}
                             <div className="bg-slate-800/80 border border-slate-700 p-4 rounded-xl space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-400 font-medium">Sub Total:</span>

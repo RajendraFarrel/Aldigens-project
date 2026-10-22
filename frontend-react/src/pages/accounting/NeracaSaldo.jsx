@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { Scale, RefreshCw } from 'lucide-react';
 import PrintButton from '../../components/PrintButton';
 import PrintHeader from '../../components/PrintHeader';
@@ -6,7 +6,7 @@ import { getNeracaSaldo, ACCOUNT_TYPES, rupiah, angka, formatTanggal, periodeDef
 import { swalError } from '../../utils/swal';
 
 /**
- * Neraca Saldo — dihitung otomatis dari jurnal POSTED.
+ * Neraca Saldo â€” dihitung otomatis dari jurnal POSTED.
  * Tidak dapat diedit manual.
  */
 export default function NeracaSaldo() {

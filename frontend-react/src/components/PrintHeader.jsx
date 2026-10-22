@@ -1,5 +1,4 @@
-import React from 'react';
-
+﻿
 /** Kop dokumen untuk hasil cetak modul akuntansi. */
 export default function PrintHeader({ judul, periode, perusahaan = 'PT. ALDIGENS PUTERA PERSADA' }) {
   return (

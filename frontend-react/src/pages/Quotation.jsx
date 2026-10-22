@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿import React, { useState, useEffect } from 'react';
+=======
+﻿import { useState, useEffect } from 'react';
+>>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
 import {
   FileSignature, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, Package, ArrowRightCircle, XCircle
 } from 'lucide-react';
@@ -9,9 +13,8 @@ import usePagination from '../hooks/usePagination';
 
 export default function Quotation() {
   const [quotations, setQuotations] = useState([]);
-  const [masterProducts, setMasterProducts] = useState([]);
   const [masterCustomers, setMasterCustomers] = useState([]);
-  const [customerParts, setCustomerParts] = useState([]); 
+  const [customerParts, setCustomerParts] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -26,7 +29,7 @@ export default function Quotation() {
   const [formData, setFormData] = useState({
     quotation_number: `AQ-${Math.floor(10000000 + Math.random() * 90000000)}`,
     date: new Date().toISOString().split('T')[0],
-    valid_until: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
+    valid_until: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     customer_name: '',
     customer_address: '',
     attention_person: '',
@@ -52,9 +55,13 @@ export default function Quotation() {
   const fetchMasterProducts = async () => {
     setLoadingProducts(true);
     try {
+<<<<<<< HEAD
       const res = await getProducts('');
       const dataProducts = res.data?.data || res.data || [];
       setMasterProducts(dataProducts);
+=======
+      await getProducts('');
+>>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
     } catch (e) {
       console.error("Gagal memuat produk dari API", e);
     } finally {

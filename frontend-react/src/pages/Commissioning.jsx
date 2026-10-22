@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
@@ -49,7 +49,7 @@ export default function Commissioning() {
             const localComms = JSON.parse(localStorage.getItem('aldigens_commissionings') || '[]');
             
             setCommissionings(apiComms.length > 0 ? apiComms : localComms);
-        } catch (error) {
+        } catch {
             console.warn('API Commissioning gagal, menggunakan LocalStorage.');
             const localComms = JSON.parse(localStorage.getItem('aldigens_commissionings') || '[]');
             setCommissionings(localComms);
@@ -71,7 +71,7 @@ export default function Commissioning() {
             try {
                 const doRes = await axios.get('http://127.0.0.1:8000/api/delivery-orders', { headers });
                 apiDOs = doRes.data.data || doRes.data || [];
-            } catch (err) {
+            } catch {
                 console.warn('API DO belum tersedia, menggunakan data lokal.');
             }
             
@@ -227,22 +227,6 @@ export default function Commissioning() {
             fetchData();
         } catch (error) {
             alert('Gagal menyimpan data. Pastikan semua field terisi dengan benar.');
-            console.error(error);
-        }
-    };
-
-    const handleStatusChange = async (id, newStatus) => {
-        try {
-            const token = localStorage.getItem('auth_token');
-            await axios.patch(`http://127.0.0.1:8000/api/commissionings/${id}/status`, {
-                status: newStatus
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            alert(`Status berhasil diubah menjadi ${newStatus}!`);
-            fetchData();
-        } catch (error) {
-            alert('Gagal memperbarui status.');
             console.error(error);
         }
     };
@@ -597,7 +581,7 @@ export default function Commissioning() {
                                             className="flex-1 border rounded p-1.5 text-xs" 
                                         />
                                         <button type="button" onClick={() => handleRemoveItem(idx)} className="text-rose-500 hover:bg-rose-50 p-1.5 rounded text-xs font-bold">
-                                            ✕
+                                            âœ•
                                         </button>
                                     </div>
                                 ))}

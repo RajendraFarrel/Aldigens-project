@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2, Truck } from 'lucide-react';
 import { getProducts, getCustomers, getCustomerPartNumbers } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
@@ -26,9 +26,22 @@ export default function SalesOrder() {
   });
 
   useEffect(() => {
+<<<<<<< HEAD
     fetchMasterProducts();
     fetchMasterCustomers();
     fetchCustomerParts();
+=======
+    const fetchProducts = async () => {
+      try {
+        const res = await getProducts('');
+        setMasterProducts(res.data.data || res.data || []);
+      } catch {
+        const fallback = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
+        setMasterProducts(fallback);
+      }
+    };
+    fetchProducts();
+>>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
   }, []);
 
   useEffect(() => {

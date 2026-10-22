@@ -12,6 +12,9 @@ class Authenticate extends Middleware
      */
     protected function redirectTo(Request $request): ?string
     {
-        return $request->expectsJson() ? null : route('login');
+        // Request API (mis. dari SPA/mobile) harus selalu dijawab 401 JSON,
+        // bukan dialihkan ke route web. Tanpa guard ini, route('login') dipanggil
+        // padahal route bernama 'login' tidak ada → RouteNotFoundException (500).
+        return ($request->expectsJson() || $request->is('api/*')) ? null : route('login');
     }
 }

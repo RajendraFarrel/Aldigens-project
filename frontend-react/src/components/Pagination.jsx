@@ -1,5 +1,4 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+﻿import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 /**
  * Komponen Pagination terstandarisasi untuk semua tabel di sistem.

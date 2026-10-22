@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer } from 'lucide-react';
+﻿import { useState, useEffect, useMemo } from 'react';
+import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
@@ -166,7 +166,7 @@ export default function PurchasePayment() {
                   <option value="">-- Pilih Faktur / Invoice untuk Dibayar --</option>
                   {unpaidInvoices.map((inv, idx) => (
                     <option key={idx} value={inv.invoice_number}>
-                      {inv.invoice_number} — {inv.supplier_name} (Rp {Number(inv.grand_total || 0).toLocaleString('id-ID')})
+                      {inv.invoice_number} â€” {inv.supplier_name} (Rp {Number(inv.grand_total || 0).toLocaleString('id-ID')})
                     </option>
                   ))}
                 </select>

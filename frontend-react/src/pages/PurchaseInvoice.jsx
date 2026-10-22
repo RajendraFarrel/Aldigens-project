@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 import { PlusCircle, X, Trash2, Plus } from 'lucide-react';
@@ -40,7 +40,7 @@ export default function PurchaseInvoice() {
                 const localData = JSON.parse(localStorage.getItem('aldigens_purchase_invoices') || '[]');
                 setInvoices(localData);
             }
-        } catch (error) {
+        } catch {
             const localData = JSON.parse(localStorage.getItem('aldigens_purchase_invoices') || '[]');
             setInvoices(localData);
         } finally {
@@ -57,7 +57,7 @@ export default function PurchaseInvoice() {
             if (Array.isArray(apiData)) {
                 allPOs = [...apiData];
             }
-        } catch (err) {
+        } catch {
             // Abaikan error API
         }
 
@@ -71,7 +71,7 @@ export default function PurchaseInvoice() {
                     if (Array.isArray(parsed)) {
                         allPOs = [...allPOs, ...parsed];
                     }
-                } catch (e) {}
+                } catch { /* abaikan localStorage yang tidak valid */ }
             }
         });
 
@@ -82,17 +82,17 @@ export default function PurchaseInvoice() {
 
     const handleSelectPO = (poIdentifier) => {
         if (!poIdentifier) return;
-        
-        const selectedPO = purchaseOrders.find(po => 
-            String(po.po_number) === String(poIdentifier) || 
-            String(po.customer_po_number) === String(poIdentifier) || 
+
+        const selectedPO = purchaseOrders.find(po =>
+            String(po.po_number) === String(poIdentifier) ||
+            String(po.customer_po_number) === String(poIdentifier) ||
             String(po.id) === String(poIdentifier)
         );
 
         if (selectedPO) {
             // Ambil item dari berbagai kemungkinan nama properti (items, detail, product_items, dll)
             const rawItems = selectedPO.items || selectedPO.details || selectedPO.product_items || [];
-            
+
             const formattedItems = rawItems.length > 0 ? rawItems.map(i => ({
                 part_number: i.part_number || i.code || i.product_code || '',
                 description: i.description || i.name || i.item_name || '',
@@ -178,7 +178,7 @@ export default function PurchaseInvoice() {
             setIsModalOpen(false);
             resetForm();
             fetchInvoices();
-        } catch (error) {
+        } catch {
             swalError('Gagal Menyimpan', 'Periksa kembali inputan Anda.');
         }
     };
@@ -278,7 +278,7 @@ export default function PurchaseInvoice() {
                                     <option value="">-- Pilih PO untuk Tarik Otomatis --</option>
                                     {purchaseOrders.map((po, idx) => (
                                         <option key={idx} value={po.po_number || po.customer_po_number || po.id}>
-                                            {po.po_number || po.customer_po_number || `PO ID: ${po.id}`} — {po.customer_name || po.supplier_name || 'Supplier'}
+                                            {po.po_number || po.customer_po_number || `PO ID: ${po.id}`} â€” {po.customer_name || po.supplier_name || 'Supplier'}
                                         </option>
                                     ))}
                                 </select>

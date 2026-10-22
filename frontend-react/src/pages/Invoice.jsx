@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { FileText, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, DollarSign } from 'lucide-react';
 import api from '../services/api';
 import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
-import { swalError, swalSuccess } from '../utils/swal';
+import { swalError } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
@@ -55,7 +55,7 @@ export default function Invoice() {
       try {
         const res = await api.get('/invoices');
         apiInvoices = res.data?.data || res.data || [];
-      } catch (err) {
+      } catch {
         console.warn("API Invoice offline, menggunakan localStorage.");
       }
       const localInvoices = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
@@ -75,7 +75,7 @@ export default function Invoice() {
       try {
         const res = await api.get('/delivery-orders');
         apiDOs = res.data?.data || res.data || [];
-      } catch (err) {
+      } catch {
         console.warn("API DO offline.");
       }
       const localDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]');
@@ -98,7 +98,7 @@ export default function Invoice() {
       try {
         const parsedRef = JSON.parse(activeRef);
         setIsCreating(true);
-        
+
         setFormData((prev) => ({
           ...prev,
           do_reference: parsedRef.do_number || parsedRef.commissioning_code || '',
@@ -112,7 +112,7 @@ export default function Invoice() {
             }
           ]
         }));
-        
+
         localStorage.removeItem('active_invoice_ref');
       } catch (err) {
         console.error('Gagal memparsing referensi BAST:', err);
@@ -214,7 +214,7 @@ export default function Invoice() {
 
       try {
         await api.post('/invoices', formData);
-      } catch (err) {
+      } catch {
         // Backend opsional
       }
 
@@ -223,7 +223,7 @@ export default function Invoice() {
       resetForm();
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (e) {
+    } catch {
       setError('Gagal menyimpan Invoice.');
     } finally {
       setSaving(false);
@@ -232,29 +232,29 @@ export default function Invoice() {
 
   const handleUpdateStatus = async (newStatus) => {
     if (!selectedInvoice) return;
-    
+
     try {
       const updatedInvoice = { ...selectedInvoice, status: newStatus };
       setSelectedInvoice(updatedInvoice);
-      
+
       const existing = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
-      const updatedList = existing.map(inv => 
-        (inv.id === updatedInvoice.id || inv.invoice_number === updatedInvoice.invoice_number) 
-          ? updatedInvoice 
+      const updatedList = existing.map(inv =>
+        (inv.id === updatedInvoice.id || inv.invoice_number === updatedInvoice.invoice_number)
+          ? updatedInvoice
           : inv
       );
       localStorage.setItem('aldigens_invoices', JSON.stringify(updatedList));
 
       try {
         await api.put(`/invoices/${selectedInvoice.id}`, { status: newStatus });
-      } catch (err) {
+      } catch {
         console.warn("Backend update status offline, disimpan secara lokal.");
       }
 
       setSuccessMsg(`Status invoice berhasil diubah menjadi ${newStatus}!`);
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (e) {
+    } catch {
       setError('Gagal mengubah status invoice.');
     }
   };

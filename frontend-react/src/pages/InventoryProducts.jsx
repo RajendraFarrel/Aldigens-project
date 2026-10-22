@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, Barcode, X, Save, RefreshCw, Package, Printer, Upload, FileSpreadsheet } from 'lucide-react';
 import { getProducts, createProduct, updateProduct, deleteProduct, importProducts, downloadProductTemplate, downloadExport, getCustomers } from '../services/api';
 import BarcodeLabel, { printBarcodes } from '../components/BarcodeLabel';
@@ -44,17 +44,9 @@ export default function InventoryProducts() {
     setLoading(true);
     try {
       const res = await getProducts(search);
-      let apiData = res.data?.data || res.data || [];
-      
-      if (apiData.length > 0) {
-        localStorage.setItem('aldigens_products', JSON.stringify(apiData));
-        setProducts(apiData);
-      } else {
-        fallbackToLocal(search);
-      }
+      setProducts(res.data.data || []);
     } catch (e) {
-      console.warn("Backend API Offline, membaca data stok dari aldigens_products...");
-      fallbackToLocal(search);
+      setError('Gagal memuat data produk.');
     } finally {
       setLoading(false);
     }
@@ -79,6 +71,13 @@ export default function InventoryProducts() {
     const timeout = setTimeout(() => fetchProducts(), 400);
     return () => clearTimeout(timeout);
   }, [fetchProducts]);
+
+  // Muat daftar customer untuk dropdown "Customer" pada form produk.
+  useEffect(() => {
+    getCustomers()
+      .then((res) => setCustomers(res.data?.data || res.data || []))
+      .catch(() => setCustomers([]));
+  }, []);
 
   const openAdd = () => {
     setEditingProduct(null);
@@ -194,7 +193,7 @@ export default function InventoryProducts() {
       a.remove();
       window.URL.revokeObjectURL(url);
       swalToast('Template berhasil diunduh.', 'success');
-    } catch (e) {
+    } catch {
       swalError('Gagal mengunduh', 'Tidak dapat mengunduh template import.');
     }
   };
@@ -219,6 +218,8 @@ export default function InventoryProducts() {
       swalToast('Produk dihapus (Offline Mode).', 'success');
     } finally {
       fetchProducts();
+    } catch (e) {
+      swalError('Gagal menghapus', 'Terjadi kesalahan saat menghapus produk.');
     }
   };
 
@@ -249,7 +250,7 @@ export default function InventoryProducts() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
-          <span>✗</span> {error}
+          <span>âœ—</span> {error}
         </div>
       )}
 
@@ -332,7 +333,21 @@ export default function InventoryProducts() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Part Number</label>
-                <input type="text" value={form.part_number} onChange={(e) => setForm({ ...form, part_number: e.target.value })} placeholder="Part number dari supplier" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input
+                  type="text"
+                  value={form.part_number}
+                  onChange={(e) => setForm({ ...form, part_number: e.target.value })}
+                  placeholder="Part number dari supplier"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Customer</label>
+                <select value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option value="">Tanpa Customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.customer_code} — {customer.customer_name}</option>)}</select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Jenis Item</label>
+                <select value={form.item_type} onChange={(e) => setForm({ ...form, item_type: e.target.value })} className="w-full border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white"><option>BAHAN / COMPONENT</option><option>PRODUK JADI</option><option>PRODUKSI</option></select>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 block mb-1">Nama Produk <span className="text-red-500">*</span></label>
@@ -397,8 +412,18 @@ export default function InventoryProducts() {
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileSpreadsheet className="h-5 w-5 text-emerald-600" /> Import Data Produk</h3>
               <button onClick={() => setShowImport(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"><X className="h-5 w-5" /></button>
             </div>
-            <button onClick={handleDownloadTemplate} className="w-full flex items-center justify-center gap-2 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-medium px-4 py-2.5 rounded-xl transition cursor-pointer">
-              <FileSpreadsheet className="h-4 w-4" /> Download Template Excel
+
+            <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs px-3 py-2.5 rounded-xl leading-relaxed">
+              Kolom yang dibaca: <b>Part Number, Nama Barang, Jenis Barang, Satuan, Stock Awal</b>.
+              Kode internal tidak perlu diisi — dibuat otomatis oleh sistem.
+            </div>
+
+            <button
+              onClick={handleDownloadTemplate}
+              className="w-full flex items-center justify-center gap-2 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm font-medium px-4 py-2.5 rounded-xl transition cursor-pointer"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Download Template Excel
             </button>
             {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">{error}</div>}
             <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => { setImportFile(e.target.files[0] || null); setImportResult(null); }} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:text-white file:text-xs cursor-pointer" />

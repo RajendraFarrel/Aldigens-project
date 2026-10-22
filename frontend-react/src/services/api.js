@@ -187,16 +187,25 @@ export const deleteRole = (id) =>
     api.delete(`/roles/${id}`);
 
 // -----------------------------------------------
+// Purchase Order (PO)
+// -----------------------------------------------
+export const getPurchaseOrders = () =>
+    api.get('/purchase-orders');
+
+// -----------------------------------------------
 // Delivery Order (DO) & Invoice
 // -----------------------------------------------
 export const getDeliveryOrders = () =>
     api.get('/delivery-orders');
-
 export const getDeliveryOrder = (id) =>
     api.get(`/delivery-orders/${id}`);
 
 export const createDeliveryOrder = (data) =>
     api.post('/delivery-orders', data);
+
+// Approve DO — memicu pengurangan stok Inventory secara otomatis.
+export const approveDeliveryOrder = (id, data = {}) =>
+    api.post(`/delivery-orders/${id}/approve`, data);
 
 export const getSalesOrders = () =>
     api.get('/sales-orders');

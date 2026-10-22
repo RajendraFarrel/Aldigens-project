@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { Wallet, ArrowDownRight, ArrowUpRight, RefreshCw, PlusCircle, X } from 'lucide-react';
 import { swalSuccess, swalError } from '../utils/swal';
@@ -83,7 +83,7 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Utama - Keuangan</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">PT. Aldigens Putera Persada • Pemantauan Kas, Bank & Mutasi Transaksi</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">PT. Aldigens Putera Persada â€¢ Pemantauan Kas, Bank & Mutasi Transaksi</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <button

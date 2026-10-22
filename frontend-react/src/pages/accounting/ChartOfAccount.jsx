@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookMarked, Search, Plus, Pencil, Power, RefreshCw } from 'lucide-react';
 import PrintButton from '../../components/PrintButton';
 import PrintHeader from '../../components/PrintHeader';
@@ -279,7 +279,7 @@ export default function ChartOfAccount() {
                         <p className="underline">( ................................ )</p>
                     </div>
                 </div>
-                <p className="mt-6">Dicetak dari Sistem Terintegrasi Aldigens — Total {rows.length} akun.</p>
+                <p className="mt-6">Dicetak dari Sistem Terintegrasi Aldigens â€” Total {rows.length} akun.</p>
             </div>
 
             {/* Modal Tambah / Edit */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ScanLine, Plus, Trash2, Send, RefreshCw, CheckCircle, AlertCircle,
   ArrowDownCircle, ArrowUpCircle, Package, Camera, CameraOff, Keyboard,
@@ -78,7 +78,7 @@ export default function InventoryScan() {
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleScan(scanInput);
+      addScannedCode(scanInput);
     }
   };
 
@@ -136,7 +136,7 @@ export default function InventoryScan() {
     try {
       await instance.stop();
       await instance.clear();
-    } catch (e) {
+    } catch {
       // abaikan jika kamera memang belum/jeda berjalan
     } finally {
       html5QrRef.current = null;
@@ -431,7 +431,7 @@ export default function InventoryScan() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
           <span className="font-semibold text-slate-700 text-sm">
-            Daftar Barang ({items.length} item · {totalQty} unit)
+            Daftar Barang ({items.length} item Â· {totalQty} unit)
           </span>
           {items.length > 0 && (
             <button
@@ -464,7 +464,7 @@ export default function InventoryScan() {
                     onClick={() => updateQty(idx, item.quantity - 1)}
                     className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-base flex items-center justify-center transition cursor-pointer"
                   >
-                    −
+                    âˆ’
                   </button>
                   <input
                     type="number"

@@ -2,6 +2,7 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
 
@@ -26,5 +27,19 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+    }
+
+    /**
+     * Request API (mis. dari SPA/mobile) harus dijawab 401 JSON, bukan dialihkan
+     * ke route 'login'. Route bernama 'login' tidak ada di aplikasi ini sehingga
+     * redirect()\->guest(route('login')) melempar RouteNotFoundException (500).
+     */
+    protected function unauthenticated($request, AuthenticationException $exception)
+    {
+        if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json(['message' => $exception->getMessage()], 401);
+        }
+
+        return parent::unauthenticated($request, $exception);
     }
 }

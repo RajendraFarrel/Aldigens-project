@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   BarChart3, RefreshCw, ChevronLeft, ChevronRight,
-  ArrowDownCircle, ArrowUpCircle, ArrowRightLeft, TrendingUp
+  ArrowDownCircle, ArrowUpCircle, ArrowRightLeft
 } from 'lucide-react';
 import { getWeeklyReport } from '../services/api';
 
@@ -71,7 +71,7 @@ export default function InventoryReports() {
         <div className="text-center">
           <p className="text-xs text-slate-400">Periode Minggu</p>
           <p className="font-bold text-slate-800 text-sm">
-            {report ? `${report.week_start} – ${report.week_end}` : '...'}
+            {report ? `${report.week_start} â€“ ${report.week_end}` : '...'}
           </p>
           <input
             type="date"

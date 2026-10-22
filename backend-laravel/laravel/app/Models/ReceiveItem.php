@@ -6,26 +6,30 @@ use Illuminate\Database\Eloquent\Model;
 
 class ReceiveItem extends Model
 {
-    // Tambahkan 'delivery_order' dan 'spk_supplier' ke dalam array ini
+    /**
+     * Kolom sesuai skema tabel `receive_items`:
+     * document_number, receive_date, supplier_id, purchase_order_id,
+     * warehouse_id, delivery_order, spk_supplier, status, notes, created_by.
+     */
     protected $fillable = [
-        'document_number', 
-        'receive_date', 
-        'supplier_id', 
-        'purchase_order_id', 
+        'document_number',
+        'receive_date',
+        'supplier_id',
+        'purchase_order_id',
         'warehouse_id',
-        'delivery_order', // <--- Kolom baru untuk DO
-        'spk_supplier',   // <--- Kolom baru untuk SPK
-        'status', 
-        'notes', 
-        'created_by'
+        'delivery_order',
+        'spk_supplier',
+        'status',
+        'notes',
+        'created_by',
     ];
-    
+
     protected $casts = [
-        'receive_date' => 'date'
+        'receive_date' => 'date',
     ];
-    
+
     public function items()
     {
-        return $this->hasMany(ReceiveItemLine::class);
+        return $this->hasMany(ReceiveItemLine::class, 'receive_item_id');
     }
 }

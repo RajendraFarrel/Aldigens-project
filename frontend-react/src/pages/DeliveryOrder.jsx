@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import {
   Truck, Plus, ArrowLeft, Save, Trash2, Printer, Package, RefreshCw,
-  Calendar, CheckCircle2
+  Calendar, CheckCircle2, BadgeCheck
 } from 'lucide-react';
-import api from '../services/api';
-import { swalError } from '../utils/swal';
+import api, { approveDeliveryOrder } from '../services/api';
+import { swalConfirm, swalError, swalToast } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
@@ -40,7 +40,7 @@ export default function DeliveryOrder() {
       try {
         const res = await api.get('/delivery-orders');
         apiData = res.data.data || res.data || [];
-      } catch (err) {
+      } catch {
         console.warn("API DO offline, menggunakan localStorage.");
       }
 
@@ -61,7 +61,7 @@ export default function DeliveryOrder() {
       try {
         const res = await api.get('/sales-orders');
         apiSOs = res.data.data || res.data || [];
-      } catch (err) {
+      } catch {
         console.warn("API SO offline.");
       }
 
@@ -161,7 +161,7 @@ export default function DeliveryOrder() {
 
       try {
         await api.post('/delivery-orders', formData);
-      } catch (err) {
+      } catch {
         // Backend opsional
       }
 
@@ -170,7 +170,7 @@ export default function DeliveryOrder() {
       resetForm();
       fetchDOs();
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (e) {
+    } catch {
       setError('Gagal menyimpan Delivery Order.');
     } finally {
       setSaving(false);
@@ -180,10 +180,35 @@ export default function DeliveryOrder() {
   const statusBadge = (status) => {
     const map = {
       Shipped: 'bg-blue-50 text-blue-700 border-blue-200',
+      Approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       Delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       Cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
     };
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
+  };
+
+  /** Approve DO — backend akan mengurangi stok Inventory secara otomatis. */
+  const handleApprove = async (doData) => {
+    const ok = await swalConfirm({
+      title: 'Approve Delivery Order?',
+      text: `DO "${doData.do_number || '-'}" akan disetujui dan stok Inventory otomatis berkurang sesuai barang yang dikirim.`,
+      confirmText: 'Ya, Approve',
+      cancelText: 'Batal',
+      icon: 'question',
+    });
+    if (!ok) return;
+
+    try {
+      await approveDeliveryOrder(doData.id);
+      swalToast('Delivery Order berhasil di-approve. Stok Inventory berkurang.', 'success');
+      // Perbarui status di state lokal tanpa perlu reload penuh.
+      setDeliveryOrders((prev) => prev.map((d) => (
+        String(d.id) === String(doData.id) ? { ...d, status: 'Approved' } : d
+      )));
+      setSelectedDO((prev) => (prev && String(prev.id) === String(doData.id) ? { ...prev, status: 'Approved' } : prev));
+    } catch (err) {
+      swalError('Gagal Approve', err.response?.data?.message || 'Terjadi kesalahan saat approve Delivery Order.');
+    }
   };
 
   // --- TEMPLATE CETAK DELIVERY ORDER STANDARD ACCURATE 4 & LOGO ALDIGENS 2 ---
@@ -211,38 +236,38 @@ export default function DeliveryOrder() {
           <title>Delivery Order - ${escapeHtml(doData.do_number)}</title>
           <style>
             @page { size: A4 portrait; margin: 10mm; }
-            body { 
-              font-family: Arial, sans-serif; 
-              font-size: 10px; 
-              color: #000; 
+            body {
+              font-family: Arial, sans-serif;
+              font-size: 10px;
+              color: #000;
               margin: 0;
-              padding: 0; 
-              -webkit-print-color-adjust: exact !important; 
-              print-color-adjust: exact !important; 
+              padding: 0;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
             .logo-area { width: 55%; vertical-align: top; }
             .company-address { font-size: 8.5px; line-height: 1.2; color: #222; margin-top: 3px; }
             .title-area { width: 45%; text-align: right; vertical-align: top; }
             .doc-title { font-size: 16px; font-weight: bold; margin: 0 0 2px 0; letter-spacing: 0.5px; }
-            
+
             .meta-table { width: 100%; font-size: 9.5px; margin-bottom: 8px; }
             .meta-table td { vertical-align: top; padding: 2px 0; }
-            
+
             .recipient-table { width: 100%; margin-bottom: 10px; border: 1px solid #000; border-collapse: collapse; }
             .recipient-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #000; font-size: 9.5px; line-height: 1.3; }
 
             .items-table { width: 100%; border-collapse: collapse; margin-bottom: 0; border: 1px solid #000; }
             .items-table th, .items-table td { border: 1px solid #000; padding: 4px 6px; font-size: 9.5px; }
             .items-table th { background-color: #f1f5f9 !important; text-align: center; font-weight: bold; }
-            
+
             .middle-container { width: 100%; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000; display: table; }
             .notes-box { display: table-cell; width: 100%; padding: 8px; vertical-align: top; font-size: 9.5px; }
 
             .sign-container { margin-top: 15px; width: 100%; border: 1px solid #000; border-collapse: collapse; page-break-inside: avoid; }
             .sign-container td { border: 1px solid #000; padding: 5px; vertical-align: top; text-align: center; font-size: 9.5px; width: 33.33%; }
             .sign-space { height: 45px; }
-            
+
             .footer-info { margin-top: 5px; font-size: 8px; text-align: right; color: #555; }
           </style>
         </head>
@@ -344,9 +369,9 @@ export default function DeliveryOrder() {
           </div>
 
           <script>
-            window.onload = function() { 
-              window.focus(); 
-              setTimeout(() => { window.print(); }, 400); 
+            window.onload = function() {
+              window.focus();
+              setTimeout(() => { window.print(); }, 400);
             };
           </script>
         </body>
@@ -529,6 +554,14 @@ export default function DeliveryOrder() {
               <span className={`px-4 py-2 rounded-xl text-sm font-bold border ${statusBadge(selectedDO.status)}`}>
                 {selectedDO.status}
               </span>
+              {!['Approved', 'Delivered'].includes(selectedDO.status) && (
+                <button
+                  onClick={() => handleApprove(selectedDO)}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer"
+                >
+                  <BadgeCheck className="w-4 h-4" /> Approve DO
+                </button>
+              )}
               <button
                 onClick={() => printSuratJalan(selectedDO)}
                 className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer"
@@ -625,10 +658,15 @@ export default function DeliveryOrder() {
                     <td className="p-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(d.status)}`}>{d.status}</span>
                     </td>
-                    <td className="p-5 text-center">
+                    <td className="p-5 text-center space-x-2 whitespace-nowrap">
                       <button onClick={() => setSelectedDO(d)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
                         Lihat Detail
                       </button>
+                      {!['Approved', 'Delivered'].includes(d.status) && (
+                        <button onClick={() => handleApprove(d)} className="text-emerald-700 hover:text-white font-semibold text-xs bg-emerald-50 hover:bg-emerald-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
+                          Approve
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

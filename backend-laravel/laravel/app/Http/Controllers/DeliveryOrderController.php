@@ -40,8 +40,15 @@ class DeliveryOrderController extends Controller
         ], 200);
     }
 
-    // 3. Menyimpan Delivery Order baru dan otomatis memotong stok inventaris gudang
-    public function store(Request $request, InventoryStockService $stockService)
+    /**
+     * Simpan Delivery Order (Surat Jalan) baru.
+     *
+     * Stok BELUM dipotong di sini. Sesuai alur persetujuan, pengurangan stok
+     * Inventory baru terjadi saat DO di-approve (lihat method approve())
+     * agar barang yang masih berstatus draft/kirim tidak langsung mengurangi
+     * saldo gudang.
+     */
+    public function store(Request $request)
     {
         $request->validate([
             'sales_order_id' => 'required|exists:sales_orders,id',
@@ -52,8 +59,6 @@ class DeliveryOrderController extends Controller
             'items.*.description' => 'required|string',
             'items.*.qty_sent' => 'required|integer|min:1',
             'items.*.unit' => 'nullable|string|max:50',
-            'warehouse_id' => 'nullable|exists:warehouses,id',
-            'warehouse_location_id' => 'nullable|exists:warehouse_locations,id',
         ]);
         DB::beginTransaction();
 
@@ -71,7 +76,7 @@ class DeliveryOrderController extends Controller
                 'notes'            => $request->notes,
             ]);
 
-            // Simpan item-item barang yang dikirim & kurangi stok inventaris
+            // Simpan item-item barang yang dikirim (stok dipotong saat approve).
             if ($request->has('items') && is_array($request->items)) {
                 foreach ($request->items as $item) {
                     DeliveryOrderItem::create([
@@ -81,24 +86,6 @@ class DeliveryOrderController extends Controller
                         'qty_sent'          => $item['qty_sent'],
                         'unit'              => $item['unit'] ?? 'SET',
                     ]);
-
-                    $product = Product::where('part_number', $item['part_number'])
-                        ->orWhere('barcode', $item['part_number'])
-                        ->orWhere('product_code', $item['part_number'])
-                        ->first();
-                    if (!$product) {
-                        throw new \RuntimeException("Part Number {$item['part_number']} tidak ditemukan.");
-                    }
-                    $stockService->adjust($product, (int) $item['qty_sent'], 'KELUAR', [
-                        'user_id' => $request->user()?->id,
-                        'user_name' => $request->user()?->name,
-                        'warehouse_id' => $request->warehouse_id,
-                        'warehouse_location_id' => $request->warehouse_location_id,
-                        'reference_type' => 'DO',
-                        'reference_id' => $deliveryOrder->id,
-                        'reference_number' => $deliveryOrder->do_number,
-                        'notes' => $request->notes,
-                    ]);
                 }
             }
 
@@ -106,7 +93,7 @@ class DeliveryOrderController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Delivery Order berhasil dibuat dan stok gudang berhasil diperbarui!',
+                'message' => 'Delivery Order berhasil dibuat. Stok akan berkurang setelah DO di-approve.',
                 'data' => $deliveryOrder->load('items')
             ], 201);
 
@@ -118,5 +105,68 @@ class DeliveryOrderController extends Controller
                 'message' => 'Gagal membuat Delivery Order: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Approve Delivery Order.
+     *
+     * Saat DO di-approve, stok Inventory otomatis BERKURANG untuk setiap item
+     * yang dikirim, dan mutasi KELUAR dicatat via InventoryStockService.
+     * Idempotent: DO yang sudah di-approve tidak akan dipotong dua kali.
+     */
+    public function approve(Request $request, $id, InventoryStockService $stockService)
+    {
+        $deliveryOrder = DeliveryOrder::with('items')->find($id);
+
+        if (!$deliveryOrder) {
+            return response()->json(['status' => 'error', 'message' => 'Delivery Order tidak ditemukan.'], 404);
+        }
+
+        // Cegah pengurangan stok berulang pada DO yang sudah di-approve.
+        if (in_array($deliveryOrder->status, ['Approved', 'Delivered'], true)) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Delivery Order ini sudah di-approve sebelumnya.',
+                'data' => $deliveryOrder,
+            ], 200);
+        }
+
+        return DB::transaction(function () use ($request, $deliveryOrder, $stockService) {
+            foreach ($deliveryOrder->items as $item) {
+                $code = $item->part_number;
+                if (!$code) {
+                    continue;
+                }
+
+                $product = Product::where('part_number', $code)
+                    ->orWhere('barcode', $code)
+                    ->orWhere('product_code', $code)
+                    ->first();
+
+                if (!$product) {
+                    throw new \RuntimeException("Part Number {$code} tidak ditemukan di Inventory.");
+                }
+
+                // Kurangi stok + catat mutasi KELUAR.
+                $stockService->adjust($product, (int) $item->qty_sent, 'KELUAR', [
+                    'user_id' => $request->user()?->id,
+                    'user_name' => $request->user()?->name,
+                    'warehouse_id' => $request->input('warehouse_id'),
+                    'warehouse_location_id' => $request->input('warehouse_location_id'),
+                    'reference_type' => 'DO',
+                    'reference_id' => $deliveryOrder->id,
+                    'reference_number' => $deliveryOrder->do_number,
+                    'notes' => 'Approval Delivery Order ' . $deliveryOrder->do_number,
+                ]);
+            }
+
+            $deliveryOrder->update(['status' => 'Approved']);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Delivery Order berhasil di-approve dan stok Inventory otomatis berkurang!',
+                'data' => $deliveryOrder->load('items'),
+            ], 200);
+        });
     }
 }

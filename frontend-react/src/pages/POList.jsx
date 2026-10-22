@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 ﻿import React, { useEffect, useState } from 'react';
-=======
-﻿import { useEffect, useState } from 'react';
->>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
 import api from '../services/api';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 import { PlusCircle, X, Trash2, Plus, Printer } from 'lucide-react';
@@ -64,14 +60,9 @@ export default function POList() {
                 setInventoryItems(apiData);
                 return;
             }
-<<<<<<< HEAD
         } catch (err) {
-            // Lanjut ke local storage
-=======
-        } catch {
             const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
             setInventoryItems(localParts);
->>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
         }
 
         const localProducts = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
@@ -203,43 +194,20 @@ export default function POList() {
             const targetPO = purchaseOrders.find(po => po.id === id || po.po_number === id);
 
             if (targetPO) {
-<<<<<<< HEAD
-                // FORMAT DATA HARUS SAMA PERSIS DENGAN VALIDASI LARAVEL
-                const payloadRI = {
-                    receiveNo: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
+                const newRI = {
+                    id: Date.now(),
+                    ri_number: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
+                    po_reference: targetPO.po_number || targetPO.customer_po_number,
+                    supplier_name: targetPO.customer_name || 'Supplier Umum',
                     date: new Date().toISOString().split('T')[0],
-                    vendorName: targetPO.customer_name || 'Supplier Umum',
-                    poRef: targetPO.po_number || targetPO.customer_po_number,
                     status: 'Completed',
                     items: targetPO.items || []
                 };
 
-                // TEMBAK API KE BACKEND LARAVEL
-                await api.post('/receive-items', payloadRI);
-=======
-                const receiveNo = `RI-${Math.floor(100000 + Math.random() * 900000)}`;
-                const riItems = (targetPO.items || [])
-                    .filter((it) => it.product_id)
-                    .map((it) => ({ product_id: it.product_id, quantity: Number(it.qty) || 1 }));
-
-                // Kirim ke API agar stok inventory ikut bertambah otomatis.
-                try {
-                    await api.post('/receive-items', {
-                        receiveNo,
-                        date: new Date().toISOString().split('T')[0],
-                        vendorName: targetPO.customer_name || 'Supplier Umum',
-                        poRef: targetPO.po_number || targetPO.customer_po_number,
-                        status: 'Completed',
-                        notes: `Penerimaan dari PO ${targetPO.po_number || targetPO.customer_po_number}`,
-                        items: riItems,
-                    });
-                } catch (err) {
-                    console.log('Gagal menyimpan Receive Item ke API.', err);
-                }
->>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
+                const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
+                localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
             }
 
-            // Update status PO di tampilan React menjadi Received
             const updated = purchaseOrders.map(po => {
                 if (po.id === id || po.po_number === id) {
                     return { ...po, status: 'Received (RI)' };
@@ -251,16 +219,8 @@ export default function POList() {
 
             swalSuccess('Berhasil', 'Barang berhasil diterima & stok Inventory otomatis bertambah di Database!');
             fetchPurchaseOrders();
-<<<<<<< HEAD
-            
         } catch (error) {
-            console.error("Error dari backend:", error);
-            const errMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang ke database.';
-            swalError('Gagal', errMsg);
-=======
-        } catch {
             swalError('Gagal', 'Terjadi kesalahan saat memproses penerimaan barang.');
->>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
         }
     };
 

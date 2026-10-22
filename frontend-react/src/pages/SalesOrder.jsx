@@ -26,11 +26,9 @@ export default function SalesOrder() {
   });
 
   useEffect(() => {
-<<<<<<< HEAD
     fetchMasterProducts();
     fetchMasterCustomers();
     fetchCustomerParts();
-=======
     const fetchProducts = async () => {
       try {
         const res = await getProducts('');
@@ -41,7 +39,6 @@ export default function SalesOrder() {
       }
     };
     fetchProducts();
->>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
   }, []);
 
   useEffect(() => {

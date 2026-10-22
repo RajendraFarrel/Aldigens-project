@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 ﻿import React, { useState, useEffect } from 'react';
-=======
-﻿import { useState, useEffect } from 'react';
->>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
 import {
   FileSignature, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, Package, ArrowRightCircle, XCircle
 } from 'lucide-react';
@@ -55,13 +51,9 @@ export default function Quotation() {
   const fetchMasterProducts = async () => {
     setLoadingProducts(true);
     try {
-<<<<<<< HEAD
       const res = await getProducts('');
-      const dataProducts = res.data?.data || res.data || [];
+      const dataProducts = res.data.data || res.data || [];
       setMasterProducts(dataProducts);
-=======
-      await getProducts('');
->>>>>>> 3a333b68445d87d388942f7951c2f3651e7b1b82
     } catch (e) {
       console.error("Gagal memuat produk dari API", e);
     } finally {

@@ -121,6 +121,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Reports dan export CSV (kompatibel dengan Excel)
     Route::get('/inventory/reports/weekly', [ReportController::class, 'weekly']);
+    // Laporan periode (harian/mingguan/bulanan/tahunan/rentang) — endpoint terpisah agar
+    // /reports/weekly tetap kompatibel dengan pemakai lama.
+    Route::get('/inventory/reports/period', [ReportController::class, 'period']);
     Route::get('/exports/{type}', [ExportController::class, 'csv']);
 
     // Users & Roles

@@ -12,7 +12,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *
  * Struktur sengaja dibuat SAMA PERSIS dengan yang dibaca ProductsImport:
  *  - Baris 1-3 : judul file (akan dilewati oleh importer)
- *  - Baris 4   : header -> Part Number | Nama Barang | Jenis Barang | Satuan | Stock Awal
+ *  - Baris 4   : header -> Part Number | Supplier | Nama Barang | Jenis Barang | Satuan | Stock Awal
  *  - Baris 5+  : data
  *
  * Dengan memakai template ini, pengguna tidak perlu menebak posisi header.
@@ -27,9 +27,9 @@ class ProductsTemplateExport implements FromArray, WithStyles, WithColumnWidths
             ['PT. ALDIGENS PUTERA PERSADA'],
             ['Isi data mulai baris 5. Jangan mengubah baris header (baris 4).'],
             // Baris 4: header
-            ['Part Number', 'Nama Barang', 'Jenis Barang', 'Satuan', 'Stock Awal'],
+            ['Part Number', 'Supplier', 'Nama Barang', 'Jenis Barang', 'Satuan', 'Stock Awal'],
             // Baris 5: contoh (boleh dihapus)
-            ['19-003-12', 'Contoh Barang', 'INV', 'Pcs', 10],
+            ['19-003-12', 'PT Supplier Contoh', 'Contoh Barang', 'INV', 'Pcs', 10],
         ];
     }
 
@@ -37,10 +37,11 @@ class ProductsTemplateExport implements FromArray, WithStyles, WithColumnWidths
     {
         return [
             'A' => 22,
-            'B' => 32,
-            'C' => 16,
-            'D' => 12,
-            'E' => 14,
+            'B' => 26,
+            'C' => 32,
+            'D' => 16,
+            'E' => 12,
+            'F' => 14,
         ];
     }
 

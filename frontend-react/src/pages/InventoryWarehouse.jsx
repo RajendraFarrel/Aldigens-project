@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRightLeft, ClipboardPlus, PackageMinus, Pencil, Plus, RefreshCw, Save,
+  ArrowRightLeft, ClipboardPlus, PackageMinus, Pencil, Plus, Printer, RefreshCw, Save,
   Search, Trash2, X,
 } from 'lucide-react';
 import {
@@ -10,6 +10,11 @@ import {
 } from '../services/api';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
+import PeriodFilter from '../components/PeriodFilter';
+import {
+  printAldigensDocument, makeReportNumber, getCurrentUserName, fmtDateLong,
+  fmtDateTime, fmtQty, getPeriodRange, isWithinRange, isBlank, sumQtyByUnit, todayInput,
+} from '../utils/printAldigensDocument';
 
 const CONFIG = {
   receive: {
@@ -18,6 +23,8 @@ const CONFIG = {
     icon: ClipboardPlus,
     color: 'text-emerald-600',
     button: 'bg-emerald-600 hover:bg-emerald-700',
+    printTitle: 'LAPORAN PENERIMAAN BARANG',
+    printPrefix: 'RCV',
   },
   issue: {
     label: 'Pengeluaran Barang',
@@ -25,6 +32,8 @@ const CONFIG = {
     icon: PackageMinus,
     color: 'text-rose-600',
     button: 'bg-rose-600 hover:bg-rose-700',
+    printTitle: 'LAPORAN PENGELUARAN BARANG',
+    printPrefix: 'ISS',
   },
   transfer: {
     label: 'Transfer Lokasi',
@@ -32,6 +41,8 @@ const CONFIG = {
     icon: ArrowRightLeft,
     color: 'text-blue-600',
     button: 'bg-blue-600 hover:bg-blue-700',
+    printTitle: 'LAPORAN TRANSFER LOKASI',
+    printPrefix: 'TRF',
   },
 };
 
@@ -96,7 +107,24 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
   const [message, setMessage] = useState('');
   const [formError, setFormError] = useState('');
 
-  const pagination = usePagination(rows, 10);
+  // Filter periode transaksi (dipakai untuk tabel, statistik, dan PDF).
+  const [periodMode, setPeriodMode] = useState('monthly');
+  const [periodDate, setPeriodDate] = useState(todayInput());
+  const [periodStart, setPeriodStart] = useState(todayInput());
+  const [periodEnd, setPeriodEnd] = useState(todayInput());
+
+  const periodRange = useMemo(
+    () => getPeriodRange(periodMode, { date: periodDate, start: periodStart, end: periodEnd }),
+    [periodMode, periodDate, periodStart, periodEnd]
+  );
+
+  // Data penuh per grup (bukan hanya halaman aktif), sudah difilter periode.
+  const periodRows = useMemo(
+    () => rows.filter((r) => isWithinRange(r.transaction_time, periodRange.start, periodRange.end)),
+    [rows, periodRange.start, periodRange.end]
+  );
+
+  const pagination = usePagination(periodRows, 10);
 
   const load = useCallback(async () => {
     try {
@@ -104,8 +132,7 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
         getInventoryMutations({ reference_types: config.referenceType, search: search || undefined }),
         getProducts(),
         getWarehouses(),
-      ]);
-      setRows(mutationRes.data?.data || []);
+      ]);      setRows(mutationRes.data?.data || []);
       setProducts(productRes.data?.data || []);
       setWarehouses(warehouseRes.data?.data || []);
       setError('');
@@ -333,6 +360,100 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
     return base;
   }, [isTransfer]);
 
+  /* Cetak PDF — memakai seluruh grup transaksi pada periode terpilih.
+     Satu grup transfer (OUT + IN) dicetak sebagai satu baris. Read-only. */
+  const handlePrintReport = () => {
+    const data = periodRows;
+    const printedAt = new Date();
+    const docCount = new Set(data.map((r) => r.group_key || r.reference_number || r.transaction_ids?.join('-'))).size;
+
+    const summary = [
+      { label: 'Jumlah Dokumen', value: `${docCount}`, total: true },
+      { label: 'Jumlah Baris Item', value: `${data.length}` },
+      ...sumQtyByUnit(data, (r) => r.quantity, (r) => r.product?.unit || '-'),
+      { label: 'Dicetak', value: fmtDateLong(printedAt) },
+    ];
+
+    const baseColumns = [
+      { header: 'No.', width: '4%', align: 'center', value: (r) => r._no },
+      { header: 'No. Dokumen', width: '12%', value: (r) => r.reference_number },
+      { header: 'Tanggal', width: '11%', value: (r) => fmtDateTime(r.transaction_time) },
+      { header: 'Part Number', width: '11%', value: (r) => r.product?.part_number },
+      { header: 'Nama Barang', width: '18%', value: (r) => r.product?.name },
+      { header: 'Barcode', width: '10%', value: (r) => r.product?.barcode },
+      { header: 'Qty', width: '6%', align: 'right', value: (r) => fmtQty(r.quantity) },
+      { header: 'Satuan', width: '6%', align: 'center', value: (r) => r.product?.unit },
+    ];
+
+    let columns;
+    if (isTransfer) {
+      columns = [
+        ...baseColumns,
+        { header: 'WH Asal', width: '10%', value: (r) => r.warehouse?.name },
+        { header: 'Lokasi Asal', width: '7%', value: (r) => r.location?.code || 'Saldo umum' },
+        { header: 'WH Tujuan', width: '10%', value: (r) => r.destination_warehouse?.name },
+        { header: 'Lokasi Tujuan', width: '8%', value: (r) => r.destination_location?.code || 'Saldo umum' },
+        { header: 'Petugas', width: '9%', value: (r) => r.user_name },
+        { header: 'Keterangan', width: '12%', value: (r) => r.notes },
+      ];
+    } else {
+      columns = [
+        ...baseColumns,
+        { header: 'Warehouse', width: '11%', value: (r) => r.warehouse?.name },
+        { header: 'Lokasi', width: '7%', value: (r) => r.location?.code || 'Saldo umum' },
+        { header: 'Referensi', width: '9%', value: (r) => r.reference_type },
+        { header: 'Petugas', width: '9%', value: (r) => r.user_name },
+        { header: 'Keterangan', width: '12%', value: (r) => r.notes },
+      ];
+    }
+
+    printAldigensDocument({
+      title: config.printTitle,
+      reportNumber: makeReportNumber(config.printPrefix),
+      printedAt,
+      printedBy: getCurrentUserName(),
+      periodLabel: periodRange.label,
+      metadataLeft: [
+        { label: 'Jenis Transaksi', value: config.label, strong: true },
+        { label: 'Pencarian', value: search.trim() ? `"${search.trim()}"` : 'Tanpa filter pencarian' },
+      ],
+      metadataRight: [
+        { label: 'Jumlah Dokumen', value: `${docCount}`, strong: true },
+      ],
+      infoBox: [
+        { label: 'Periode', value: periodRange.label },
+        { label: 'Sumber Data', value: 'Transaksi inventory yang tercatat sistem (bukan data sementara).' },
+      ],
+      sections: [
+        {
+          title: isTransfer ? 'DAFTAR TRANSFER LOKASI' : `DAFTAR ${config.label.toUpperCase()}`,
+          note: isTransfer
+            ? 'Satu baris = satu transfer (perpindahan lokasi), bukan barang masuk + barang keluar.'
+            : undefined,
+          columns,
+          rows: data.map((r, idx) => ({ ...r, _no: idx + 1 })),
+          emptyMessage: 'Tidak ada data pada periode/filter yang dipilih.',
+        },
+      ],
+      notes: isTransfer
+        ? [
+            `Total ${docCount} transfer pada periode ini.`,
+            'Perpindahan lokasi tidak menambah atau mengurangi total stok perusahaan.',
+            ...(data.some((r) => isBlank(r.destination_warehouse?.name)) ? ['Sebagian data transfer tidak memiliki data warehouse tujuan.'] : []),
+          ]
+        : [
+            `Total ${docCount} dokumen ${config.label.toLowerCase()} pada periode ini.`,
+            'Ringkasan kuantitas dipisahkan per satuan agar tidak mencampur unit berbeda.',
+          ],
+      summary,
+      signatories: [
+        { label: 'Dibuat Oleh', name: getCurrentUserName(), role: 'Administrator Inventory' },
+        { label: 'Diperiksa Oleh', name: '........................', role: 'Kepala Gudang' },
+      ],
+      landscape: true,
+    });
+  };
+
   return (
     <div className="p-6 space-y-5 max-w-7xl mx-auto w-full">
       {/* Header */}
@@ -346,6 +467,13 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <button
+            onClick={handlePrintReport}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm transition shadow-sm"
+            title="Cetak PDF sesuai periode terpilih"
+          >
+            <Printer className="w-4 h-4" />Cetak PDF {config.label}
+          </button>
+          <button
             onClick={openAdd}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl ${config.button} text-white text-sm transition shadow-sm`}
           >
@@ -357,14 +485,26 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
         </div>
       </div>
 
-      {/* Pencarian */}
-      <div className="relative max-w-sm">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={search}
-          onChange={e => { setLoading(true); setSearch(e.target.value); }}
-          placeholder="Cari dokumen, part number, atau keterangan..."
-          className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+      {/* Pencarian & periode */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={e => { setLoading(true); setSearch(e.target.value); }}
+            placeholder="Cari dokumen, part number, atau keterangan..."
+            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          />
+        </div>
+        <PeriodFilter
+          mode={periodMode}
+          onModeChange={setPeriodMode}
+          date={periodDate}
+          onDateChange={setPeriodDate}
+          start={periodStart}
+          onStartChange={setPeriodStart}
+          end={periodEnd}
+          onEndChange={setPeriodEnd}
         />
       </div>
 
@@ -404,10 +544,10 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
                     </td>
                   </tr>
                 ))}
-                {!rows.length && (
+                {!periodRows.length && (
                   <tr>
                     <td colSpan={columns.length + 1} className="p-12 text-center text-slate-400">
-                      Belum ada data {config.label.toLowerCase()}.
+                      Belum ada data {config.label.toLowerCase()} pada periode ini.
                     </td>
                   </tr>
                 )}

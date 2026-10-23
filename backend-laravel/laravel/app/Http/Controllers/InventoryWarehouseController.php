@@ -47,6 +47,14 @@ class InventoryWarehouseController extends Controller
             });
         }
 
+        // Filter periode (opsional, backward-compatible) berdasarkan tanggal transaksi.
+        if ($request->filled('start_date')) {
+            $query->whereDate('transaction_time', '>=', $request->input('start_date'));
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('transaction_time', '<=', $request->input('end_date'));
+        }
+
         $rows = $query->get()->groupBy(fn($t) => $t->group_key ?: 'TX-' . $t->id);
 
         $data = $rows->map(function ($items, $groupKey) {

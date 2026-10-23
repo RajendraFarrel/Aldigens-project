@@ -13,6 +13,7 @@ class Product extends Model
         'product_code',
         'barcode',
         'part_number',
+        'supplier_id',
         'customer_id',
         'name',
         'category',
@@ -36,6 +37,11 @@ class Product extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     /**

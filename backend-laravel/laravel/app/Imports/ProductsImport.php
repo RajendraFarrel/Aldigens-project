@@ -4,6 +4,7 @@ namespace App\Imports;
 
 use App\Models\Product;
 use App\Models\Customer;
+use App\Models\Supplier;
 use App\Services\InventoryStockService;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -13,7 +14,7 @@ use Illuminate\Support\Collection;
  * Import data produk dari file Excel.
  *
  * Struktur file yang diharapkan (header ada di baris ke-4):
- *   Part Number | Nama Barang | Jenis Barang | Satuan | Stock Awal
+ *   Part Number | Supplier | Nama Barang | Jenis Barang | Satuan | Stock Awal
  *
  * Kolom "Kode Produk" TIDAK ada di Excel — dibuat otomatis (INT-XXXX).
  *
@@ -23,6 +24,8 @@ use Illuminate\Support\Collection;
  * - Nama kolom dinormalisasi (huruf kecil, buang spasi/underscore) supaya
  *   toleran terhadap variasi penulisan header.
  * - Baris tanpa Nama Barang dilewati.
+ * - Kolom Supplier boleh berisi Kode atau Nama supplier. Bila belum terdaftar,
+ *   supplier baru dibuat otomatis (kode SUP-XXXX) agar data tidak hilang.
  * - Duplikat dideteksi berdasarkan kombinasi part_number + name.
  */
 class ProductsImport implements ToCollection, WithHeadingRow
@@ -68,6 +71,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
             $partNumber = $this->firstValue($data, ['part_number', 'partnumber', 'part_no']);
             $name       = $this->firstValue($data, ['nama_barang', 'name', 'nama']);
             $category   = $this->firstValue($data, ['jenis_barang', 'category', 'kategori']);
+            $supplierValue = $this->firstValue($data, ['supplier', 'supplier_name', 'nama_supplier', 'kode_supplier', 'supplier_code', 'pemasok']);
             $customerName = $this->firstValue($data, ['customer', 'customer_name', 'pelanggan']);
             $unit       = $this->firstValue($data, ['satuan', 'unit']);
             $stock      = $this->firstValue($data, ['stock_awal', 'stok_awal', 'stock', 'stok']);
@@ -108,6 +112,7 @@ class ProductsImport implements ToCollection, WithHeadingRow
                     'product_code' => $productCode,
                     'barcode'      => $productCode,
                     'part_number'  => ($partNumber !== null && $partNumber !== '') ? $partNumber : null,
+                    'supplier_id'  => $this->resolveSupplier($supplierValue),
                     'customer_id'  => $customerName ? Customer::where('customer_name', $customerName)->value('id') : null,
                     'name'         => $name,
                     'category'     => ($category !== null && $category !== '') ? $category : null,
@@ -122,6 +127,56 @@ class ProductsImport implements ToCollection, WithHeadingRow
                 $this->skipped++;
             }
         }
+    }
+
+    /**
+     * Cari supplier berdasarkan kode atau nama (case-insensitive).
+     * Jika belum ada, supplier baru dibuat otomatis dengan kode SUP-XXXX.
+     */
+    protected function resolveSupplier($value): ?int
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        $needle = trim((string) $value);
+
+        $supplier = Supplier::whereRaw('UPPER(supplier_code) = ?', [mb_strtoupper($needle)])
+            ->orWhereRaw('UPPER(supplier_name) = ?', [mb_strtoupper($needle)])
+            ->first();
+
+        if ($supplier) {
+            return $supplier->id;
+        }
+
+        $supplier = Supplier::create([
+            'supplier_code' => $this->generateSupplierCode(),
+            'supplier_name' => $needle,
+            'status'        => 'AKTIF',
+        ]);
+
+        return $supplier->id;
+    }
+
+    /**
+     * Kode supplier berikutnya (SUP-0001, SUP-0002, ...).
+     */
+    protected function generateSupplierCode(): string
+    {
+        $highest = 0;
+
+        Supplier::where('supplier_code', 'like', 'SUP-%')->pluck('supplier_code')->each(function ($code) use (&$highest) {
+            if (preg_match('/^SUP-(\d+)$/', (string) $code, $matches)) {
+                $highest = max($highest, (int) $matches[1]);
+            }
+        });
+
+        do {
+            $highest++;
+            $candidate = sprintf('SUP-%04d', $highest);
+        } while (Supplier::where('supplier_code', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**

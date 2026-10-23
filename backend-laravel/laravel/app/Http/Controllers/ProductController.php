@@ -16,7 +16,7 @@ class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::with('customer');
+        $query = Product::with(['customer', 'supplier']);
 
         if ($request->has('search') && $request->search !== '') {
             $search = $request->search;
@@ -39,6 +39,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'product_code' => 'nullable|string|max:255',
             'part_number'  => 'required|string|max:255',
+            'supplier_id'  => 'nullable|exists:suppliers,id',
             'customer_id'  => 'nullable|exists:customers,id',
             'name'         => 'required|string|max:255',
             'category'     => 'nullable|string|max:255',
@@ -95,6 +96,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'product_code' => 'nullable|string|max:255',
             'part_number'  => 'required|string|max:255',
+            'supplier_id'  => 'nullable|exists:suppliers,id',
             'customer_id'  => 'nullable|exists:customers,id',
             'name'         => 'required|string|max:255',
             'category'     => 'nullable|string|max:255',

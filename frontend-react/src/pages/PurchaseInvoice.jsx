@@ -48,7 +48,6 @@ export default function PurchaseInvoice() {
         }
     };
 
-    // Ambil data PO dari API atau gabungkan dari seluruh kemungkinan Local Storage
     const fetchPurchaseOrders = async () => {
         let allPOs = [];
         try {
@@ -61,7 +60,6 @@ export default function PurchaseInvoice() {
             // Abaikan error API
         }
 
-        // Ambil juga dari semua kemungkinan key local storage PO
         const possibleKeys = ['aldigens_purchase_orders', 'purchase_orders', 'po_list'];
         possibleKeys.forEach(key => {
             const stored = localStorage.getItem(key);
@@ -75,7 +73,6 @@ export default function PurchaseInvoice() {
             }
         });
 
-        // Hapus duplikat berdasarkan nomor PO / id
         const uniquePOs = Array.from(new Map(allPOs.map(po => [po.po_number || po.customer_po_number || po.id, po])).values());
         setPurchaseOrders(uniquePOs);
     };
@@ -90,7 +87,6 @@ export default function PurchaseInvoice() {
         );
 
         if (selectedPO) {
-            // Ambil item dari berbagai kemungkinan nama properti (items, detail, product_items, dll)
             const rawItems = selectedPO.items || selectedPO.details || selectedPO.product_items || [];
 
             const formattedItems = rawItems.length > 0 ? rawItems.map(i => ({
@@ -237,7 +233,11 @@ export default function PurchaseInvoice() {
                                         IDR {Number(inv.grand_total || 0).toLocaleString('id-ID')}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
-                                        <span className={`px-2 inline-flex text-xs font-semibold rounded-full ${inv.status === 'Lunas' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                                            inv.status === 'Lunas' || inv.status?.includes('Lunas')
+                                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                        }`}>
                                             {inv.status || 'Belum Lunas'}
                                         </span>
                                     </td>
@@ -278,7 +278,7 @@ export default function PurchaseInvoice() {
                                     <option value="">-- Pilih PO untuk Tarik Otomatis --</option>
                                     {purchaseOrders.map((po, idx) => (
                                         <option key={idx} value={po.po_number || po.customer_po_number || po.id}>
-                                            {po.po_number || po.customer_po_number || `PO ID: ${po.id}`} â€” {po.customer_name || po.supplier_name || 'Supplier'}
+                                            {po.po_number || po.customer_po_number || `PO ID: ${po.id}`} — {po.customer_name || po.supplier_name || 'Supplier'}
                                         </option>
                                     ))}
                                 </select>

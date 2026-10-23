@@ -55,7 +55,6 @@ export default function ReceiveItem() {
     const term = searchTerm.toLowerCase();
     return receiveItems.filter((item) => {
       const receiveNo = item.receive_no || item.ri_number || item.document_number || '';
-      // Fallback baca notes jika data dari Laravel API
       let vendor = item.vendor_name || item.supplier_name || '';
       if (!vendor && item.notes && item.notes.includes('Vendor:')) {
         vendor = item.notes.split('Vendor:')[1]?.trim();
@@ -103,7 +102,6 @@ export default function ReceiveItem() {
     setActiveMenuId(null);
     setEditingId(item.id);
 
-    // Parsing cerdas untuk membaca data dari Laravel API (jika poRef/vendor tergabung di notes)
     let parsedVendor = item.vendor_name || item.supplier_name || '';
     let parsedPoRef = item.po_ref || item.po_reference || '';
     if (!parsedVendor && item.notes && item.notes.includes('Vendor:')) {
@@ -116,6 +114,16 @@ export default function ReceiveItem() {
     const rawDate = item.date || item.receive_date || '';
     const cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
 
+    // Mapping items dengan pengaman agar tidak ada nilai null (mencegah warning input React)
+    const formattedItems = item.items && item.items.length > 0 
+      ? item.items.map(i => ({
+          part_number: i.part_number || '',
+          description: i.description || '',
+          qty: i.qty || i.quantity || 1,
+          unit: i.unit || 'PCS'
+        }))
+      : [emptyItem()];
+
     setFormData({
       receiveNo: item.receive_no || item.ri_number || item.document_number || '',
       date: cleanDate,
@@ -125,7 +133,7 @@ export default function ReceiveItem() {
       spkSupplier: item.spk_supplier || '',
       status: item.status || 'Completed',
       notes: item.notes || '',
-      items: item.items && item.items.length > 0 ? item.items : [emptyItem()]
+      items: formattedItems
     });
     setViewMode('form');
   };
@@ -215,7 +223,7 @@ export default function ReceiveItem() {
         <td align="center">${idx + 1}</td>
         <td>${it.part_number || '-'}</td>
         <td>${it.description || '-'}</td>
-        <td align="center">${it.qty || 0}</td>
+        <td align="center">${it.qty || it.quantity || 0}</td>
         <td align="center">${it.unit || 'PCS'}</td>
       </tr>
     `).join('');
@@ -376,7 +384,6 @@ export default function ReceiveItem() {
                   pagination.paginatedItems.map((item, idx) => {
                     const receiveNo = item.receive_no || item.ri_number || item.document_number;
                     
-                    // Fallback Pintar untuk API
                     let vendor = item.vendor_name || item.supplier_name || '';
                     let poRef = item.po_ref || item.po_reference || '-';
                     if (!vendor && item.notes && item.notes.includes('Vendor:')) {
@@ -386,7 +393,6 @@ export default function ReceiveItem() {
                       poRef = item.notes.split('|')[0].replace('PO Ref:', '').trim();
                     }
 
-                    // Format Tanggal Bersih
                     const rawDate = item.date || item.receive_date || '';
                     const cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
 
@@ -409,7 +415,7 @@ export default function ReceiveItem() {
                                 : 'bg-amber-100 text-amber-700'
                             }`}>
                             {item.status || 'Diterima'}
-                          </span>
+                            </span>
                         </td>
                         <td className="px-6 py-3 text-center">
                           <button onClick={() => setActiveMenuId(activeMenuId === keyId ? null : keyId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md cursor-pointer"><MoreVertical className="h-4 w-4" /></button>

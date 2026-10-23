@@ -190,17 +190,17 @@ export default function POList() {
             const targetPO = purchaseOrders.find(po => po.id === id || po.po_number === id);
 
             if (targetPO) {
-                // Pastikan targetPO.items ada dan tidak kosong
                 const poItems = targetPO.items || [];
 
                 const payload = {
                     receiveNo: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
                     date: new Date().toISOString().split('T')[0],
-                    vendorName: targetPO.customer_name || targetPO.supplier_name || 'Supplier Umum',
+                    vendorName: targetPO.customer_name || targetPO.supplier_name || targetPO.vendor_name || 'Supplier Umum',
+                    vendor_name: targetPO.customer_name || targetPO.supplier_name || targetPO.vendor_name || 'Supplier Umum',
+                    supplier_name: targetPO.customer_name || targetPO.supplier_name || targetPO.vendor_name || 'Supplier Umum',
                     poRef: targetPO.po_number || targetPO.customer_po_number,
                     status: 'Completed',
-                    notes: `Penerimaan otomatis dari ${targetPO.po_number || 'PO'}`,
-                    // KUNCI UTAMA: Menyertakan item barang dari PO agar masuk ke Receive Item
+                    notes: `PO Ref: ${targetPO.po_number || 'PO'} | Vendor: ${targetPO.customer_name || targetPO.supplier_name || 'Supplier Umum'}`,
                     items: poItems.map(item => ({
                         part_number: item.part_number || '',
                         description: item.description || '',
@@ -209,11 +209,9 @@ export default function POList() {
                     }))
                 };
 
-                // Kirim ke Backend Laravel
                 await api.post('/receive-items', payload);
             }
 
-            // Update status PO lokal menjadi "Received (RI)"
             const updated = purchaseOrders.map(po => {
                 if (po.id === id || po.po_number === id) {
                     return { ...po, status: 'Received (RI)' };
@@ -227,10 +225,7 @@ export default function POList() {
             fetchPurchaseOrders();
        } catch (error) {
             console.error(error);
-            // Trik untuk menangkap pesan error asli dari backend Laravel
             const errorMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang.';
-            
-            // Tampilkan pesan asli tersebut di pop-up merah
             swalError('Gagal', errorMsg);
         }
     };
@@ -379,7 +374,11 @@ export default function POList() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{po.date}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        <span className={`px-2 inline-flex text-xs font-semibold rounded-full ${po.status?.includes('Received') ? 'bg-emerald-100 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                                            po.status?.includes('Received') || po.status?.includes('Completed') || po.status === 'Sudah Diterima'
+                                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                        }`}>
                                             {po.status || 'Pending'}
                                         </span>
                                     </td>

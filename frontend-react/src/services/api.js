@@ -154,6 +154,13 @@ export const createProduction = (data) => api.post('/productions', data);
 export const getWeeklyReport = (week = '') =>
   api.get('/inventory/reports/weekly', { params: week ? { week } : {} });
 
+/**
+ * Laporan periode (harian/mingguan/bulanan/tahunan/rentang tanggal).
+ * @param {{ period: string, date?: string, start_date?: string, end_date?: string }} params
+ */
+export const getPeriodReport = (params = {}) =>
+  api.get('/inventory/reports/period', { params });
+
 export const downloadExport = (type) => api.get(`/exports/${type}`, { responseType: 'blob' });
 
 // -----------------------------------------------

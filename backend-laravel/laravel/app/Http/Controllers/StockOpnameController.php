@@ -16,6 +16,10 @@ class StockOpnameController extends Controller
     {
         $query = StockOpname::with(['warehouse', 'items.product'])->latest();
         if ($request->filled('status')) $query->where('status', $request->status);
+        // Filter periode (opsional) berdasarkan tanggal opname, bukan tanggal cetak.
+        if ($request->filled('start_date')) $query->whereDate('opname_date', '>=', $request->input('start_date'));
+        if ($request->filled('end_date')) $query->whereDate('opname_date', '<=', $request->input('end_date'));
+        if ($request->filled('warehouse_id')) $query->where('warehouse_id', $request->input('warehouse_id'));
         return response()->json(['data' => $query->get()]);
     }
 

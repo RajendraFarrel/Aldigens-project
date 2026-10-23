@@ -2,10 +2,14 @@
 import {
   ScanLine, Plus, Trash2, Send, RefreshCw, CheckCircle, AlertCircle,
   ArrowDownCircle, ArrowUpCircle, Package, Camera, CameraOff, Keyboard,
-  SwitchCamera
+  SwitchCamera, Printer
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { searchProductByCode, createBatchTransaction } from '../services/api';
+import {
+  printAldigensDocument, makeReportNumber, getCurrentUserName, fmtDateLong,
+  fmtQty, sumQtyByUnit, todayInput,
+} from '../utils/printAldigensDocument';
 
 const CAMERA_ELEMENT_ID = 'barcode-camera-reader';
 
@@ -125,6 +129,73 @@ export default function InventoryScan() {
   };
 
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+
+  /* Cetak Daftar Scan — hanya dokumen sementara. TIDAK memanggil handleSubmit,
+     tidak menyimpan transaksi, dan tidak mengubah stok. */
+  const handlePrintScanList = () => {
+    const printedAt = new Date();
+    const modeLabel = mode === 'MASUK' ? 'Barang Masuk' : 'Barang Keluar';
+    const rows = items.map((it, idx) => ({
+      _no: idx + 1,
+      barcode: it.product?.barcode,
+      product_code: it.product?.product_code,
+      part_number: it.product?.part_number,
+      name: it.product?.name,
+      quantity: it.quantity,
+      unit: it.product?.unit,
+      stock: it.product?.stock,
+    }));
+
+    printAldigensDocument({
+      title: 'DAFTAR HASIL SCAN BARCODE',
+      reportNumber: makeReportNumber('SCAN'),
+      printedAt,
+      printedBy: getCurrentUserName(),
+      metadataLeft: [
+        { label: 'Mode', value: modeLabel, strong: true },
+        { label: 'Tanggal Cetak', value: `${fmtDateLong(todayInput())}`, strong: true },
+      ],
+      metadataRight: [
+        { label: 'Jumlah Item', value: `${rows.length}`, strong: true },
+      ],
+      infoBox: [
+        {
+          label: 'Status Dokumen',
+          value: 'Dokumen ini merupakan daftar hasil scan sementara dan belum menjadi transaksi inventory.',
+          full: true,
+        },
+      ],
+      sections: [
+        {
+          title: 'DAFTAR BARANG HASIL SCAN',
+          columns: [
+            { header: 'No.', width: '5%', align: 'center', value: (r) => r._no },
+            { header: 'Barcode', width: '14%', value: (r) => r.barcode },
+            { header: 'Kode Produk', width: '12%', value: (r) => r.product_code },
+            { header: 'Part Number', width: '14%', value: (r) => r.part_number },
+            { header: 'Nama Barang', width: '26%', value: (r) => r.name },
+            { header: 'Qty', width: '8%', align: 'right', value: (r) => fmtQty(r.quantity) },
+            { header: 'Satuan', width: '8%', align: 'center', value: (r) => r.unit },
+            { header: 'Stok Saat Ini', width: '13%', align: 'right', value: (r) => fmtQty(r.stock) },
+          ],
+          rows,
+          emptyMessage: 'Tidak ada item dalam daftar scan.',
+        },
+      ],
+      notes: [
+        'Dokumen ini merupakan daftar hasil scan sementara dan belum menjadi transaksi inventory.',
+        'Riwayat permanen transaksi yang sudah disimpan dapat dilihat pada Riwayat Transaksi atau Laporan Stok.',
+      ],
+      summary: [
+        { label: 'Jumlah Item', value: `${rows.length}`, total: true },
+        ...sumQtyByUnit(items, (it) => it.quantity, (it) => it.product?.unit || '-'),
+      ],
+      signatories: [
+        { label: 'Dibuat Oleh', name: getCurrentUserName(), role: 'Administrator Inventory' },
+        { label: 'Diperiksa Oleh', name: '........................', role: 'Kepala Gudang' },
+      ],
+    });
+  };
 
   // ---------------- KAMERA SCANNER ----------------
   const stopCamera = useCallback(async () => {
@@ -431,16 +502,26 @@ export default function InventoryScan() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
           <span className="font-semibold text-slate-700 text-sm">
-            Daftar Barang ({items.length} item Â· {totalQty} unit)
+            Daftar Barang ({items.length} item · {totalQty} unit)
           </span>
-          {items.length > 0 && (
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setItems([])}
-              className="text-xs text-red-500 hover:text-red-600 transition cursor-pointer"
+              onClick={handlePrintScanList}
+              disabled={items.length === 0}
+              title={items.length === 0 ? 'Daftar scan masih kosong' : 'Cetak daftar hasil scan (belum menjadi transaksi)'}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
-              Hapus Semua
+              <Printer className="h-3.5 w-3.5" /> Cetak Daftar Scan
             </button>
-          )}
+            {items.length > 0 && (
+              <button
+                onClick={() => setItems([])}
+                className="text-xs text-red-500 hover:text-red-600 transition cursor-pointer"
+              >
+                Hapus Semua
+              </button>
+            )}
+          </div>
         </div>
 
         {items.length === 0 ? (

@@ -14,6 +14,7 @@ class JournalVoucher extends Model
         'Voucher Kas',
         'Voucher Penjualan',
         'Voucher Beban',
+        'Transfer Kas/Bank',
         'Jurnal Umum',
         'Jurnal Penyesuaian',
     ];

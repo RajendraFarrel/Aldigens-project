@@ -1,14 +1,19 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileStack, Plus, RefreshCw, Eye, Undo2, Pencil, CheckCircle2, Trash2 } from 'lucide-react';
-import PrintButton from '../../components/PrintButton';
-import PrintHeader from '../../components/PrintHeader';
+import { FileStack, Plus, RefreshCw, Eye, Undo2, Pencil, CheckCircle2, Trash2, Printer } from 'lucide-react';
+import { printDaftarVoucher } from '../../utils/accountingPrint';
 import JournalVoucherForm from '../../components/accounting/JournalVoucherForm';
 import {
   getVouchers, getVoucher, postVoucher, reverseVoucher, deleteVoucher,
-  angka, formatTanggal,
+  angka,
 } from '../../services/accountingApi';
 import { requestVoucherDetail } from '../../Data/accountingStore';
 import { swalSuccess, swalError, swalConfirm } from '../../utils/swal';
+
+/** Tanggal voucher -> 'DD/MM/YYYY' tanpa pergeseran timezone. */
+const tglJurnal = (value) => {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (value || '-');
+};
 
 /**
  * Jurnal Penyesuaian.
@@ -110,6 +115,12 @@ export default function JurnalPenyesuaian() {
     return `inline-block px-2 py-1 rounded-full text-xs font-bold ${map[status] || ''}`;
   };
 
+  const handlePrint = () => printDaftarVoucher(daftar, {
+    title: 'DAFTAR JURNAL PENYESUAIAN',
+    prefix: 'JP',
+    filterInfo: [{ label: 'Status', value: filterStatus || 'Semua' }],
+  });
+
   return (
     <div className="p-6 space-y-5 print-area">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
@@ -164,10 +175,11 @@ export default function JurnalPenyesuaian() {
                 <option value="VOID">Dibatalkan</option>
               </select>
             </div>
-            <PrintButton label="Cetak Daftar" />
+            <button onClick={handlePrint}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+              <Printer className="h-4 w-4" /> Cetak Daftar
+            </button>
           </div>
-
-          <PrintHeader judul="DAFTAR JURNAL PENYESUAIAN" />
 
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -193,7 +205,7 @@ export default function JurnalPenyesuaian() {
                   {daftar.map((v) => (
                     <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">{v.no_voucher}</td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">{formatTanggal(v.tanggal)}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">{tglJurnal(v.tanggal)}</td>
                       <td className="px-4 py-3 text-xs max-w-72 truncate">{v.keterangan || '-'}</td>
                       <td className="px-4 py-3 text-right text-xs whitespace-nowrap">{angka(v.total_debit)}</td>
                       <td className="px-4 py-3 text-right text-xs whitespace-nowrap">{angka(v.total_kredit)}</td>

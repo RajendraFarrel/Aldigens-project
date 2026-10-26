@@ -18,6 +18,7 @@ class JournalVoucherController extends Controller
         'Voucher Kas'          => 'VK',
         'Voucher Penjualan'    => 'VJ',
         'Voucher Beban'        => 'VBN',
+        'Transfer Kas/Bank'    => 'TRF',
         'Jurnal Umum'          => 'JV',
         'Jurnal Penyesuaian'   => 'JP',
     ];

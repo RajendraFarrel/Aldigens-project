@@ -40,6 +40,8 @@ import SPK from './pages/SPK';
 import Scheduling from './pages/Scheduling';
 // Import Modul Akuntansi
 import ChartOfAccount from './pages/accounting/ChartOfAccount';
+import KasBank from './pages/accounting/KasBank';
+import UtangPiutang from './pages/accounting/UtangPiutang';
 import JurnalUmum from './pages/accounting/JurnalUmum';
 import JournalVoucherDetail from './pages/accounting/JournalVoucherDetail';
 import BukuBesar from './pages/accounting/BukuBesar';
@@ -76,6 +78,8 @@ const PAGE_TITLES = {
   // Akuntansi
   'accounting-menu':          'Akuntansi',
   'accounting-coa':           'Chart of Account',
+  'accounting-cash-bank':     'Kas & Bank',
+  'accounting-receivables-payables': 'Utang Piutang',
   'accounting-journal':       'Jurnal Umum',
   'accounting-voucher-detail':'Detail Journal Voucher',
   'accounting-ledger':        'Buku Besar',
@@ -225,6 +229,8 @@ export default function App() {
 
       // Modul Akuntansi
       case 'accounting-coa':           return <ChartOfAccount />;
+      case 'accounting-cash-bank':     return <KasBank />;
+      case 'accounting-receivables-payables': return <UtangPiutang />;
       case 'accounting-journal':       return <JurnalUmum />;
       case 'accounting-voucher-detail':return <JournalVoucherDetail />;
       case 'accounting-ledger':        return <BukuBesar />;

@@ -334,6 +334,7 @@ export const buildDocumentHtml = (options = {}) => {
     landscape = false,
     pageLabel = '',
     emptyMessage = 'Tidak ada data pada periode/filter yang dipilih.',
+    copies = 1,
   } = options;
 
   const headerMeta = (items) =>
@@ -414,6 +415,50 @@ export const buildDocumentHtml = (options = {}) => {
   const printedDateLabel = fmtDateLong(printedAt);
   const printedFull = fmtDateTime(printedAt);
 
+  /* Halaman tambahan: dokumen baru dalam file yang sama, dicetak per halaman
+     (dipakai bila satu tombol cetak harus menghasilkan >1 dokumen terpisah). */
+  const salinanHtml = Array.from({ length: Math.max(0, Number(copies) - 1) })
+    .map(
+      () => `
+    <div style="page-break-before: always; break-before: page; padding-top: 0;">
+      <table class="header-table">
+        <tr>
+          <td class="logo-area">
+            <div><img src="/LOGO ALDIGENS2.jpeg" alt="Logo Aldigens" onerror="this.style.display='none'" /></div>
+            <div class="company-address">
+              <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/>
+              Ruko Bekasi Mas Blok C-25, Jl. Jend. Ahmad Yani, Margajaya<br/>
+              Bekasi Selatan - 17141
+            </div>
+          </td>
+          <td class="title-area">
+            <div class="doc-title">${escapeHtml(title)}</div>
+            <div class="doc-subtitle"><strong>No :</strong> ${escapeHtml(fmtText(reportNumber))}</div>
+            ${pageLabel ? `<div class="doc-subtitle" style="margin-top:2px;">${escapeHtml(pageLabel)}</div>` : ''}
+          </td>
+        </tr>
+      </table>
+      <table class="meta-table">
+        <tr>
+          <td style="width: 55%;">${headerMeta(metadataLeft)}</td>
+          <td align="right" style="width: 45%;">
+            ${periodLabel ? `Periode : <strong>${escapeHtml(periodLabel)}</strong><br/>` : ''}
+            ${headerMeta(metadataRight)}
+            Tanggal Cetak : ${escapeHtml(printedDateLabel)}
+          </td>
+        </tr>
+      </table>
+      ${infoBoxHtml}
+      ${sectionsHtml}
+      ${middleHtml}
+      ${signHtml}
+      <div class="footer-info">
+        Dibuat oleh: ${escapeHtml(fmtText(printedBy, 'ADMIN'))} | ${escapeHtml(printedFull)} | Powered by Aldigens ERP
+      </div>
+    </div>`
+    )
+    .join('');
+
   return `<!DOCTYPE html>
 <html lang="id">
   <head>
@@ -459,6 +504,8 @@ export const buildDocumentHtml = (options = {}) => {
     <div class="footer-info">
       Dibuat oleh: ${escapeHtml(fmtText(printedBy, 'ADMIN'))} | ${escapeHtml(printedFull)} | Powered by Aldigens ERP
     </div>
+
+    ${salinanHtml}
 
     <script>
       (function () {

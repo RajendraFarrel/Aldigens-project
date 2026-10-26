@@ -31,6 +31,11 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\JournalVoucherController;
 use App\Http\Controllers\AccountingReportController;
+use App\Http\Controllers\CashBankController;
+use App\Http\Controllers\CashBankTransactionController;
+use App\Http\Controllers\CashBankReportController;
+use App\Http\Controllers\PurchaseInvoiceController;
+use App\Http\Controllers\ReceivablePayableController;
 // Modul Operasional (SPK) — Step 3A
 use App\Http\Controllers\SpkController;
 use App\Http\Controllers\EmployeeController;
@@ -107,7 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/customer-part-numbers', [CustomerPartNumberController::class, 'store']);
     Route::put('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'update']);
     Route::delete('/customer-part-numbers/{id}', [CustomerPartNumberController::class, 'destroy']);
-    
+
     // Suppliers
     Route::get('/suppliers', [MasterDataController::class, 'getSuppliers']);
     Route::post('/suppliers', [MasterDataController::class, 'storeSupplier']);
@@ -144,7 +149,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
     Route::delete('/purchase-orders/{id}', [PurchaseOrderController::class, 'destroy']);
     Route::post('/purchase-orders/{id}/convert-to-so', [SalesOrderController::class, 'storeFromPO']);
-    
+
     Route::post('/receive-items', [ReceiveItemController::class, 'store']);
     Route::get('/receive-items', [ReceiveItemController::class, 'index']);
     Route::put('/receive-items/{id}', [ReceiveItemController::class, 'update']);
@@ -160,7 +165,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/delivery-orders', [DeliveryOrderController::class, 'index']);
     Route::post('/delivery-orders', [DeliveryOrderController::class, 'store']);
     Route::get('/delivery-orders/{id}', [DeliveryOrderController::class, 'show']);
-    
+
     // Approve DO: stok Inventory otomatis berkurang di sini.
     Route::post('/delivery-orders/{id}/approve', [DeliveryOrderController::class, 'approve']);
 
@@ -169,6 +174,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
     Route::put('/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
+    Route::post('/invoices/{id}/post-jurnal', [InvoiceController::class, 'postJurnal']);
     Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, 'storeFromQuotation']);
     Route::put('/quotations/{id}', [QuotationController::class, 'update']);
 
@@ -187,6 +193,40 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/accounting/vouchers/{journalVoucher}', [JournalVoucherController::class, 'destroy']);
     Route::post('/accounting/vouchers/{journalVoucher}/post', [JournalVoucherController::class, 'post']);
     Route::post('/accounting/vouchers/{journalVoucher}/reverse', [JournalVoucherController::class, 'reverse']);
+
+    // --- Modul Kas & Bank (master + transaksi + laporan) ---
+    // Master: hanya COA Aset detail aktif yang belum terpakai yang boleh dipilih.
+    Route::get('/accounting/cash-banks/akun-tersedia', [CashBankController::class, 'akunTersedia']);
+    Route::get('/accounting/cash-banks/saldo-awal', [CashBankController::class, 'saldoAwal']);
+    Route::put('/accounting/cash-banks/{cashBank}/saldo-awal', [CashBankController::class, 'simpanSaldoAwal']);
+    Route::get('/accounting/cash-banks/ringkasan', [CashBankReportController::class, 'ringkasan']);
+    Route::get('/accounting/cash-banks/mutasi', [CashBankReportController::class, 'mutasi']);
+    Route::apiResource('/accounting/cash-banks', CashBankController::class)->parameters(['cash-banks' => 'cashBank']);
+    Route::patch('/accounting/cash-banks/{cashBank}/toggle-status', [CashBankController::class, 'toggleStatus']);
+
+    // Transaksi: dicatat sebagai Journal Voucher existing lalu diposting.
+    Route::post('/accounting/cash-bank/penerimaan', [CashBankTransactionController::class, 'penerimaan']);
+    Route::post('/accounting/cash-bank/pengeluaran', [CashBankTransactionController::class, 'pengeluaran']);
+    Route::post('/accounting/cash-bank/transfer', [CashBankTransactionController::class, 'transfer']);
+
+    // --- Modul Utang Piutang ---
+    Route::get('/accounting/receivables-payables/ringkasan', [ReceivablePayableController::class, 'ringkasan']);
+    Route::get('/accounting/receivables-payables/piutang', [ReceivablePayableController::class, 'piutang']);
+    Route::get('/accounting/receivables-payables/utang', [ReceivablePayableController::class, 'utang']);
+    Route::get('/accounting/receivables-payables/aging', [ReceivablePayableController::class, 'aging']);
+    Route::get('/accounting/receivables-payables/master', [ReceivablePayableController::class, 'masterPelanggan']);
+    Route::get('/accounting/receivables-payables/penerimaan', [ReceivablePayableController::class, 'indexPenerimaan']);
+    Route::post('/accounting/receivables-payables/penerimaan', [ReceivablePayableController::class, 'storePenerimaan']);
+    Route::get('/accounting/receivables-payables/pembayaran', [ReceivablePayableController::class, 'indexPembayaran']);
+    Route::post('/accounting/receivables-payables/pembayaran', [ReceivablePayableController::class, 'storePembayaran']);
+
+    // Purchase Invoice (tagihan supplier) — sumber utang usaha
+    Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index']);
+    Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store']);
+    Route::get('/purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show']);
+    Route::put('/purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update']);
+    Route::delete('/purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy']);
+    Route::post('/purchase-invoices/{purchaseInvoice}/post', [PurchaseInvoiceController::class, 'post']);
 
     // Laporan akuntansi (sumber data sama: jurnal POSTED)
     Route::get('/accounting/reports/summary', [AccountingReportController::class, 'summary']);

@@ -54,21 +54,40 @@ body {
     width: 100%;
     color: #000 !important;
     background: #fff !important;
-    font-size: 11pt;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 10px !important;
+    padding: 0 !important;
   }
 
   .print-area * {
     color: #000 !important;
     background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
   }
 
-  /* Hindari tabel terpotong antar halaman */
+  /* Tabel cetak bergaris penuh seperti dokumen Sales Order */
   .print-area table {
     width: 100%;
     border-collapse: collapse;
   }
   .print-area thead {
     display: table-header-group;
+  }
+  .print-area th,
+  .print-area td {
+    border: 1px solid #000 !important;
+    padding: 3px 5px !important;
+  }
+  .print-area th {
+    background-color: #f1f5f9 !important;
+    font-size: 8.5px !important;
+    text-align: center !important;
+    text-transform: none !important;
+    font-weight: bold !important;
+  }
+  .print-area td {
+    font-size: 8.5px !important;
   }
   .print-area tr {
     page-break-inside: avoid;

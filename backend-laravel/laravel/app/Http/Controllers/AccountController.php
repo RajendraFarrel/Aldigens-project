@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
+use App\Models\CashBank;
+use App\Models\JournalVoucher;
 use Illuminate\Http\Request;
 
 class AccountController extends Controller
@@ -54,6 +56,31 @@ class AccountController extends Controller
             return response()->json(['message' => "Nomor Akun {$data['nomor_akun']} sudah digunakan."], 422);
         }
 
+        // Perlindungan saldo awal: akun yang sudah dipakai jurnal POSTED tidak
+        // boleh diubah saldo awalnya lewat jalur COA (akan mengubah saldo efektif
+        // & laporan secara diam-diam). Berlaku juga untuk akun Kas/Bank.
+        $perubahanSaldoAwal = $this->perubahanSaldoAwal($account, $data);
+        if ($perubahanSaldoAwal) {
+            $postedCount = JournalVoucher::where('status', 'POSTED')
+                ->whereHas('lines', fn ($q) => $q->where('account_id', $account->id))
+                ->count();
+
+            if ($postedCount > 0) {
+                return response()->json([
+                    'message' => "Akun {$account->nomor_akun} sudah memiliki {$postedCount} voucher POSTED. "
+                        . 'Saldo awal tidak dapat diubah langsung. Gunakan prosedur koreksi (reversal voucher).',
+                ], 422);
+            }
+
+            // Akun Kas/Bank terdaftar: perubahan saldo awal hanya lewat menu Kas & Bank.
+            if (CashBank::where('account_id', $account->id)->exists()) {
+                return response()->json([
+                    'message' => "Akun {$account->nomor_akun} terdaftar sebagai Kas/Bank. "
+                        . 'Perubahan saldo awal dilakukan melalui menu Kas & Bank > tab Saldo Awal.',
+                ], 422);
+            }
+        }
+
         $account->update($data + ['updated_by' => $request->user()?->id]);
 
         return response()->json($account->fresh());
@@ -71,6 +98,25 @@ class AccountController extends Controller
         ]);
 
         return response()->json($account->fresh());
+    }
+
+    /** Apakah payload mengubah saldo awal atau tanggal saldo awal? */
+    private function perubahanSaldoAwal(Account $account, array $data): bool
+    {
+        if (array_key_exists('saldo_awal', $data)
+            && abs((float) $account->saldo_awal - (float) $data['saldo_awal']) > 0.009) {
+            return true;
+        }
+
+        if (array_key_exists('saldo_awal_tanggal', $data)) {
+            $baru = $data['saldo_awal_tanggal'] ? substr((string) $data['saldo_awal_tanggal'], 0, 10) : null;
+            $lama = optional($account->saldo_awal_tanggal)->toDateString();
+            if ($baru !== $lama) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function validated(Request $request, array $data): array

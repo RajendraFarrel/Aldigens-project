@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, Barcode, X, Save, RefreshCw, Package, Printer, Upload, FileSpreadsheet, Boxes, PackageCheck } from 'lucide-react';
 import { getProducts, createProduct, updateProduct, deleteProduct, importProducts, downloadProductTemplate, downloadExport, getCustomers, getSuppliers } from '../services/api';
 import BarcodeLabel, { printBarcodes } from '../components/BarcodeLabel';
@@ -88,25 +88,31 @@ export default function InventoryProducts() {
   }, [products, loading, search]);
 
   // --- FUNGSI FETCH DISINKRONKAN KE ALDIGENS_PRODUCTS ---
-  const fetchProducts = useCallback(async () => {
+  // Bukan useCallback: dipanggil oleh useEffect yang dideklarasikan lebih dulu,
+  // jadi tidak boleh bergantung pada variabel yang baru dibuat setelahnya.
+  const fetchProducts = async () => {
     setLoading(true);
-    // Snapshot keyword agar response usang (mis. saat search dikosongkan) tidak menimpa hasil terbaru.
+    // Snapshot keyword agar respons usang (mis. saat search dikosongkan) tidak menimpa hasil terbaru.
     const keyword = search.trim();
     try {
       const res = await getProducts(keyword);
-      // Abaikan respons yang bukan milik kata kunci terakhir.
-      if (keyword !== searchRef.current) return;
-      setProducts(res.data.data || []);
-      setError('');
-    } catch {
-      if (keyword !== searchRef.current) return;
-      // Jangan biarkan data pencarian lama tampil saat request gagal.
-      setProducts([]);
-      setError('Gagal memuat data produk.');
+      if (keyword === searchRef.current) {
+        setProducts(res.data?.data || []);
+        setError('');
+      }
+    } catch (err) {
+      // Request yang dibatalkan (pindah halaman / unmount) bukan kegagalan data.
+      const cancelled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
+      if (!cancelled && keyword === searchRef.current) {
+        setProducts([]);
+        setError('Gagal memuat data produk.');
+      }
     } finally {
+      // Selalu dijalankan agar indikator loading tidak menggantung.
       setLoading(false);
     }
-  }, [search]);
+  };
+
 
   // Fungsi Pembantu membaca LocalStorage aldigens_products
   const fallbackToLocal = (searchTerm) => {
@@ -126,7 +132,8 @@ export default function InventoryProducts() {
   useEffect(() => {
     const timeout = setTimeout(() => fetchProducts(), 400);
     return () => clearTimeout(timeout);
-  }, [fetchProducts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   // Muat daftar customer untuk dropdown "Customer" pada form produk.
   useEffect(() => {
@@ -394,7 +401,7 @@ export default function InventoryProducts() {
       </div>
 
       {/* Tab pemisah data berdasarkan item_type */}
-      <div className="flex flex-wrap gap-2 border-b border-slate-200">
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.key;
@@ -403,15 +410,15 @@ export default function InventoryProducts() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 -mb-px text-sm font-medium border-b-2 rounded-t-lg transition cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2.5 mb-0 text-sm font-bold border-2 rounded-xl transition cursor-pointer ${
                 isActive
-                  ? 'border-blue-600 text-blue-700 bg-blue-50/60'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-800 border-blue-200 dark:border-slate-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-700 hover:border-blue-400'
               }`}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-blue-600 dark:text-blue-300'}`} />
               {tab.label}
-              <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isActive ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-200'}`}>
                 {count}
               </span>
             </button>

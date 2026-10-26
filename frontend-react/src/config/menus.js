@@ -29,6 +29,7 @@ import {
     CheckSquare,
     CalendarDays,
     // Modul Akuntansi
+    HandCoins,
     BookMarked,
     NotebookPen,
     BookOpen,
@@ -104,6 +105,8 @@ export const MENU_GROUPS = [{
             icon: BookMarked,
             subItems: [
                 { key: 'accounting-coa', label: 'Chart of Accounts', icon: BookMarked },
+                { key: 'accounting-cash-bank', label: 'Kas & Bank', icon: Wallet },
+                { key: 'accounting-receivables-payables', label: 'Utang Piutang', icon: HandCoins },
                 { key: 'accounting-journal', label: 'General Journal', icon: NotebookPen },
                 { key: 'accounting-ledger', label: 'General Ledger', icon: BookOpen },
                 { key: 'accounting-trial-balance', label: 'Trial Balance', icon: Scale },

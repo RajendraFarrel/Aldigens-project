@@ -1,10 +1,17 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { FileText, ArrowLeft, RefreshCw } from 'lucide-react';
-import PrintButton from '../../components/PrintButton';
-import PrintHeader from '../../components/PrintHeader';
-import { getVoucher, rupiah, angka, formatTanggal, formatTanggalPanjang, VOUCHER_TEMPLATES } from '../../services/accountingApi';
+import { FileText, ArrowLeft, RefreshCw, Printer } from 'lucide-react';
+import { printVoucherDetail } from '../../utils/accountingPrint';
+import { getVoucher, rupiah, angka, formatTanggal, VOUCHER_TEMPLATES } from '../../services/accountingApi';
 import { consumeVoucherDetailRequest } from '../../Data/accountingStore';
 import { swalError } from '../../utils/swal';
+
+/** Tanggal voucher untuk kop dokumen: 'DD Bulan YYYY'. */
+const tglPanjang = (value) => {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return formatTanggal(value);
+  const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  return `${Number(m[3])} ${bulan[Number(m[2]) - 1]} ${m[1]}`;
+};
 
 /**
  * Dokumen cetak Journal Voucher.
@@ -82,11 +89,17 @@ export default function JournalVoucherDetail() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition cursor-pointer">
             <ArrowLeft className="h-4 w-4" /> Kembali
           </button>
-          <PrintButton label="Cetak Voucher" />
+          <button onClick={() => printVoucherDetail(voucher)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+            <Printer className="h-4 w-4" /> Cetak Voucher
+          </button>
         </div>
       </div>
 
-      <PrintHeader judul={voucher.jenis.toUpperCase()} periode={formatTanggalPanjang(voucher.tanggal)} />
+      <div className="hidden print:block mb-4 pb-2 border-b-2 border-slate-800">
+        <p className="text-base font-bold uppercase">{voucher.jenis}</p>
+        <p className="text-xs">{voucher.no_voucher} · {tglPanjang(voucher.tanggal)}</p>
+      </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
         {/* Identitas dokumen */}

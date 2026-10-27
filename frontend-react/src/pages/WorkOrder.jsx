@@ -1,11 +1,22 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Edit2, Printer, X, Save, FileText } from 'lucide-react';
+import { Search, Plus, Filter, Edit2, Printer, X, Save, FileText, Factory } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 import { swalToast } from '../utils/swal'; 
 
 export default function WorkOrder() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('list');
+
+  // State untuk menyimpan daftar BOM dari Local Storage
+  const [bomList, setBomList] = useState([]);
+
+  useEffect(() => {
+    const savedBoms = localStorage.getItem('aldigens_boms');
+    if (savedBoms) {
+      setBomList(JSON.parse(savedBoms));
+    }
+  }, []);
 
   const [workOrders, setWorkOrders] = useState(() => {
     const saved = localStorage.getItem('aldigens_wo');
@@ -31,24 +42,37 @@ export default function WorkOrder() {
     consumables_c: []
   });
 
+  const [newWO, setNewWO] = useState({
+    woNo: `WO-${new Date().toISOString().slice(0, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
+    date: new Date().toISOString().split('T')[0],
+    refBOM: '',
+    product: '',
+    man_power: '',
+    jobdesc: '',
+    model_bracket: '',
+    targetQty: 1,
+    start_date: new Date().toISOString().split('T')[0],
+    finish_date: '',
+    status: 'Menunggu',
+    raw_materials: [],
+    consumables_b: [],
+    consumables_c: []
+  });
+
   const filteredWO = workOrders.filter(
     (item) =>
-      item.woNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.product.toLowerCase().includes(searchTerm.toLowerCase())
+      item.woNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.product?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const pagination = usePagination(filteredWO, 10);
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'Selesai':
-        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400';
-      case 'Dalam Proses':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
-      case 'Menunggu':
-        return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
-      default:
-        return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
+      case 'Selesai': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400';
+      case 'Dalam Proses': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
+      case 'Menunggu': return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
+      default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
     }
   };
 
@@ -98,6 +122,43 @@ export default function WorkOrder() {
     }
   };
 
+  // Menarik Data dari State bomList (Local Storage)
+  const handleBomChange = (e) => {
+    const bomId = e.target.value;
+    const bom = bomList.find(b => b.id === bomId);
+    
+    if (bom) {
+      setNewWO(prev => ({
+        ...prev,
+        refBOM: bomId,
+        product: bom.productName || 'Produk dari BOM', 
+        model_bracket: bom.model_bracket || '',
+        jobdesc: bom.jobdesc || '',
+        raw_materials: bom.raw_materials ? [...bom.raw_materials] : [],
+        consumables_b: bom.consumables_b ? [...bom.consumables_b] : [],
+        consumables_c: bom.consumables_c ? [...bom.consumables_c] : [],
+      }));
+    } else {
+      setNewWO(prev => ({ ...prev, refBOM: '', product: '', model_bracket: '', jobdesc: '', raw_materials: [], consumables_b: [], consumables_c: [] }));
+    }
+  };
+
+  const handleSaveNewWO = (e) => {
+    e.preventDefault();
+    const payload = { id: Date.now(), ...newWO };
+    const updatedList = [payload, ...workOrders];
+    
+    setWorkOrders(updatedList);
+    localStorage.setItem('aldigens_wo', JSON.stringify(updatedList));
+    setViewMode('list');
+    
+    if (typeof swalToast === 'function') {
+      swalToast('Work Order baru berhasil dibuat!', 'success');
+    } else {
+      alert('Work Order baru berhasil dibuat!');
+    }
+  };
+
   const handlePrintWO = (wo) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -110,7 +171,6 @@ export default function WorkOrder() {
       return rows;
     };
 
-    // Generate baris untuk Raw Material
     const rawRows = (wo.raw_materials || []).map((item, idx) => `
       <tr class="item-row">
         <td class="center">${idx + 1}</td>
@@ -123,7 +183,6 @@ export default function WorkOrder() {
       </tr>
     `).join('');
 
-    // Generate baris untuk Consumable B
     const bRows = (wo.consumables_b || []).map((item, idx) => `
       <tr class="item-row">
         <td class="center">${idx + 1}</td>
@@ -136,7 +195,6 @@ export default function WorkOrder() {
       </tr>
     `).join('');
 
-    // Generate baris untuk Consumable C
     const cRows = (wo.consumables_c || []).map((item, idx) => `
       <tr class="item-row">
         <td class="center">${idx + 1}</td>
@@ -224,6 +282,74 @@ export default function WorkOrder() {
     printWindow.document.close();
   };
 
+  if (viewMode === 'form') {
+    return (
+      <div className="p-6 max-w-5xl mx-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
+          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Buat Work Order (WO)</h2>
+              <p className="text-xs text-slate-500">Integrasi data BOM ke formulir perintah kerja produksi</p>
+            </div>
+            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold">
+              {newWO.woNo}
+            </span>
+          </div>
+
+          <form onSubmit={handleSaveNewWO} className="space-y-6">
+            <div className="bg-indigo-50 dark:bg-indigo-950/30 p-5 rounded-xl border border-indigo-100 dark:border-indigo-900/50 mb-6">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-2 flex items-center gap-2">
+                    <Factory className="h-4 w-4" /> Pilih Referensi BOM (Bill of Materials)
+                </label>
+                <select value={newWO.refBOM} onChange={handleBomChange} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white">
+                    <option value="">-- Tarik Data dari BOM --</option>
+                    {bomList.map(b => (
+                        <option key={b.id} value={b.id}>{b.id} - {b.model_bracket}</option>
+                    ))}
+                </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Name Man Power</label>
+                <input type="text" value={newWO.man_power} onChange={(e) => setNewWO({ ...newWO, man_power: e.target.value })} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">QTY Produksi</label>
+                <input type="number" value={newWO.targetQty} onChange={(e) => setNewWO({ ...newWO, targetQty: e.target.value })} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Jobdesc</label>
+                <input type="text" value={newWO.jobdesc} onChange={(e) => setNewWO({ ...newWO, jobdesc: e.target.value })} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Model Bracket</label>
+                <input type="text" value={newWO.model_bracket} onChange={(e) => setNewWO({ ...newWO, model_bracket: e.target.value })} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Start Date</label>
+                  <input type="date" value={newWO.start_date} onChange={(e) => setNewWO({ ...newWO, start_date: e.target.value })} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Finish Date</label>
+                  <input type="date" value={newWO.finish_date} onChange={(e) => setNewWO({ ...newWO, finish_date: e.target.value })} className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
+              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition">Batal</button>
+              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition">
+                <Save className="h-4 w-4" /> Simpan Work Order
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
@@ -245,7 +371,7 @@ export default function WorkOrder() {
             </button>
           </div>
           
-          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm cursor-pointer">
+          <button onClick={() => setViewMode('form')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm cursor-pointer">
             <Plus className="h-4 w-4" />
             Buat Work Order
           </button>

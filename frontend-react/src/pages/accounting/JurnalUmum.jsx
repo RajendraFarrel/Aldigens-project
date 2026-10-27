@@ -308,7 +308,7 @@ export default function JurnalUmum() {
                                             <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_debit)}</td>
                                             <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_kredit)}</td>
                                             <td colSpan={3} className="px-2 py-3 text-right">
-                                                Selisih {angka(rekap.selisih)} â€” {rekap.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
+                                                Selisih {angka(rekap.selisih)}  {rekap.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -316,6 +316,15 @@ export default function JurnalUmum() {
                             </table>
                         </div>
                     </div>
+<<<<<<< HEAD
+=======
+
+                    {rekap?.rows?.length > 0 && (
+                        <div className="hidden print:block mt-6 text-xs">
+                            <p>Dicetak dari Sistem Terintegrasi Aldigens  {rekap.jumlah_voucher} voucher posted.</p>
+                        </div>
+                    )}
+>>>>>>> 74b6de6feaf7d8e1347a1849e7422acf7957b9b1
                 </div>
             )}
 

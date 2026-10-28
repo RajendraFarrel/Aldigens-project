@@ -61,6 +61,7 @@ class PurchaseOrderController extends Controller
                     'unit_price' => $item['unit_price'] ?? 0,
                     'total_price' => ($item['qty'] ?? 1) * ($item['unit_price'] ?? 0),
                     'amount' => ($item['qty'] ?? 1) * ($item['unit_price'] ?? 0),
+                    'tax_code' => $item['tax_code'] ?? null,
                 ]);
             }
 

@@ -22,6 +22,7 @@ class PurchaseOrder extends Model
     'tax_amount',
     'tax_percentage',
     'grand_total',
+    'tax_code',
     'status'
 ];
 

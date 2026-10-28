@@ -316,15 +316,13 @@ export default function JurnalUmum() {
                             </table>
                         </div>
                     </div>
-<<<<<<< HEAD
-=======
+
 
                     {rekap?.rows?.length > 0 && (
                         <div className="hidden print:block mt-6 text-xs">
                             <p>Dicetak dari Sistem Terintegrasi Aldigens  {rekap.jumlah_voucher} voucher posted.</p>
                         </div>
                     )}
->>>>>>> 74b6de6feaf7d8e1347a1849e7422acf7957b9b1
                 </div>
             )}
 

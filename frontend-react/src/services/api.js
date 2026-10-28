@@ -149,6 +149,15 @@ export const getProductions = () => api.get('/productions');
 export const createProduction = (data) => api.post('/productions', data);
 
 // -----------------------------------------------
+// Purchase Invoices & Payments (Baru Ditambahkan)
+// -----------------------------------------------
+export const getPurchaseInvoices = (params = {}) => api.get('/purchase-invoices', { params });
+export const getPurchasePayments = (params = {}) => api.get('/purchase-payments', { params });
+export const createPurchasePayment = (data) => api.post('/purchase-payments', data);
+export const updatePurchasePayment = (id, data) => api.put(`/purchase-payments/${id}`, data);
+export const deletePurchasePayment = (id) => api.delete(`/purchase-payments/${id}`);
+
+// -----------------------------------------------
 // Inventory – Reports
 // -----------------------------------------------
 export const getWeeklyReport = (week = '') =>

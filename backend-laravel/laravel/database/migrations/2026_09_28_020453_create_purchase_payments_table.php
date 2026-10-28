@@ -12,15 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('purchase_payments', function (Blueprint $table) {
-    $table->id();
-    $table->string('payment_no')->unique();    // No. Pembayaran (PP)
-    $table->date('date');                      // Tanggal Bayar
-    $table->string('vendor_name');             // Vendor Penerima
-    $table->string('payment_method');          // Metode (Transfer BCA, Kas Kecil, dll)
-    $table->decimal('amount', 15, 2);          // Total Dibayar
-    $table->text('notes')->nullable();         // Keterangan / Ref Faktur
-    $table->timestamps();
-});
+            $table->id();
+            $table->string('paymentNo')->unique();           // Sesuai dengan input frontend
+            $table->date('date');
+            $table->string('invoice_reference')->nullable(); // Wajib ditambahkan untuk menyimpan nomor faktur
+            $table->string('vendorName');                    // Sesuai dengan input frontend
+            $table->string('paymentMethod');                 // Sesuai dengan input frontend
+            $table->decimal('amount', 15, 2);
+            $table->text('notes')->nullable();
+            $table->timestamps();
+        });
     }
 
     /**

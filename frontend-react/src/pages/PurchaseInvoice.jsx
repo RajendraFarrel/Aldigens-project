@@ -45,6 +45,290 @@ function terbilang(nilai) {
     return bagi(angka).trim() + ' Rupiah';
 }
 
+// ============================================================
+// TEMPLATE CETAK INVOICE (mengikuti format invoice fisik / Accurate)
+// Logo diambil dari import logoAldigens di bagian atas file ini.
+// ============================================================
+const PRINT_COMPANY = {
+    name: 'PT. ALDIGENS PUTERA PERSADA',
+    address: ['Ruko Bekasi Mas Blok C-25', 'Jl. Jend Ahmad Yani, Margajaya', 'Bekasi Selatan - 17141'],
+};
+const PRINT_DOC_TITLE = 'INVOICE';
+const PRINT_PARTY_LABEL = 'Pelanggan';
+const PRINT_TERBILANG_LANG = 'en';   // 'en' = bahasa Inggris seperti foto, 'id' = bahasa Indonesia
+const PRINT_SHOW_PAYMENT_INFO = true; // false = sembunyikan blok "Mohon Pembayaran..."
+const PRINT_PAYMENT_INFO = { accountName: 'PT. ALDIGENS PUTERA PERSADA', bankName: 'BANK PERMATA', accountNo: '' }; // isi nomor rekening
+const PRINT_SIGNER = { name: 'KHAFID YUSUF', title: 'Direktur' };
+
+const P_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const P_ONES = [
+    '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven',
+    'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen',
+];
+const P_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const P_SCALES = ['', 'thousand', 'million', 'billion', 'trillion'];
+
+const pEsc = (v) =>
+    String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pLines = (v) => pEsc(v).replace(/\r?\n/g, '<br/>');
+const pFmt = (n) => Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+
+// 2026-09-17 -> 17 Sep 2026
+const pDate = (value) => {
+    if (!value) return '-';
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return String(value);
+    return `${Number(m[3])} ${P_MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+};
+
+const pDaysBetween = (a, b) => {
+    const d1 = Date.parse(String(a || '').slice(0, 10));
+    const d2 = Date.parse(String(b || '').slice(0, 10));
+    return Number.isNaN(d1) || Number.isNaN(d2) ? null : Math.round((d2 - d1) / 86400000);
+};
+
+const pBelow1000 = (num) => {
+    const words = [];
+    let n = num;
+    if (n >= 100) {
+        words.push(`${P_ONES[Math.floor(n / 100)]} hundred`);
+        n %= 100;
+    }
+    if (n >= 20) {
+        words.push(P_TENS[Math.floor(n / 10)] + (n % 10 ? `-${P_ONES[n % 10]}` : ''));
+    } else if (n > 0) {
+        words.push(P_ONES[n]);
+    }
+    return words.join(' ');
+};
+
+// 25500000 -> "Twenty-five million five hundred thousand Rupiah"
+const pWords = (value) => {
+    let n = Math.floor(Math.abs(Number(value) || 0));
+    if (n === 0) return 'Zero Rupiah';
+    const chunks = [];
+    let scale = 0;
+    while (n > 0) {
+        const chunk = n % 1000;
+        if (chunk) chunks.unshift(`${pBelow1000(chunk)}${P_SCALES[scale] ? ` ${P_SCALES[scale]}` : ''}`);
+        n = Math.floor(n / 1000);
+        scale += 1;
+    }
+    const text = chunks.join(' ');
+    return `${text.charAt(0).toUpperCase()}${text.slice(1)} Rupiah`;
+};
+
+const pTerbilang = (value) => (PRINT_TERBILANG_LANG === 'id' ? terbilang(value) : pWords(value));
+
+// Samakan bentuk data invoice dari API (nama field bisa berbeda-beda)
+const normalizeInvoiceForPrint = (inv = {}) => {
+    const rawItems = inv.items || inv.details || inv.lines || [];
+    const items = rawItems.map((it) => {
+        const qty = Number(it.qty ?? it.quantity ?? 0);
+        const price = Number(it.unit_price ?? it.price ?? 0);
+        const disc = Number(it.discount ?? it.discount_percent ?? it.disc_percent ?? 0);
+        return {
+            code: it.part_number || it.code || '',
+            name: it.description || it.name || '',
+            qty,
+            price,
+            disc,
+            total: Number(qty * price * (1 - disc / 100)),
+        };
+    });
+
+    const taxPct = Number(inv.tax_percentage ?? 11);
+    let subTotal = inv.sub_total ?? inv.subtotal ?? (items.length ? items.reduce((s, i) => s + i.total, 0) : null);
+    let tax = inv.tax_amount ?? inv.tax ?? null;
+    let grand = inv.grand_total ?? null;
+    if (subTotal == null) subTotal = grand != null ? (tax != null ? Number(grand) - Number(tax) : Math.round(Number(grand) / (1 + taxPct / 100))) : 0;
+    if (tax == null) tax = Math.round(Number(subTotal) * taxPct / 100);
+    if (grand == null) grand = Number(subTotal) + Number(tax);
+
+    const invoiceDate = inv.invoice_date || inv.date;
+    const days = pDaysBetween(invoiceDate, inv.due_date);
+    // Buang awalan "Reff PO. No. :" / "Ref PO:" supaya tidak tercetak dobel
+    const rawRef = String(inv.po_reference || inv.notes || '').replace(/^\s*Re(?:f|ff)\.?\s*PO\.?(?:\s*No\.?)?\s*:?\s*/i, '').trim();
+
+    return {
+        number: inv.supplier_invoice_number || inv.invoice_number || '-',
+        date: pDate(invoiceDate),
+        term: days == null ? 'Net 30' : days > 0 ? `Net ${days}` : 'Tunai',
+        refPo: rawRef && rawRef !== '-' ? rawRef : '-',
+        partyName: inv.supplier?.supplier_name || inv.supplier_name || '-',
+        partyAddress: inv.supplier?.address || inv.supplier_address || '',
+        items,
+        subTotal: Number(subTotal),
+        tax: Number(tax),
+        taxPct,
+        grand: Number(grand),
+    };
+};
+
+const PRINT_INVOICE_STYLE = `
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 10mm 14mm; }
+    .script { font-family: 'Comic Sans MS', 'Comic Sans', 'Comic Neue', cursive; }
+
+    .head { display: flex; justify-content: space-between; align-items: flex-start; }
+    /* brightness: latar JPEG abu-abu muda dibuat putih, bagian hitam tetap hitam */
+    .logo { width: 62mm; height: auto; display: block; margin-bottom: 2mm; filter: brightness(1.06); }
+    .co-name { font-weight: 700; }
+    .co-addr { line-height: 1.35; }
+    .head-right { text-align: right; padding-top: 9mm; }
+    .doc-title { font-size: 17px; font-weight: 700; text-decoration: underline; letter-spacing: .4px; }
+    .doc-no { font-size: 12px; font-weight: 700; margin-top: 2px; }
+
+    .party { display: flex; justify-content: space-between; margin-top: 10mm; }
+    .party-left { flex: 0 0 56%; line-height: 1.4; }
+    .party-left .name { font-weight: 700; margin: 3px 0 7px; }
+    .meta { text-align: right; line-height: 2; }
+
+    .items { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 2mm; }
+    .items th { border: 1px solid #000; padding: 4px; font-weight: 700; text-align: center; background: #ececec; }
+    .items td { border-left: 1px solid #000; border-right: 1px solid #000; padding: 1px 5px; vertical-align: top; word-wrap: break-word; }
+    .items tr.fill td { border-bottom: 1px solid #000; }
+    .items .r { text-align: right; }
+    .items .c { text-align: center; }
+
+    .totals { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .totals td { border: 1px solid #000; padding: 3px 8px; height: 6.2mm; }
+    .totals tr.last td { height: 9mm; }
+    .totals .l { width: 20.5%; text-align: right; }
+    .totals .v { width: 21%; text-align: right; }
+    .totals .words { width: 58.5%; vertical-align: middle; }
+    .totals .strong { font-weight: 700; }
+
+    .pay { margin-top: 3mm; line-height: 1.7; page-break-inside: avoid; }
+    .pay table { border-collapse: collapse; }
+    .pay td { padding: 2px 6px 2px 0; }
+    .sign { margin-top: 10mm; page-break-inside: avoid; }
+    .sign .space { height: 22mm; }
+    .sign .line { border-top: 1px dashed #000; width: 52mm; margin: 2px 0; }
+`;
+
+function buildInvoiceHtml(rawInvoice, { autoPrint = false, logoUrl = '' } = {}) {
+    const d = normalizeInvoiceForPrint(rawInvoice);
+
+    const rows = d.items
+        .map(
+            (it, idx) => `
+                <tr>
+                    <td class="c">${idx + 1}</td>
+                    <td>${pEsc(it.code)}</td>
+                    <td>${pEsc(it.name)}</td>
+                    <td class="c">${pFmt(it.qty)}</td>
+                    <td class="r">${pFmt(it.price)}</td>
+                    <td class="c">${pFmt(it.disc)}</td>
+                    <td class="r">${pFmt(it.total)}</td>
+                </tr>`
+        )
+        .join('');
+
+    // Baris kosong supaya garis kolom memanjang ke bawah seperti invoice fisik
+    const fillHeightMm = Math.max(0, 78 - d.items.length * 5);
+
+    const logoTag = logoUrl
+        ? `<img class="logo" src="${pEsc(logoUrl)}" alt="PT. Aldigens Putera Persada" onerror="this.style.display='none'" />`
+        : '';
+
+    const paymentBlock = PRINT_SHOW_PAYMENT_INFO
+        ? `<div class="pay script">
+                Mohon Pembayaran dilakukan ke Account kami sbb :
+                <table class="script">
+                    <tr><td>Nama Account</td><td>: ${pEsc(PRINT_PAYMENT_INFO.accountName)}</td></tr>
+                    <tr><td>Nama Bank</td><td>: ${pEsc(PRINT_PAYMENT_INFO.bankName)}</td></tr>
+                    <tr><td>Account No</td><td>: ${pEsc(PRINT_PAYMENT_INFO.accountNo || '......................')}</td></tr>
+                </table>
+            </div>`
+        : '';
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>${pEsc(PRINT_DOC_TITLE)} ${pEsc(d.number)}</title>
+    <style>${PRINT_INVOICE_STYLE}</style>
+</head>
+<body>
+<div class="page">
+
+    <div class="head">
+        <div class="head-left">
+            ${logoTag}
+            <div class="co-name">${pEsc(PRINT_COMPANY.name)}</div>
+            <div class="co-addr">${PRINT_COMPANY.address.map(pEsc).join('<br/>')}</div>
+        </div>
+        <div class="head-right">
+            <div class="doc-title">${pEsc(PRINT_DOC_TITLE)}</div>
+            <div class="doc-no">No. ${pEsc(d.number)}</div>
+        </div>
+    </div>
+
+    <div class="party">
+        <div class="party-left">
+            <div>${pEsc(PRINT_PARTY_LABEL)} :</div>
+            <div class="name">${pEsc(d.partyName)}</div>
+            <div>${pLines(d.partyAddress)}</div>
+        </div>
+        <div class="meta">
+            <div>Tanggal : ${pEsc(d.date)}</div>
+            <div>Term Pembayaran : ${pEsc(d.term)}</div>
+            <div>Reff PO. No : ${pEsc(d.refPo)}</div>
+            <div>Mata Uang : Rupiah</div>
+        </div>
+    </div>
+
+    <table class="items">
+        <colgroup>
+            <col style="width:5.5%" /><col style="width:29%" /><col style="width:26.5%" />
+            <col style="width:6%" /><col style="width:12.5%" /><col style="width:6.5%" /><col style="width:14%" />
+        </colgroup>
+        <thead>
+            <tr><th>No.</th><th>Kode Barang</th><th>Nama Barang</th><th>Qty</th><th>Harga @</th><th>Disc %</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+            ${rows}
+            <tr class="fill"><td style="height:${fillHeightMm}mm"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        </tbody>
+    </table>
+
+    <table class="totals">
+        <tr><td class="words"></td><td class="l">Sub Total :</td><td class="v">${pFmt(d.subTotal)}</td></tr>
+        <tr><td class="words"></td><td class="l">PPN ${pEsc(d.taxPct)} % :</td><td class="v">${pFmt(d.tax)}</td></tr>
+        <tr class="last"><td class="words">${pEsc(pTerbilang(d.grand))}</td><td class="l strong">TOTAL :</td><td class="v">${pFmt(d.grand)}</td></tr>
+    </table>
+
+    ${paymentBlock}
+
+    <div class="sign script">
+        <div>${pEsc(PRINT_COMPANY.name)}</div>
+        <div class="space"></div>
+        <div>${pEsc(PRINT_SIGNER.name)}</div>
+        <div class="line"></div>
+        <div>${pEsc(PRINT_SIGNER.title)}</div>
+    </div>
+
+</div>
+${autoPrint ? '<script>window.onload = function () { window.focus(); setTimeout(function () { window.print(); }, 500); };</script>' : ''}
+</body>
+</html>`;
+}
+
+function printInvoiceDocument(invoice, logoUrl) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert('Pop-up diblokir browser. Izinkan pop-up untuk mencetak invoice.');
+        return;
+    }
+    printWindow.document.write(buildInvoiceHtml(invoice, { autoPrint: true, logoUrl }));
+    printWindow.document.close();
+}
+
+
 export default function PurchaseInvoice() {
     const [invoices, setInvoices] = useState([]);
     const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -262,192 +546,22 @@ export default function PurchaseInvoice() {
         swalSuccess('Berhasil', 'Status invoice diperbarui menjadi Lunas.');
     };
 
-    // Fungsi cetak persis layout Accurate sesuai foto
-    const handlePrintInvoice = (inv) => {
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) return;
-
-        const itemsList = inv.items || inv.details || [];
-        const subtotal = itemsList.reduce((acc, curr) => {
-            const qty = Number(curr.qty || 0);
-            const price = Number(curr.unit_price || curr.price || 0);
-            const disc = Number(curr.discount || 0);
-            return acc + ((qty * price) * (1 - disc / 100));
-        }, 0);
-        const ppn = Number(inv.tax_amount || 0); // PPN 0 atau sesuai data
-        const grandTotal = Number(inv.grand_total || (subtotal + ppn));
-
-        const supplierName = inv.supplier?.supplier_name || inv.supplier_name || '-';
-        const supplierAddress = inv.supplier?.address || inv.supplier_address || '-';
-        const invoiceDate = inv.invoice_date || inv.date || '-';
-        const refPo = inv.po_reference || inv.notes || '-';
-
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>Invoice - ${inv.invoice_number}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 0; padding: 20px; background: #fff; }
-                        .container { width: 100%; max-width: 800px; margin: 0 auto; }
-                        
-                        .header-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-                        .header-table td { vertical-align: top; }
-                        
-                        .logo-box { margin-bottom: 8px; }
-                        .logo-img { height: 40px; width: auto; object-fit: contain; }
-
-                        .company-box { font-size: 10px; line-height: 1.4; margin-bottom: 15px; }
-                        
-                        .invoice-title-area { text-align: right; }
-                        .invoice-heading { font-size: 20px; font-weight: bold; letter-spacing: 2px; margin-bottom: 8px; }
-                        .invoice-meta { font-size: 11px; line-height: 1.5; text-align: right; }
-
-                        .customer-box { border: 1px solid #000; padding: 8px 10px; margin-bottom: 15px; font-size: 11px; line-height: 1.4; min-height: 55px; }
-                        .customer-label { margin-bottom: 2px; color: #333; }
-
-                        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
-                        .items-table th, .items-table td { border: 1px solid #000; padding: 6px 8px; font-size: 11px; }
-                        .items-table th { background-color: #f8fafc; text-align: center; font-weight: bold; }
-                        
-                        .text-center { text-align: center; }
-                        .text-right { text-align: right; }
-                        .text-left { text-align: left; }
-
-                        .row-space { height: 200px; vertical-align: top; }
-
-                        .summary-section { width: 100%; border-collapse: collapse; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000; }
-                        .summary-section td { vertical-align: top; padding: 8px 10px; }
-                        
-                        .terbilang-box { font-style: italic; font-size: 11px; margin-bottom: 15px; }
-                        .bank-info { font-size: 10px; line-height: 1.4; }
-                        
-                        .totals-table { width: 100%; border-collapse: collapse; }
-                        .totals-table td { padding: 4px 6px; font-size: 11px; border: none; }
-                        .totals-table tr td:last-child { text-align: right; width: 110px; }
-
-                        .signature-section { width: 100%; margin-top: 30px; border-collapse: collapse; }
-                        .signature-section td { vertical-align: top; width: 50%; font-size: 11px; }
-                        .signature-space { height: 50px; }
-                        .sign-name { font-weight: bold; text-decoration: underline; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <table class="header-table">
-                            <tr>
-                                <td style="width: 50%;">
-                                    <div class="logo-box">
-                                        <img src="${logoAldigens}" class="logo-img" alt="Logo" />
-                                    </div>
-                                    <div class="company-box">
-                                        <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/>
-                                        Ruko Bekasi Mas Blok C-25<br/>
-                                        Jl. Jend Ahmad Yani, Margajaya<br/>
-                                        Bekasi Selatan - 17141
-                                    </div>
-                                </td>
-                                <td style="width: 50%;" class="invoice-title-area">
-                                    <div class="invoice-heading">INVOICE</div>
-                                    <div class="invoice-meta">
-                                        Tanggal : ${invoiceDate}<br/>
-                                        Term Pembayaran : Net 30<br/>
-                                        Reff PO. No. : ${refPo}<br/>
-                                        Mata Uang : Rupiah
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-
-                        <div class="customer-box">
-                            <div class="customer-label">Pelanggan :</div>
-                            <strong>${supplierName}</strong><br/>
-                            <span>${supplierAddress}</span>
-                        </div>
-
-                        <table class="items-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 5%;">No.</th>
-                                    <th style="width: 23%;">Kode Barang</th>
-                                    <th style="width: 32%;">Nama Barang</th>
-                                    <th style="width: 7%;">Qty</th>
-                                    <th style="width: 13%;">Harga @</th>
-                                    <th style="width: 8%;">Disc %</th>
-                                    <th style="width: 12%;">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${itemsList.length > 0 ? itemsList.map((item, idx) => {
-                                    const q = Number(item.qty || 0);
-                                    const p = Number(item.unit_price || item.price || 0);
-                                    const disc = Number(item.discount || 0);
-                                    const totalItem = (q * p) * (1 - disc / 100);
-                                    return `
-                                        <tr>
-                                            <td class="text-center row-space">${idx + 1}</td>
-                                            <td class="row-space">${item.part_number || '-'}</td>
-                                            <td class="row-space">${item.description || '-'}</td>
-                                            <td class="text-center row-space">${q}</td>
-                                            <td class="text-right row-space">${p.toLocaleString('id-ID', { minimumFractionDigits: 0 })}</td>
-                                            <td class="text-center row-space">${disc}</td>
-                                            <td class="text-right row-space">${totalItem.toLocaleString('id-ID', { minimumFractionDigits: 0 })}</td>
-                                        </tr>
-                                    `;
-                                }).join('') : `
-                                    <tr>
-                                        <td colspan="7" class="text-center row-space">Tidak ada item.</td>
-                                    </tr>
-                                `}
-                            </tbody>
-                        </table>
-
-                        <table class="summary-section">
-                            <tr>
-                                <td style="width: 55%;">
-                                    <div class="terbilang-box">(${terbilang(grandTotal)})</div>
-                                    <div class="bank-info">
-                                        Mohon Pembayaran dilakukan ke Account kami sbb :<br/>
-                                        Nama Account &nbsp;: PT. ALDIGENS PUTERA PERSADA<br/>
-                                        Nama Bank &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: BANK PERMATA<br/>
-                                        Account No &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: [Nomor Rekening]
-                                    </div>
-                                </td>
-                                <td style="width: 45%;">
-                                    <table class="totals-table">
-                                        <tr>
-                                            <td>Sub Total</td>
-                                            <td>${subtotal.toLocaleString('id-ID', { minimumFractionDigits: 0 })}</td>
-                                        </tr>
-                                        <tr>
-                                            <td>PPN 11%</td>
-                                            <td>${ppn.toLocaleString('id-ID', { minimumFractionDigits: 0 })}</td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>TOTAL</strong></td>
-                                            <td><strong>${grandTotal.toLocaleString('id-ID', { minimumFractionDigits: 0 })}</strong></td>
-                                        </tr>
-                                    </table>
-                                </td>
-                            </tr>
-                        </table>
-
-                        <table class="signature-section">
-                            <tr>
-                                <td>
-                                    PT. ALDIGENS PUTERA PERSADA
-                                    <div class="signature-space"></div>
-                                    <div class="sign-name">KHAFID YUSUF</div>
-                                    <div>Direktur</div>
-                                </td>
-                                <td></td>
-                            </tr>
-                        </table>
-                    </div>
-                    <script>window.onload = function() { setTimeout(() => { window.print(); }, 500); }</script>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
+    // Cetak invoice: ambil detail lengkap (item, supplier) dari server bila tersedia,
+    // lalu cetak dengan template invoice. Bila endpoint detail tidak ada, memakai data dari baris daftar.
+    const handlePrintInvoice = async (inv) => {
+        let detail = inv;
+        try {
+            const res = await api.get(`/purchase-invoices/${inv.id}`);
+            const data = res?.data?.data ?? res?.data;
+            if (data && typeof data === 'object' && !Array.isArray(data)) {
+                detail = { ...inv, ...data };
+            }
+        } catch (error) {
+            console.warn('Detail invoice tidak bisa dimuat, memakai data dari daftar:', error);
+        }
+        // URL logo dibuat absolut supaya terbaca dari jendela cetak
+        const logoUrl = new URL(logoAldigens, window.location.href).href;
+        printInvoiceDocument(detail, logoUrl);
     };
 
     if (loading) return <div className="p-6 text-slate-600">Memuat data Purchase Invoice...</div>;
@@ -520,7 +634,7 @@ export default function PurchaseInvoice() {
                         )}
                     </tbody>
                 </table>
-                <Pagination currentPage="{pagination.currentPage}" onPageChange="{pagination.setCurrentPage}" onPageSizeChange="{pagination.setPageSize}" pageSize="{pagination.pageSize}" totalItems="{pagination.totalItems}"/>
+                <Pagination currentPage={pagination.currentPage} onPageChange={pagination.setCurrentPage} onPageSizeChange={pagination.setPageSize} pageSize={pagination.pageSize} totalItems={pagination.totalItems}/>
             </div>
 
             {isModalOpen && (

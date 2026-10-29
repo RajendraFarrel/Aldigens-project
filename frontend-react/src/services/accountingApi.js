@@ -263,12 +263,27 @@ export const SALDO_NORMAL_BY_TIPE = {
     Pendapatan: 'Kredit',
 };
 
-export const todayISODate = () => new Date().toISOString().slice(0, 10);
+/**
+ * Tanggal lokal (bukan UTC) dalam format 'YYYY-MM-DD'.
+ *
+ * JANGAN memakai `new Date(...).toISOString().slice(0, 10)`: toISOString()
+ * mengonversi ke UTC, sehingga di WIB (UTC+7) tanggal pukul 00:00-06:59
+ * periode default berakhir di KEMARIN dan jurnal hari ini hilang dari rekap
+ * (total debit/kredit 0 -> status "TIDAK BALANCE").
+ */
+export const toLocalISODate = (date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+export const todayISODate = () => toLocalISODate(new Date());
 
 export const periodeDefault = () => {
     const now = new Date();
     return {
-        from: new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10),
-        to: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10),
+        from: toLocalISODate(new Date(now.getFullYear(), 0, 1)),
+        to: toLocalISODate(now),
     };
 };

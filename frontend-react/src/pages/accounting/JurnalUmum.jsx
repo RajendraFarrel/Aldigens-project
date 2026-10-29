@@ -12,10 +12,22 @@ import {
 import { requestVoucherDetail } from '../../Data/accountingStore';
 import { swalSuccess, swalError, swalConfirm } from '../../utils/swal';
 
-/** Tanggal jurnal -> 'DD/MM/YYYY' tanpa pergeseran timezone. */
-const tglJurnal = (value) => {
+/** Tanggal jurnal -> [YYYY, MM, DD] tanpa pergeseran timezone. */
+const bagianTanggal = (value) => {
     const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-    return m ? `${m[3]}/${m[2]}/${m[1]}` : (value || '-');
+    return m ? [m[1], m[2], m[3]] : null;
+};
+
+const tglJurnal = (value) => {
+    const p = bagianTanggal(value);
+    return p ? `${p[2]}/${p[1]}/${p[0]}` : (value || '-');
+};
+
+/** Nama bulan singkat Indonesia dari nomor bulan '01'..'12'. */
+const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const bulanJurnal = (value) => {
+    const p = bagianTanggal(value);
+    return p ? (NAMA_BULAN[Number(p[1]) - 1] || p[1]) : '-';
 };
 
 /**
@@ -288,7 +300,7 @@ export default function JurnalUmum() {
                                         return (
                                             <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                                 <td className="px-2 py-2 whitespace-nowrap">{tglJurnal(r.tanggal)}</td>
-                                                <td className="px-2 py-2">{String(r.tanggal).slice(5, 7)}</td>
+                                                <td className="px-2 py-2">{bulanJurnal(r.tanggal)}</td>
                                                 <td className="px-2 py-2 font-mono whitespace-nowrap">{r.no_voucher}</td>
                                                 <td className="px-2 py-2 font-mono">{d ? r.nomor_akun : ''}</td>
                                                 <td className="px-2 py-2">{d ? r.nama_akun : ''}</td>
@@ -316,7 +328,10 @@ export default function JurnalUmum() {
                             </table>
                         </div>
                     </div>
+<<<<<<< HEAD
+=======
 
+>>>>>>> 3973135288e32e3ec4eae47b1aae349e8b38a162
 
                     {rekap?.rows?.length > 0 && (
                         <div className="hidden print:block mt-6 text-xs">

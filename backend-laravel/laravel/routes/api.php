@@ -35,6 +35,7 @@ use App\Http\Controllers\CashBankController;
 use App\Http\Controllers\CashBankTransactionController;
 use App\Http\Controllers\CashBankReportController;
 use App\Http\Controllers\PurchaseInvoiceController;
+use App\Http\Controllers\PurchasePaymentController;
 use App\Http\Controllers\ReceivablePayableController;
 // Modul Operasional (SPK) — Step 3A
 use App\Http\Controllers\SpkController;
@@ -126,8 +127,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Reports dan export CSV (kompatibel dengan Excel)
     Route::get('/inventory/reports/weekly', [ReportController::class, 'weekly']);
-    // Laporan periode (harian/mingguan/bulanan/tahunan/rentang) — endpoint terpisah agar
-    // /reports/weekly tetap kompatibel dengan pemakai lama.
     Route::get('/inventory/reports/period', [ReportController::class, 'period']);
     Route::get('/exports/{type}', [ExportController::class, 'csv']);
 
@@ -142,8 +141,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/boms', BomController::class)->only(['index', 'store', 'show', 'update', 'destroy']);
     Route::apiResource('/productions', ProductionController::class)->only(['index', 'store']);
 
-    // --- PURCHASE ORDERS & RECEIVE ITEMS (DIPERTEGAS) ---
-    // Mendaftarkan route secara eksplisit untuk mencegah konflik 405 Method Not Allowed
+    // --- PURCHASE ORDERS & RECEIVE ITEMS ---
     Route::post('/purchase-orders', [PurchaseOrderController::class, 'store']);
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     Route::put('/purchase-orders/{id}', [PurchaseOrderController::class, 'update']);
@@ -154,7 +152,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/receive-items', [ReceiveItemController::class, 'index']);
     Route::put('/receive-items/{id}', [ReceiveItemController::class, 'update']);
     Route::delete('/receive-items/{id}', [ReceiveItemController::class, 'destroy']);
-    // (Route::apiResource('receive-items') dinonaktifkan di bawah untuk mencegah route bertumpuk ganda)
 
     // --- Existing routes ---
     Route::apiResource('quotations', QuotationController::class);
@@ -166,7 +163,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/delivery-orders', [DeliveryOrderController::class, 'store']);
     Route::get('/delivery-orders/{id}', [DeliveryOrderController::class, 'show']);
 
-    // Approve DO: stok Inventory otomatis berkurang di sini.
     Route::post('/delivery-orders/{id}/approve', [DeliveryOrderController::class, 'approve']);
 
     // Invoices (dari SO + DO)
@@ -179,13 +175,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/quotations/{id}', [QuotationController::class, 'update']);
 
     // --- Modul Akuntansi ---
-    // Chart of Account
     Route::get('/accounting/accounts', [AccountController::class, 'index']);
     Route::post('/accounting/accounts', [AccountController::class, 'store']);
     Route::put('/accounting/accounts/{account}', [AccountController::class, 'update']);
     Route::patch('/accounting/accounts/{account}/toggle-status', [AccountController::class, 'toggleStatus']);
 
-    // Journal Voucher (termasuk jurnal penyesuaian)
     Route::get('/accounting/vouchers', [JournalVoucherController::class, 'index']);
     Route::post('/accounting/vouchers', [JournalVoucherController::class, 'store']);
     Route::get('/accounting/vouchers/{journalVoucher}', [JournalVoucherController::class, 'show']);
@@ -194,8 +188,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/accounting/vouchers/{journalVoucher}/post', [JournalVoucherController::class, 'post']);
     Route::post('/accounting/vouchers/{journalVoucher}/reverse', [JournalVoucherController::class, 'reverse']);
 
-    // --- Modul Kas & Bank (master + transaksi + laporan) ---
-    // Master: hanya COA Aset detail aktif yang belum terpakai yang boleh dipilih.
+    // --- Modul Kas & Bank ---
     Route::get('/accounting/cash-banks/akun-tersedia', [CashBankController::class, 'akunTersedia']);
     Route::get('/accounting/cash-banks/saldo-awal', [CashBankController::class, 'saldoAwal']);
     Route::put('/accounting/cash-banks/{cashBank}/saldo-awal', [CashBankController::class, 'simpanSaldoAwal']);
@@ -204,7 +197,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/accounting/cash-banks', CashBankController::class)->parameters(['cash-banks' => 'cashBank']);
     Route::patch('/accounting/cash-banks/{cashBank}/toggle-status', [CashBankController::class, 'toggleStatus']);
 
-    // Transaksi: dicatat sebagai Journal Voucher existing lalu diposting.
     Route::post('/accounting/cash-bank/penerimaan', [CashBankTransactionController::class, 'penerimaan']);
     Route::post('/accounting/cash-bank/pengeluaran', [CashBankTransactionController::class, 'pengeluaran']);
     Route::post('/accounting/cash-bank/transfer', [CashBankTransactionController::class, 'transfer']);
@@ -220,7 +212,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/accounting/receivables-payables/pembayaran', [ReceivablePayableController::class, 'indexPembayaran']);
     Route::post('/accounting/receivables-payables/pembayaran', [ReceivablePayableController::class, 'storePembayaran']);
 
-    // Purchase Invoice (tagihan supplier) — sumber utang usaha
+    // Purchase Invoice & Purchase Payment
     Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index']);
     Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store']);
     Route::get('/purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show']);
@@ -228,7 +220,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/purchase-invoices/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy']);
     Route::post('/purchase-invoices/{purchaseInvoice}/post', [PurchaseInvoiceController::class, 'post']);
 
-    // Laporan akuntansi (sumber data sama: jurnal POSTED)
+    Route::apiResource('/purchase-payments', PurchasePaymentController::class);
+
+    // Laporan akuntansi
     Route::get('/accounting/reports/summary', [AccountingReportController::class, 'summary']);
     Route::get('/accounting/reports/journal-umum', [AccountingReportController::class, 'journalUmum']);
     Route::get('/accounting/reports/buku-besar', [AccountingReportController::class, 'bukuBesar']);
@@ -246,18 +240,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/commissionings', [CommissioningController::class, 'index']);
     Route::post('/commissionings', [CommissioningController::class, 'store']);
-    Route::get('/commissionings/{id}', [CommissioningController::class, 'show']); // Tambahkan ini jika butuh detail
-    Route::put('/commissionings/{id}', [CommissioningController::class, 'update']); // <-- TAMBAHKAN INI AGAR EDIT BERHASIL
-    Route::delete('/commissionings/{id}', [CommissioningController::class, 'destroy']); // Tambahkan ini jika butuh hapus
+    Route::get('/commissionings/{id}', [CommissioningController::class, 'show']);
+    Route::put('/commissionings/{id}', [CommissioningController::class, 'update']);
+    Route::delete('/commissionings/{id}', [CommissioningController::class, 'destroy']);
     Route::patch('/commissionings/{id}/status', [CommissioningController::class, 'updateStatus']);
 
-    // --- Modul Operasional: SPK (data induk pekerjaan operasional) ---
+    // --- Modul Operasional: SPK ---
     Route::apiResource('/spks', SpkController::class);
 
-    // --- Master personel lapangan (terpisah dari users / akun login) ---
+    // --- Master personel lapangan ---
     Route::apiResource('/employees', EmployeeController::class)->only(['index', 'store', 'show', 'update']);
 
-    // --- Penjadwalan operasional SPK (Step 4C) ---
+    // --- Penjadwalan operasional SPK ---
     Route::patch('/spk-schedules/{id}/status', [SpkScheduleController::class, 'updateStatus']);
     Route::patch('/spk-schedules/{id}/progress', [SpkScheduleController::class, 'updateProgress']);
     Route::apiResource('/spk-schedules', SpkScheduleController::class);

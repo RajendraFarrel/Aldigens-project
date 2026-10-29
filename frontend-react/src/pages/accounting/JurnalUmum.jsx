@@ -328,6 +328,10 @@ export default function JurnalUmum() {
                             </table>
                         </div>
                     </div>
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3973135288e32e3ec4eae47b1aae349e8b38a162
 
                     {rekap?.rows?.length > 0 && (
                         <div className="hidden print:block mt-6 text-xs">

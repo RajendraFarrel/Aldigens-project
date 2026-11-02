@@ -43,7 +43,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\SpkScheduleController;
 
 
-/*
+/*  
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
@@ -169,7 +169,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
-    Route::put('/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
+    Route::put('/invoices/{id}', [InvoiceController::class, 'updateStatus']);
     Route::post('/invoices/{id}/post-jurnal', [InvoiceController::class, 'postJurnal']);
     Route::post('/quotations/{id}/convert-to-po', [PurchaseOrderController::class, 'storeFromQuotation']);
     Route::put('/quotations/{id}', [QuotationController::class, 'update']);

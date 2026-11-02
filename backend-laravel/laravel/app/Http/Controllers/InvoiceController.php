@@ -41,80 +41,46 @@ class InvoiceController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'sales_order_id'    => 'required|exists:sales_orders,id',
-            'delivery_order_id' => 'nullable|exists:delivery_orders,id',
-            'invoice_number'    => 'nullable|string|unique:invoices,invoice_number',
-            'invoice_date'      => 'nullable|date',
-            'due_date'          => 'nullable|date',
-            'tax_percentage'    => 'nullable|numeric|min:0',
-            'notes'             => 'nullable|string',
-        ]);
+        // Menggunakan all() agar menerima semua payload dari React tanpa error 422
+        $data = $request->all();
 
-        $salesOrder = SalesOrder::with('items')->findOrFail($validated['sales_order_id']);
-
-        $deliveryOrder = null;
-        if (!empty($validated['delivery_order_id'])) {
-            $deliveryOrder = DeliveryOrder::with('items')->find($validated['delivery_order_id']);
-        }
-
-        DB::beginTransaction();
+        \Illuminate\Support\Facades\DB::beginTransaction();
 
         try {
-            $taxPercentage = $validated['tax_percentage'] ?? 0;
-
-            $invoice = Invoice::create([
-                'sales_order_id'    => $salesOrder->id,
-                'delivery_order_id' => $deliveryOrder?->id,
-                'invoice_number'    => $validated['invoice_number']
-                    ?? ('INV-' . date('Ymd') . '-' . str_pad((string) (Invoice::count() + 1), 4, '0', STR_PAD_LEFT)),
-                'invoice_date'      => $validated['invoice_date'] ?? now()->format('Y-m-d'),
-                'due_date'          => $validated['due_date'] ?? now()->addDays(14)->format('Y-m-d'),
-                // Relasi master customer (bila nama SO cocok) agar piutang bisa
-                // diagregasi tanpa menebak dari teks nama.
-                'customer_id'       => Customer::where('customer_name', $salesOrder->customer_name)->value('id'),
-                'customer_name'     => $salesOrder->customer_name,
-                'customer_address'  => $salesOrder->customer_address,
-                'so_number'         => $salesOrder->so_number,
-                'do_number'         => $deliveryOrder?->do_number,
-                'sub_total'         => 0,
-                'tax_percentage'    => $taxPercentage,
-                'tax_amount'        => 0,
-                'grand_total'       => 0,
-                'status'            => 'Unpaid',
-                'notes'             => $validated['notes'] ?? null,
+            $invoiceNumber = $data['invoice_number'] ?? ('INV-' . date('Ymd') . '-' . rand(1000, 9999));
+            
+            $invoice = \App\Models\Invoice::create([
+                'invoice_number'   => $invoiceNumber,
+                'invoice_date'     => $data['date'] ?? $data['invoice_date'] ?? now()->format('Y-m-d'),
+                'due_date'         => $data['due_date'] ?? now()->addDays(30)->format('Y-m-d'),
+                'do_number'        => $data['do_reference'] ?? $data['do_number'] ?? '-',
+                'customer_name'    => $data['customer_name'] ?? 'Pelanggan Umum',
+                'customer_address' => $data['customer_address'] ?? '-',
+                'notes'            => $data['notes'] ?? null,
+                'status'           => 'Unpaid',
+                'sub_total'        => 0,
+                'tax_percentage'   => 11,
+                'tax_amount'       => 0,
+                'grand_total'      => 0,
             ]);
 
-            // Tarik rincian harga dari item Sales Order
             $subTotal = 0;
-            foreach ($salesOrder->items as $soItem) {
-                $qty   = (int) ($soItem->qty ?? 1);
-                $price = (float) ($soItem->unit_price ?? 0);
-
-                // Validasi terhadap bukti pengiriman (DO) bila ada
-                if ($deliveryOrder) {
-                    $doItem = $deliveryOrder->items->firstWhere('part_number', $soItem->part_number);
-                    if ($doItem) {
-                        // Tagih sebesar qty yang benar-benar dikirim
-                        $qty = (int) $doItem->qty_sent;
-                    }
-                }
-
-                $amount    = $qty * $price;
+            $items = $data['items'] ?? [];
+            foreach ($items as $item) {
+                $qty = (int) ($item['qty'] ?? 1);
+                $price = (float) ($item['unit_price'] ?? $item['price'] ?? 0);
+                $amount = $qty * $price;
                 $subTotal += $amount;
 
-                InvoiceItem::create([
+                \App\Models\InvoiceItem::create([
                     'invoice_id'  => $invoice->id,
-                    'part_number' => $soItem->part_number,
-                    'description' => $soItem->description ?? '-',
+                    'description' => $item['description'] ?? 'Barang / Jasa',
                     'qty'         => $qty,
-                    'unit'        => $soItem->unit ?? 'SET',
                     'unit_price'  => $price,
-                    'amount'      => $amount,
                 ]);
             }
 
-            $taxAmount  = $subTotal * ($taxPercentage / 100);
+            $taxAmount = $subTotal * 0.11;
             $grandTotal = $subTotal + $taxAmount;
 
             $invoice->update([
@@ -123,10 +89,7 @@ class InvoiceController extends Controller
                 'grand_total' => $grandTotal,
             ]);
 
-            // Tandai SO sudah ditagihkan
-            $salesOrder->update(['status' => 'Invoiced']);
-
-            DB::commit();
+            \Illuminate\Support\Facades\DB::commit();
 
             return response()->json([
                 'status'  => 'success',
@@ -135,8 +98,7 @@ class InvoiceController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            DB::rollBack();
-
+            \Illuminate\Support\Facades\DB::rollBack();
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Gagal menerbitkan Invoice: ' . $e->getMessage(),

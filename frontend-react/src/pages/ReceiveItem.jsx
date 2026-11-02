@@ -3,6 +3,7 @@ import { Search, Plus, ArrowLeft, Save, Trash2, Printer, MoreVertical, Edit2, Pa
 import api from '../services/api';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
+import { swalSuccess, swalError } from '../utils/swal';
 
 const emptyItem = () => ({ part_number: '', description: '', qty: 1, unit: 'PCS' });
 
@@ -114,7 +115,6 @@ export default function ReceiveItem() {
     const rawDate = item.date || item.receive_date || '';
     const cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
 
-    // Mapping items dengan pengaman agar tidak ada nilai null (mencegah warning input React)
     const formattedItems = item.items && item.items.length > 0 
       ? item.items.map(i => ({
           part_number: i.part_number || '',
@@ -162,10 +162,10 @@ export default function ReceiveItem() {
     try {
       if (editingId) {
         await api.put(`/receive-items/${editingId}`, payload);
-        alert('Data Penerimaan Barang berhasil diperbarui!');
+        swalSuccess('Berhasil', 'Data Penerimaan Barang berhasil diperbarui!');
       } else {
         await api.post('/receive-items', payload);
-        alert('Data Penerimaan Barang berhasil disimpan!');
+        swalSuccess('Berhasil', 'Data Penerimaan Barang berhasil disimpan!');
       }
     } catch (error) {
       console.error('Gagal menyimpan penerimaan barang:', error);
@@ -176,7 +176,7 @@ export default function ReceiveItem() {
       } else {
         localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
       }
-      alert('Disimpan ke penyimpanan lokal (Offline Mode).');
+      swalSuccess('Berhasil (Offline)', 'Disimpan ke penyimpanan lokal.');
     }
     
     await fetchReceiveItems();
@@ -291,7 +291,6 @@ export default function ReceiveItem() {
               </div>
             </div>
 
-            {/* Bagian Detail Item */}
             <div className="border-t border-slate-200 dark:border-slate-800 pt-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-semibold dark:text-slate-300 flex items-center gap-2"><Package className="h-4 w-4" /> Detail Barang Diterima</h3>

@@ -5,17 +5,30 @@ import {
   downloadCustomerPartNumbersTemplate, exportCustomerPartNumbers,
   getCustomerPartNumbers, getCustomerPartNumberInventoryOptions, getCustomers,
   importCustomerPartNumbers, updateCustomerPartNumber,
+  // Pastikan Anda memiliki endpoint getProducts/Inventory di api.js
+  getProducts 
 } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
+<<<<<<< HEAD
 const EMPTY_FORM = {
   customer_id: '', part_number: '', item_description: '', selling_price: '',
   status: 'AKTIF', inventory_product_id: '',
 };
 
 const UNLINKED = '-';
+=======
+const EMPTY_FORM = { 
+  customer_id: '', 
+  part_number: '', 
+  inventory_part_number: '', // <--- FIELD BARU JEMBATAN KE INVENTORY
+  item_description: '', 
+  selling_price: '', 
+  status: 'AKTIF' 
+};
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
 
 /* ─── Modal overlay kecil ─── */
 function Modal({ title, onClose, children }) {
@@ -27,7 +40,7 @@ function Modal({ title, onClose, children }) {
       >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-800">{title}</h3>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 transition">
+          <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 transition">
             <X className="w-4 h-4 text-slate-500" />
           </button>
         </div>
@@ -197,6 +210,7 @@ function InventoryProductPicker({ selected, onSelect }) {
 export default function CustomerPartNumbers() {
   const [rows, setRows] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]); // State untuk nampung data inventory
   const [summary, setSummary] = useState({});
   const [search, setSearch] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -233,7 +247,18 @@ export default function CustomerPartNumbers() {
   }, [search, customerId]);
 
   useEffect(() => {
+<<<<<<< HEAD
     getCustomers().then(res => setCustomers(res.data?.data || [])).catch(() => { });
+=======
+    getCustomers().then(res => setCustomers(res.data?.data || [])).catch(() => {});
+    // Fetch data Inventory untuk dropdown mapping (pastikan fungsi getProducts tersedia di api.js)
+    if (typeof getProducts === 'function') {
+        getProducts().then(res => {
+            const data = res.data?.data || res.data || [];
+            setInventoryItems(Array.isArray(data) ? data : Object.values(data));
+        }).catch(() => {});
+    }
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
   }, []);
 
   useEffect(() => {
@@ -269,12 +294,21 @@ export default function CustomerPartNumbers() {
   const openEdit = (row) => {
     setEditingId(row.id);
     setForm({
+<<<<<<< HEAD
       customer_id: row.customer_id || row.customer?.id || '',
       part_number: row.part_number || '',
       item_description: row.item_description || '',
       selling_price: row.selling_price || '',
       status: row.status || 'AKTIF',
       inventory_product_id: row.inventory_product_id || '',
+=======
+      customer_id:           row.customer_id || row.customer?.id || '',
+      part_number:           row.part_number || '',
+      inventory_part_number: row.inventory_part_number || '', // Load mapping lama jika ada
+      item_description:      row.item_description || '',
+      selling_price:         row.selling_price || '',
+      status:                row.status || 'AKTIF',
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
     });
     setSelectedProduct(row.inventory_product ? {
       ...row.inventory_product,
@@ -296,16 +330,27 @@ export default function CustomerPartNumbers() {
     e.preventDefault();
     if (!form.customer_id) return setFormError('Pilih customer terlebih dahulu.');
     if (!form.part_number.trim()) return setFormError('Part Number wajib diisi.');
+    
     setSaving(true); setFormError('');
     try {
       const payload = {
+<<<<<<< HEAD
         customer_id: Number(form.customer_id),
         part_number: form.part_number.trim().toUpperCase(),
         item_description: form.item_description.trim() || null,
         selling_price: form.selling_price !== '' ? Number(form.selling_price) : null,
         status: form.status,
         inventory_product_id: selectedProduct ? Number(selectedProduct.id) : null,
+=======
+        customer_id:           Number(form.customer_id),
+        part_number:           form.part_number.trim().toUpperCase(),
+        inventory_part_number: form.inventory_part_number.trim().toUpperCase() || null, // Kirim mapping
+        item_description:      form.item_description.trim() || null,
+        selling_price:         form.selling_price !== '' ? Number(form.selling_price) : null,
+        status:                form.status,
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
       };
+      
       if (editingId) {
         await updateCustomerPartNumber(editingId, payload);
         swalToast('Data berhasil diperbarui.', 'success');
@@ -458,18 +503,39 @@ export default function CustomerPartNumbers() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b">
             <tr>
+<<<<<<< HEAD
               {COLUMNS.map(h => (
+=======
+              {['Customer', 'Part Number', 'Kode Inventory (Link)', 'Item Description', 'Harga Jual', 'Status', 'Aksi'].map(h => (
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
                 <th key={h} className={`p-4 font-semibold text-slate-600 ${h === 'Aksi' ? 'text-center' : 'text-left'}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
+<<<<<<< HEAD
             {loading && !rows.length
               ? <tr><td colSpan={COL_COUNT} className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+=======
+            {loading
+              ? <tr><td colSpan="7" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
               : pagination.paginatedItems.map(r => (
                 <tr key={r.id} className="border-t hover:bg-slate-50/60 transition">
                   <td className="p-4 font-medium text-slate-800">{r.customer?.customer_name || '-'}</td>
                   <td className="p-4 font-mono text-blue-700 font-semibold">{r.part_number}</td>
+                  
+                  {/* Tampilan Kode Inventory di tabel */}
+                  <td className="p-4">
+                      {r.inventory_part_number ? (
+                          <span className="px-2 py-1 bg-emerald-50 text-emerald-700 font-mono text-xs rounded border border-emerald-200">
+                              {r.inventory_part_number}
+                          </span>
+                      ) : (
+                          <span className="text-slate-400 text-xs italic">Belum di-mapping</span>
+                      )}
+                  </td>
+
                   <td className="p-4 text-slate-600">{r.item_description || '-'}</td>
                   <td className="p-4 text-slate-700">
                     {r.selling_price ? `Rp ${Number(r.selling_price).toLocaleString('id-ID')}` : '-'}
@@ -517,7 +583,11 @@ export default function CustomerPartNumbers() {
               ))
             }
             {!loading && !rows.length && (
+<<<<<<< HEAD
               <tr><td colSpan={COL_COUNT} className="p-10 text-center text-slate-400">Belum ada data. Klik <b>Tambah</b> atau <b>Import Excel</b>.</td></tr>
+=======
+              <tr><td colSpan="7" className="p-10 text-center text-slate-400">Belum ada data. Klik <b>Tambah</b> atau <b>Import Excel</b>.</td></tr>
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
             )}
           </tbody>
         </table>
@@ -550,7 +620,7 @@ export default function CustomerPartNumbers() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-600">Part Number <span className="text-red-500">*</span></label>
+              <label className="text-xs font-semibold text-slate-600">Part Number Pelanggan <span className="text-red-500">*</span></label>
               <input
                 required
                 placeholder="contoh: OPT-ALRM-SCAN-001"
@@ -560,10 +630,31 @@ export default function CustomerPartNumbers() {
               />
             </div>
 
+            {/* INPUT/DATALIST UNTUK MAPPING KE INVENTORY */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                  Link ke Kode Inventory Internal <span className="text-xs font-normal text-slate-500">(Opsional, untuk stok)</span>
+              </label>
+              <input
+                list="inventory-list"
+                placeholder="Cari & Pilih Kode/Nama Barang Gudang..."
+                value={form.inventory_part_number}
+                onChange={e => setForm({ ...form, inventory_part_number: e.target.value.toUpperCase() })}
+                className="w-full border border-emerald-300 bg-emerald-50/30 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+              <datalist id="inventory-list">
+                  {inventoryItems.map((inv, idx) => (
+                      <option key={idx} value={inv.part_number || inv.code}>
+                          {inv.item_description || inv.name}
+                      </option>
+                  ))}
+              </datalist>
+            </div>
+
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-600">Item Description</label>
               <input
-                placeholder="Nama / deskripsi barang"
+                placeholder="Nama / deskripsi barang versi pelanggan"
                 value={form.item_description}
                 onChange={e => setForm({ ...form, item_description: e.target.value })}
                 className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -629,9 +720,13 @@ export default function CustomerPartNumbers() {
               <p className="font-bold">✅ File PARTNUMBER_APP.xlsx asli langsung bisa di-upload!</p>
               <ul className="list-disc list-inside space-y-0.5 text-emerald-700">
                 <li>Nama sheet = nama customer (UNITED TRACTORS, KOBEXINDO, dll)</li>
+                <li>Mendukung kolom <b>Kode Inventory</b> jika ditambahkan di excel.</li>
                 <li>Kolom Part Number, Description, Harga Jual dibaca otomatis</li>
+<<<<<<< HEAD
                 <li>Sheet ALL CUSTOMER dilewati otomatis</li>
                 <li>Mapping ke Produk Inventory dilakukan manual setelah import</li>
+=======
+>>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
               </ul>
             </div>
 
@@ -660,8 +755,9 @@ export default function CustomerPartNumbers() {
             {importError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{importError}</p>}
 
             <div className="flex gap-3">
-              <button onClick={() => setShowImport(false)} className="flex-1 border py-2.5 rounded-xl text-sm hover:bg-slate-50 transition">Tutup</button>
+              <button type="button" onClick={() => setShowImport(false)} className="flex-1 border py-2.5 rounded-xl text-sm hover:bg-slate-50 transition">Tutup</button>
               <button
+                type="button"
                 onClick={importFile}
                 disabled={importing || !file}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60 transition"

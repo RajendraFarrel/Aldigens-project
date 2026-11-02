@@ -144,19 +144,12 @@ class CustomerPartNumberController extends Controller
         $record = CustomerPartNumber::updateOrCreate(
             ['customer_id' => $request->customer_id, 'part_number' => $request->part_number],
             [
-<<<<<<< HEAD
                 'item_description' => $request->item_description,
                 'selling_price'    => $request->selling_price,
                 'status'           => strtoupper($request->status ?? 'AKTIF'),
                 'inventory_product_id' => $request->has('inventory_product_id')
                     ? $this->inventoryProductIdFrom($request)
                     : null,
-=======
-                'inventory_part_number' => $request->inventory_part_number, // Simpan Mapping 
-                'item_description'      => $request->item_description,
-                'selling_price'         => $request->selling_price,
-                'status'                => strtoupper($request->status ?? 'AKTIF'),
->>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
             ]
         );
 
@@ -169,7 +162,6 @@ class CustomerPartNumberController extends Controller
 {
     $record = CustomerPartNumber::findOrFail($id);
 
-<<<<<<< HEAD
         $request->validate([
             'customer_id'      => 'required|exists:customers,id',
             'part_number'      => 'required|string|max:100',
@@ -198,28 +190,6 @@ class CustomerPartNumberController extends Controller
 
         return response()->json(['message' => 'Data berhasil diperbarui.', 'data' => $this->present($record)]);
     }
-=======
-    $request->validate([
-        'customer_id'           => 'required|exists:customers,id',
-        'part_number'           => 'required|string|max:100',
-        'inventory_part_number' => 'nullable|string|max:255',
-        'item_description'      => 'nullable|string|max:255',
-        'selling_price'         => 'nullable|numeric|min:0',
-        'status'                => 'nullable|string|in:AKTIF,NONAKTIF',
-    ]);
-
-    $record->update([
-        'customer_id'           => $request->customer_id,
-        'part_number'           => $request->part_number,
-        'inventory_part_number' => $request->inventory_part_number,
-        'item_description'      => $request->item_description,
-        'selling_price'         => $request->selling_price,
-        'status'                => strtoupper($request->status ?? 'AKTIF'),
-    ]);
-
-    return response()->json(['message' => 'Data berhasil diperbarui.', 'data' => $record->load('customer')]);
-}
->>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
 
     public function destroy($id)
     {
@@ -273,11 +243,8 @@ class CustomerPartNumberController extends Controller
             }
         }
 
-<<<<<<< HEAD
-        // Nama sheet dipakai sebagai customer kecuali sheet "ALL CUSTOMER" ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
+        // Nama sheet dipakai sebagai customer kecuali sheet "ALL CUSTOMER" —
         // pada sheet tersebut customer diambil dari kolom CUSTOMER di setiap baris.
-=======
->>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
         $sheetTitle = trim($sheet->getTitle());
         $sheetCustomer = strtoupper($sheetTitle) === 'ALL CUSTOMER' ? null : $sheetTitle;
 
@@ -385,26 +352,17 @@ class CustomerPartNumberController extends Controller
         $value = trim((string) $value);
         if (is_numeric($value)) return (float) $value;
 
-<<<<<<< HEAD
         // Hapus prefix mata uang seperti "Rp", "IDR", "$", dsb. dan whitespace
-        $value = preg_replace('/^[^0-9,\\.\\-]+/', '', $value);
-        $value = trim($value);
-
-        // Format Indonesia: titik sebagai ribuan, koma sebagai desimal ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ "1.290.000" atau "4.290.000"
-        // Format Rp: "4,290,000" (koma sebagai ribuan, seperti format HYUNDAI di PARTNUMBER_APP)
-        if (preg_match('/^\\d{1,3}(,\\d{3})+(\\,\\d{1,2})?$/', $value)) {
-            // Format: 4,290,000 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â koma sebagai separator ribuan (bukan desimal)
-            $value = str_replace(',', '', $value);
-        } elseif (preg_match('/^\\d{1,3}(\\.\\d{3})+(,\\d{1,2})?$/', $value)) {
-            // Format: 4.290.000 atau 4.290.000,50
-=======
         $value = preg_replace('/^[^0-9,\.\-]+/', '', $value);
         $value = trim($value);
 
+        // Format Indonesia: titik sebagai ribuan, koma sebagai desimal -> "1.290.000" atau "4.290.000"
+        // Format Rp: "4,290,000" (koma sebagai ribuan, seperti format HYUNDAI di PARTNUMBER_APP)
         if (preg_match('/^\d{1,3}(,\d{3})+(\,\d{1,2})?$/', $value)) {
+            // Format: 4,290,000 - koma sebagai separator ribuan (bukan desimal)
             $value = str_replace(',', '', $value);
         } elseif (preg_match('/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/', $value)) {
->>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
+            // Format: 4.290.000 atau 4.290.000,50
             $value = str_replace('.', '', $value);
             $value = str_replace(',', '.', $value);
         } else {
@@ -421,7 +379,6 @@ class CustomerPartNumberController extends Controller
 
     public function export()
     {
-<<<<<<< HEAD
         $rows = CustomerPartNumber::with(['customer', 'inventoryProduct'])->get();
         $totals = $this->stockTotals($rows->pluck('inventory_product_id')->all());
         $csv = "Customer,Part Number,Item Description,Harga Jual,Status,Part Number Inventory,Nama Produk Inventory,Stok Inventory,Satuan\n";
@@ -438,24 +395,10 @@ class CustomerPartNumberController extends Controller
                 $product?->name ?? '',
                 $stockTotal ?? '',
                 $product?->unit ?? '',
-=======
-        $rows = CustomerPartNumber::with('customer')->get();
-        // Tambahkan header Kode Inventory di CSV
-        $csv = "Customer,Part Number,Kode Inventory,Item Description,Harga Jual,Status\n";
-        foreach ($rows as $row) {
-            $csv .= implode(',', array_map(fn($v) => '"' . str_replace('"', '""', (string) $v) . '"', [
-                $row->customer->customer_name, 
-                $row->part_number, 
-                $row->inventory_part_number, // Kolom jembatan 
-                $row->item_description, 
-                $row->selling_price, 
-                $row->status
->>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091
             ])) . "\n";
         }
         return response($csv)->header('Content-Type', 'text/csv')->header('Content-Disposition', 'attachment; filename=data-customer.csv');
     }
-<<<<<<< HEAD
 
     /**
      * Daftar produk aktif untuk dropdown mapping Data Customer.
@@ -495,6 +438,3 @@ class CustomerPartNumberController extends Controller
         ]);
     }
 }
-=======
-}
->>>>>>> 61048b72cc2a8218dc1c07fc8c7f7bfd85786091

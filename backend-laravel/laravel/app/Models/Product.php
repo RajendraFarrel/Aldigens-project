@@ -34,6 +34,15 @@ class Product extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    /**
+     * Saldo stok per warehouse/lokasi. Sumber kebenaran saldo Inventory
+     * (dikelola oleh InventoryStockService).
+     */
+    public function inventoryStocks()
+    {
+        return $this->hasMany(InventoryStock::class);
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);

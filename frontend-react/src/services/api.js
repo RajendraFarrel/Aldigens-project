@@ -122,6 +122,7 @@ export const createCustomer = (data) => api.post('/customers', data);
 export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data);
 export const deleteCustomer = (id) => api.delete(`/customers/${id}`);
 export const getCustomerPartNumbers = (params = {}) => api.get('/customer-part-numbers', { params });
+export const getCustomerPartNumberInventoryOptions = (search = '') => api.get('/customer-part-numbers/inventory-options', { params: search ? { search } : {} });
 export const createCustomerPartNumber = (data) => api.post('/customer-part-numbers', data);
 export const updateCustomerPartNumber = (id, data) => api.put(`/customer-part-numbers/${id}`, data);
 export const deleteCustomerPartNumber = (id) => api.delete(`/customer-part-numbers/${id}`);

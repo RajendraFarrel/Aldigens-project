@@ -107,6 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/customers/{customer}', [MasterDataController::class, 'updateCustomer']);
     Route::delete('/customers/{customer}', [MasterDataController::class, 'deleteCustomer']);
     Route::get('/customer-part-numbers', [CustomerPartNumberController::class, 'index']);
+    Route::get('/customer-part-numbers/inventory-options', [CustomerPartNumberController::class, 'inventoryProductOptions']);
     Route::get('/customer-part-numbers/import-template', [CustomerPartNumberController::class, 'downloadTemplate']);
     Route::post('/customer-part-numbers/import', [CustomerPartNumberController::class, 'import']);
     Route::get('/customer-part-numbers/export', [CustomerPartNumberController::class, 'export']);

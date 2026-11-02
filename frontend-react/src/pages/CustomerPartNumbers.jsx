@@ -1,23 +1,28 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Download, FileSpreadsheet, Pencil, Plus, Printer, Search, Trash2, Upload, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, FileSpreadsheet, Pencil, Plus, Printer, RefreshCw, Search, Trash2, Upload, X, Link2, Unlink } from 'lucide-react';
 import {
   createCustomerPartNumber, deleteCustomerPartNumber,
   downloadCustomerPartNumbersTemplate, exportCustomerPartNumbers,
-  getCustomerPartNumbers, getCustomers,
+  getCustomerPartNumbers, getCustomerPartNumberInventoryOptions, getCustomers,
   importCustomerPartNumbers, updateCustomerPartNumber,
 } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
-const EMPTY_FORM = { customer_id: '', part_number: '', item_description: '', selling_price: '', status: 'AKTIF' };
+const EMPTY_FORM = {
+  customer_id: '', part_number: '', item_description: '', selling_price: '',
+  status: 'AKTIF', inventory_product_id: '',
+};
+
+const UNLINKED = '-';
 
 /* ─── Modal overlay kecil ─── */
 function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 animate-[fadeUp_.2s_ease]"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4 animate-[fadeUp_.2s_ease] max-h-[92vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -32,6 +37,163 @@ function Modal({ title, onClose, children }) {
   );
 }
 
+/* ─── Format stok + satuan ─── */
+function formatStock(total, unit) {
+  if (total === null || total === undefined) return '—';
+  return `${Number(total).toLocaleString('id-ID')} ${unit || 'PCS'}`;
+}
+
+/* ─── Dropdown searchable produk Inventory ─── */
+function InventoryProductPicker({ selected, onSelect }) {
+  const [keyword, setKeyword] = useState('');
+  const [options, setOptions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const requestId = useRef(0);
+
+  // Opsi produk hanya dari API Inventory (/inventory/products → ProductController
+  // yang memakai inventory_stocks), bukan endpoint legacy /api/products.
+  const loadOptions = useCallback(async (search = '') => {
+    const id = ++requestId.current;
+    setLoading(true);
+    try {
+      const res = await getCustomerPartNumberInventoryOptions(search);
+      if (id !== requestId.current) return;
+      setOptions(res.data?.data || []);
+      setNotFound((res.data?.data || []).length === 0);
+    } catch {
+      if (id !== requestId.current) return;
+      setOptions([]);
+      setNotFound(false);
+    } finally {
+      if (id === requestId.current) setLoading(false);
+    }
+  }, []);
+
+  // Muat awal + debounce agar produk yang sudah terhubung ikut tercantum di dropdown.
+  useEffect(() => {
+    const t = setTimeout(() => loadOptions(keyword.trim()), keyword.trim() ? 350 : 0);
+    return () => clearTimeout(t);
+  }, [keyword, loadOptions]);
+
+  // Pastikan produk terpilih tetap tersedia di daftar walau di luar hasil pencarian.
+  const merged = useMemo(() => {
+    const list = [...options];
+    const id = selected?.id;
+    if (id && !list.some(o => Number(o.id) === Number(id))) list.unshift(selected);
+    return list;
+  }, [options, selected]);
+
+  const pick = (option) => {
+    onSelect(option ? {
+      id: option.id,
+      part_number: option.part_number,
+      product_code: option.product_code,
+      name: option.name,
+      item_type: option.item_type,
+      unit: option.unit,
+      stock_total: option.stock_total,
+    } : null);
+    setOpen(false);
+  };
+
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-semibold text-slate-600">Hubungkan ke Produk Inventory (opsional)</label>
+
+      {selected ? (
+        <div className="border rounded-xl p-3 bg-blue-50/60 border-blue-200 space-y-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <span className="font-mono text-xs font-bold text-blue-700">{selected.part_number || '-'}</span>
+              <p className="text-sm font-medium text-slate-800 truncate">{selected.name || '-'}</p>
+              <p className="text-[11px] text-slate-500">
+                {[selected.product_code, selected.item_type, selected.unit].filter(Boolean).join(' • ')}
+              </p>
+            </div>
+            <button type="button" onClick={() => pick(null)} className="text-xs text-rose-600 hover:underline shrink-0 flex items-center gap-1">
+              <Unlink className="w-3.5 h-3.5" />Lepas
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-600">
+            Stok total: <b>{formatStock(selected.stock_total, selected.unit)}</b>
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">Belum Terhubung</p>
+      )}
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center gap-2 border rounded-xl px-3 py-2 text-sm text-left hover:bg-slate-50 transition"
+        >
+          <Link2 className="w-4 h-4 text-slate-400" />
+          <span className="text-slate-600">{selected ? 'Ganti produk Inventory...' : 'Pilih produk Inventory...'}</span>
+        </button>
+
+        {open && (
+          <div className="absolute z-10 mt-1 w-full bg-white border rounded-xl shadow-lg p-2 space-y-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2 w-4 h-4 text-slate-400" />
+              <input
+                autoFocus
+                value={keyword}
+                onChange={e => setKeyword(e.target.value)}
+                placeholder="Cari Part Number / Kode / Barcode / Nama"
+                className="w-full border rounded-lg pl-8 pr-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => pick(null)}
+              className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-100 transition"
+            >
+              {UNLINKED} Tidak dihubungkan
+            </button>
+
+            <div className="max-h-52 overflow-y-auto divide-y">
+              {loading && <p className="p-2 text-xs text-slate-400">Memuat produk...</p>}
+              {!loading && !merged.length && (
+                <p className="p-2 text-xs text-amber-700 bg-amber-50 rounded-lg">
+                  Produk belum terdaftar pada Data Produk Inventory.
+                </p>
+              )}
+              {!loading && merged.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => pick(p)}
+                  className={`w-full text-left px-2 py-2 hover:bg-blue-50 rounded-lg transition ${Number(selected?.id) === Number(p.id) ? 'bg-blue-50' : ''}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold text-blue-700">{p.part_number || '-'}</span>
+                    <span className="text-[11px] text-slate-500 shrink-0">{formatStock(p.stock_total, p.unit)}</span>
+                  </div>
+                  <p className="text-xs text-slate-800 truncate">{p.name || '-'}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {[p.product_code, p.item_type, p.unit].filter(Boolean).join(' • ')}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            {notFound && keyword.trim() !== '' && (
+              <p className="text-[11px] text-slate-500 px-1">
+                Tidak ada produk yang cocok. Produk baru harus didaftarkan dulu di menu Data Produk Inventory.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-400">Mapping tidak mengubah stok atau membuat transaksi stok.</p>
+    </div>
+  );
+}
+
 export default function CustomerPartNumbers() {
   const [rows, setRows] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -42,18 +204,19 @@ export default function CustomerPartNumbers() {
   const [error, setError] = useState('');
 
   // Form CRUD
-  const [showForm, setShowForm]     = useState(false);
-  const [editingId, setEditingId]   = useState(null);
-  const [form, setForm]             = useState(EMPTY_FORM);
-  const [saving, setSaving]         = useState(false);
-  const [formError, setFormError]   = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   // Import modal
-  const [showImport, setShowImport]       = useState(false);
-  const [file, setFile]                   = useState(null);
-  const [importing, setImporting]         = useState(false);
-  const [importResult, setImportResult]   = useState(null);
-  const [importError, setImportError]     = useState('');
+  const [showImport, setShowImport] = useState(false);
+  const [file, setFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [importError, setImportError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,6 +224,7 @@ export default function CustomerPartNumbers() {
       const res = await getCustomerPartNumbers({ search, customer_id: customerId });
       setRows(res.data?.data || []);
       setSummary(res.data?.summary || {});
+      setError('');
     } catch (e) {
       setError(e.response?.data?.message || 'Data gagal dimuat.');
     } finally {
@@ -69,12 +233,26 @@ export default function CustomerPartNumbers() {
   }, [search, customerId]);
 
   useEffect(() => {
-    getCustomers().then(res => setCustomers(res.data?.data || [])).catch(() => {});
+    getCustomers().then(res => setCustomers(res.data?.data || [])).catch(() => { });
   }, []);
 
   useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
+  }, [load]);
+
+  // Stok Inventory selalu dibaca ulang dari backend saat pengguna kembali
+  // ke tab/halaman (tanpa polling dan tanpa koneksi realtime baru).
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onVisibility);
+    };
   }, [load]);
 
   const pagination = usePagination(rows, 10);
@@ -83,6 +261,7 @@ export default function CustomerPartNumbers() {
   const openAdd = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setSelectedProduct(null);
     setFormError('');
     setShowForm(true);
   };
@@ -90,17 +269,28 @@ export default function CustomerPartNumbers() {
   const openEdit = (row) => {
     setEditingId(row.id);
     setForm({
-      customer_id:      row.customer_id || row.customer?.id || '',
-      part_number:      row.part_number || '',
+      customer_id: row.customer_id || row.customer?.id || '',
+      part_number: row.part_number || '',
       item_description: row.item_description || '',
-      selling_price:    row.selling_price || '',
-      status:           row.status || 'AKTIF',
+      selling_price: row.selling_price || '',
+      status: row.status || 'AKTIF',
+      inventory_product_id: row.inventory_product_id || '',
     });
+    setSelectedProduct(row.inventory_product ? {
+      ...row.inventory_product,
+      stock_total: row.inventory_stock_total,
+    } : null);
     setFormError('');
     setShowForm(true);
   };
 
-  const closeForm = () => { setShowForm(false); setEditingId(null); setForm(EMPTY_FORM); setFormError(''); };
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setSelectedProduct(null);
+    setFormError('');
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -109,11 +299,12 @@ export default function CustomerPartNumbers() {
     setSaving(true); setFormError('');
     try {
       const payload = {
-        customer_id:      Number(form.customer_id),
-        part_number:      form.part_number.trim().toUpperCase(),
+        customer_id: Number(form.customer_id),
+        part_number: form.part_number.trim().toUpperCase(),
         item_description: form.item_description.trim() || null,
-        selling_price:    form.selling_price !== '' ? Number(form.selling_price) : null,
-        status:           form.status,
+        selling_price: form.selling_price !== '' ? Number(form.selling_price) : null,
+        status: form.status,
+        inventory_product_id: selectedProduct ? Number(selectedProduct.id) : null,
       };
       if (editingId) {
         await updateCustomerPartNumber(editingId, payload);
@@ -125,9 +316,10 @@ export default function CustomerPartNumbers() {
       closeForm();
       load();
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.errors
-        ? Object.values(err.response.data.errors || {}).flat().join(' ')
-        : 'Gagal menyimpan data.';
+      const errors = err.response?.data?.errors;
+      const msg = errors
+        ? Object.values(errors).flat().join(' ')
+        : (err.response?.data?.message || 'Gagal menyimpan data.');
       setFormError(msg);
     } finally {
       setSaving(false);
@@ -135,7 +327,7 @@ export default function CustomerPartNumbers() {
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`Hapus part number "${row.part_number}" milik ${row.customer?.customer_name || ''}?`)) return;
+    if (!window.confirm(`Hapus part number "${row.part_number}" milik ${row.customer?.customer_name || ''}?\n\nProduk Inventory yang terhubung tidak akan ikut terhapus.`)) return;
     try {
       await deleteCustomerPartNumber(row.id);
       swalToast('Data berhasil dihapus.', 'success');
@@ -185,6 +377,9 @@ export default function CustomerPartNumbers() {
     }
   };
 
+  const COLUMNS = ['Customer', 'Part Number Customer', 'Item Description', 'Harga Jual', 'Produk Inventory', 'Stok Inventory', 'Aksi'];
+  const COL_COUNT = COLUMNS.length;
+
   return (
     <div className="p-6 space-y-5 max-w-7xl mx-auto w-full">
       {/* Header */}
@@ -211,6 +406,14 @@ export default function CustomerPartNumbers() {
           </button>
           <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-slate-50 text-sm transition">
             <Printer className="w-4 h-4" />Print
+          </button>
+          <button
+            onClick={load}
+            disabled={loading}
+            title="Muat ulang stok Inventory terkini"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-slate-50 text-sm transition disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />Refresh
           </button>
         </div>
       </div>
@@ -255,14 +458,14 @@ export default function CustomerPartNumbers() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b">
             <tr>
-              {['Customer', 'Part Number', 'Item Description', 'Harga Jual', 'Status', 'Aksi'].map(h => (
+              {COLUMNS.map(h => (
                 <th key={h} className={`p-4 font-semibold text-slate-600 ${h === 'Aksi' ? 'text-center' : 'text-left'}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {loading
-              ? <tr><td colSpan="6" className="p-8 text-center text-slate-400">Memuat data...</td></tr>
+            {loading && !rows.length
+              ? <tr><td colSpan={COL_COUNT} className="p-8 text-center text-slate-400">Memuat data...</td></tr>
               : pagination.paginatedItems.map(r => (
                 <tr key={r.id} className="border-t hover:bg-slate-50/60 transition">
                   <td className="p-4 font-medium text-slate-800">{r.customer?.customer_name || '-'}</td>
@@ -272,9 +475,25 @@ export default function CustomerPartNumbers() {
                     {r.selling_price ? `Rp ${Number(r.selling_price).toLocaleString('id-ID')}` : '-'}
                   </td>
                   <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.status === 'AKTIF' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                      {r.status}
-                    </span>
+                    {r.inventory_product ? (
+                      <div>
+                        <p className="font-mono text-xs font-bold text-blue-700">{r.inventory_product.part_number || '-'}</p>
+                        <p className="text-slate-700">{r.inventory_product.name || '-'}</p>
+                      </div>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                        Belum Terhubung
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {r.inventory_product ? (
+                      <span className={`font-semibold ${Number(r.inventory_stock_total) > 0 ? 'text-emerald-700' : 'text-slate-600'}`}>
+                        {formatStock(r.inventory_stock_total, r.inventory_product.unit)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="p-4">
                     <div className="flex items-center justify-center gap-2">
@@ -298,7 +517,7 @@ export default function CustomerPartNumbers() {
               ))
             }
             {!loading && !rows.length && (
-              <tr><td colSpan="6" className="p-10 text-center text-slate-400">Belum ada data. Klik <b>Tambah</b> atau <b>Import Excel</b>.</td></tr>
+              <tr><td colSpan={COL_COUNT} className="p-10 text-center text-slate-400">Belum ada data. Klik <b>Tambah</b> atau <b>Import Excel</b>.</td></tr>
             )}
           </tbody>
         </table>
@@ -377,6 +596,14 @@ export default function CustomerPartNumbers() {
               </div>
             </div>
 
+            <InventoryProductPicker
+              selected={selectedProduct}
+              onSelect={(product) => {
+                setSelectedProduct(product);
+                setForm(f => ({ ...f, inventory_product_id: product?.id || '' }));
+              }}
+            />
+
             {formError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{formError}</p>}
 
             <div className="flex gap-3 pt-1">
@@ -404,6 +631,7 @@ export default function CustomerPartNumbers() {
                 <li>Nama sheet = nama customer (UNITED TRACTORS, KOBEXINDO, dll)</li>
                 <li>Kolom Part Number, Description, Harga Jual dibaca otomatis</li>
                 <li>Sheet ALL CUSTOMER dilewati otomatis</li>
+                <li>Mapping ke Produk Inventory dilakukan manual setelah import</li>
               </ul>
             </div>
 

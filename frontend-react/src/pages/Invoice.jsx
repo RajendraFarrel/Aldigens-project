@@ -110,7 +110,7 @@ const normalizeInvoiceForPrint = (inv = {}) => {
     number: inv.invoice_number || '-',
     date: pDate(invoiceDate),
     term: days == null ? 'Net 30' : days > 0 ? `Net ${days}` : 'Tunai',
-    refPo: inv.do_reference || '-',
+    refPo: inv.do_reference || inv.do_number || '-',
     partyName: inv.customer_name || '-',
     partyAddress: inv.customer_address || '',
     items,
@@ -295,12 +295,10 @@ export default function Invoice() {
     items: [],
   });
 
-  // Kalkulasi Real-time untuk form
   const formSubTotal = formData.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || 0)), 0);
   const formTaxAmount = formSubTotal * 0.11;
   const formGrandTotal = formSubTotal + formTaxAmount;
 
-  // HANYA MENGAMBIL DARI MYSQL
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
@@ -337,7 +335,6 @@ export default function Invoice() {
     fetchDOs();
   }, [fetchInvoices, fetchDOs]);
 
-  // --- MENANGKAP DATA DARI BAST / KOMISIONING OTOMATIS ---
   useEffect(() => {
     const activeRef = localStorage.getItem('active_invoice_ref');
     if (activeRef) {
@@ -436,7 +433,6 @@ export default function Invoice() {
     setError('');
   };
 
-  // HANYA MENYIMPAN KE MYSQL
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.items.length === 0) {
@@ -457,13 +453,21 @@ export default function Invoice() {
       
     } catch (err) {
       console.error(err);
-      setError('Gagal menyimpan Invoice ke Database. Pastikan backend berjalan.');
+      
+      // --- KODE UNTUK MEMUNCULKAN ERROR ASLI LARAVEL KE LAYAR ---
+      const errorMsg = err.response?.data?.message || err.message;
+      const errorFile = err.response?.data?.file || 'Tidak diketahui';
+      const errorLine = err.response?.data?.line || 'Tidak diketahui';
+      
+      // Memunculkan Pop-up Alert
+      alert("ERROR DARI BACKEND LARAVEL:\n\n" + errorMsg + "\n\nFile: " + errorFile + "\nBaris: " + errorLine);
+      
+      setError('Gagal: ' + errorMsg);
     } finally {
       setSaving(false);
     }
   };
 
-  // HANYA UPDATE STATUS KE MYSQL
   const handleUpdateStatus = async (newStatus) => {
     if (!selectedInvoice) return;
 
@@ -716,7 +720,7 @@ export default function Invoice() {
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Ref D.O / BAST</p>
-              <p className="font-semibold text-slate-800">{selectedInvoice.do_reference || '-'}</p>
+              <p className="font-semibold text-slate-800">{selectedInvoice.do_reference || selectedInvoice.do_number || '-'}</p>
             </div>
           </div>
 
@@ -751,7 +755,6 @@ export default function Invoice() {
               </tbody>
             </table>
             
-            {/* RINGKASAN HARGA DI HALAMAN DETAIL */}
             {selectedInvoice.items && selectedInvoice.items.length > 0 && (
               <div className="bg-slate-100 border-t border-slate-200 p-5 space-y-2 text-sm">
                 <div className="flex justify-end items-center gap-6">
@@ -806,7 +809,7 @@ export default function Invoice() {
                   <tr key={inv.id || inv.invoice_number} className="hover:bg-slate-50/80 transition text-sm">
                     <td className="p-5 font-bold text-slate-800">{inv.invoice_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{inv.customer_name}</td>
-                    <td className="p-5 text-slate-500">{inv.date}</td>
+                    <td className="p-5 text-slate-500">{inv.date || inv.invoice_date}</td>
                     <td className="p-5 text-slate-500">{inv.due_date}</td>
                     <td className="p-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(inv.status || 'Unpaid')}`}>{inv.status || 'Unpaid'}</span>

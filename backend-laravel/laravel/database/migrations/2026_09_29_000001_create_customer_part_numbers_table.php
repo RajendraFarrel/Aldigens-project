@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('part_number', 255); // Part number versi customer (misal: OPT-ALAM)
             
             // ---> INI KOLOM JEMBATAN PENGHUBUNG KE INVENTORY <---
-            $table->string('inventory_part_number', 255)->nullable()->index(); 
+            $table->unsignedBigInteger('inventory_product_id')->nullable()->index(); 
             // ----------------------------------------------------
 
             $table->string('item_description', 500)->nullable();

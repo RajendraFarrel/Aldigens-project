@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, ShoppingCart, CheckCircle2, Truck, AlertCircle } from 'lucide-react';
-import { getProducts, getCustomers, getCustomerPartNumbers } from '../services/api';
+import { getProducts, getCustomers, getCustomerPartNumbers, createDeliveryOrder } from '../services/api';
 import { swalError, swalToast } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
@@ -433,7 +433,6 @@ export default function SalesOrder() {
     });
   };
 
-  // --- LOGIKA PENCARIAN & JEMBATAN KE INVENTORY (FINAL) ---
   const getFilteredProductsForCustomer = () => {
     if (!formData.customer) return [];
 
@@ -455,21 +454,18 @@ export default function SalesOrder() {
 
       let matchedInv = null;
       
-      // Prioritas 1: Cocokkan via jembatan inventory_part_number
       if (invCode) {
         matchedInv = masterProducts.find(mp => 
           String(mp.product_code || mp.part_number || mp.code || '').trim().toLowerCase() === String(invCode).trim().toLowerCase()
         );
       }
       
-      // Prioritas 2: Cocokkan langsung jika part number sama persis
       if (!matchedInv) {
         matchedInv = masterProducts.find(mp => 
           String(mp.part_number || mp.product_code || '').trim().toLowerCase() === String(partNum).trim().toLowerCase()
         );
       }
 
-      // Prioritas 3: Cocokkan via deskripsi/nama produk
       if (!matchedInv) {
         const desc = (p.item_description || p.description || p.name || '').trim().toLowerCase();
         if (desc) {
@@ -479,7 +475,9 @@ export default function SalesOrder() {
         }
       }
 
-      const stockQty = matchedInv ? Number(matchedInv.stock || matchedInv.qty || 0) : 0;
+      const stockQty = matchedInv 
+          ? Number(matchedInv.stock || matchedInv.qty || 0) 
+          : Number(p.inventory_product?.stock_gudang || p.inventory_product?.stock || p.stock_gudang || p.stock || p.inventory_stock_total || 0);
 
       return {
         ...p,
@@ -590,24 +588,35 @@ export default function SalesOrder() {
     }
   };
 
-  const handleConvertToDO = (item) => {
+  // ---------------------------------------------------------
+  // PERBAIKAN: Penomoran DO Unik (Timestamp + Random) agar Bebas Error 422
+  // ---------------------------------------------------------
+  const handleConvertToDO = async (item) => {
     setActiveMenuId(null);
-    const soNumber = item.soNo || item.so_number || 'SO-UNKNOWN';
-    const customerPo = item.refPo || item.reff_po || item.customer_po || '-';
     
-    const newDO = {
-      id: Date.now(),
-      do_number: 'DO-' + Math.floor(1000 + Math.random() * 9000),
-      so_number: soNumber,
-      customer_po: customerPo,
-      ref_po: customerPo, 
+    // Menangkap berbagai kemungkinan nama variabel dari objek Sales Order
+    const soNumber = item.soNo || item.so_number || item.id || 'SO-UNKNOWN';
+    const customerPo = item.refPo || item.reff_po || item.customer_po || item.ref_po || '-';
+
+    if (!window.confirm(`Proses Sales Order ${soNumber} menjadi Delivery Order (Surat Jalan)?`)) {
+      return;
+    }
+
+    const uniqueDoNumber = 'DO-' + Date.now().toString().slice(-6) + '-' + Math.floor(100 + Math.random() * 900);
+
+    const payload = {
+      sales_order_id: null,
+      do_number: uniqueDoNumber,
+      so_number: soNumber,      // Mengirim No. SO
+      ref_po: customerPo,       // Mengirim No. PO Pelanggan
+      customer_po: customerPo,  // Cadangan key PO Pelanggan
       do_date: new Date().toISOString().split('T')[0],
       customer_name: item.customer || item.customer_name || 'Pelanggan',
       delivery_address: item.shipTo || item.customer_address || 'Jakarta',
       vehicle_number: item.sentBy || 'B 1234 SZT',
       driver_name: 'Kurir Perusahaan',
-      notes: 'Barang dikirim berdasarkan SO: ' + soNumber + (customerPo !== '-' ? ` (PO Pelanggan: ${customerPo})` : ''),
-      status: 'Shipped',
+      notes: 'Barang dikirim berdasarkan SO: ' + soNumber,
+      status: 'Draft',
       items: (item.items || []).map(i => ({
         part_number: i.code || i.part_number || '-',
         description: i.name || i.description || '-',
@@ -616,13 +625,14 @@ export default function SalesOrder() {
       }))
     };
 
-    ['aldigens_delivery_orders', 'delivery_orders'].forEach(storageKey => {
-      const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      const filtered = existing.filter(d => d.so_number !== soNumber);
-      localStorage.setItem(storageKey, JSON.stringify([newDO, ...filtered]));
-    });
-
-    swalToast(`Sales Order ${soNumber} berhasil diproses ke Delivery Order (DO)!`, 'success');
+    try {
+      await createDeliveryOrder(payload);
+      swalToast(`Sales Order ${soNumber} berhasil diproses ke Delivery Order (DO)!`, 'success');
+    } catch (error) {
+      console.error("DETAIL ERROR API RESPONSE:", error.response?.data);
+      const serverMessage = error.response?.data?.message || JSON.stringify(error.response?.data) || error.message;
+      swalError('Gagal Total', `Pesan dari Server: ${serverMessage}`);
+    }
   };
 
   const handlePrint = (item) => {
@@ -764,7 +774,6 @@ export default function SalesOrder() {
                               ))}
                             </datalist>
 
-                            {/* RADAR INFORMATIVE STOK GUDANG */}
                             <div className="mt-1 flex items-center gap-1.5">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
                                 Number(item.current_stock || 0) > 0 
@@ -815,7 +824,6 @@ export default function SalesOrder() {
                 </div>
               )}
 
-              {/* TAMPILAN TOTALAN BAWAH */}
               {formData.items.length > 0 && (
                 <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 w-full md:w-1/2 ml-auto space-y-3">
                   <div className="flex justify-between items-center text-sm font-semibold text-slate-500 dark:text-slate-400">

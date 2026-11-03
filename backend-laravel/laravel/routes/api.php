@@ -41,6 +41,7 @@ use App\Http\Controllers\ReceivablePayableController;
 use App\Http\Controllers\SpkController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\SpkScheduleController;
+use App\Http\Controllers\GoodsReceiptController;
 
 
 /*  
@@ -83,6 +84,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/inventory/products', ProductController::class);
     Route::get('/products', [ApiProductController::class, 'index']);
     Route::post('/products', [ApiProductController::class, 'store']);
+
+    // Goods Receipts (Penerimaan Barang)
+    Route::apiResource('/goods-receipts', GoodsReceiptController::class);
 
     // Warehouse berada di dalam Inventory
     Route::apiResource('/inventory/warehouses', WarehouseController::class)->except(['show']);

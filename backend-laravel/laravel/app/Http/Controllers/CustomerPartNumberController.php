@@ -26,11 +26,6 @@ class CustomerPartNumberController extends Controller
         return null;
     }
 
-    /**
-     * Validasi mapping ke produk Inventory.
-     * - boleh null (mapping dikosongkan / belum terhubung)
-     * - bila terisi: harus produk yang ada dan berstatus AKTIF
-     */
     private function validateInventoryProductId(Request $request): void
     {
         $request->validate([
@@ -44,9 +39,6 @@ class CustomerPartNumberController extends Controller
         ]);
     }
 
-    /**
-     * Normalisasi payload mapping: kosong / "-" / "0" / "null" dianggap NULL.
-     */
     private function inventoryProductIdFrom(Request $request): ?int
     {
         $value = $request->input('inventory_product_id');
@@ -57,8 +49,7 @@ class CustomerPartNumberController extends Controller
     }
 
     /**
-     * Total stok Inventory per product_id = SUM(inventory_stocks.quantity)
-     * dari seluruh warehouse dan lokasi. Hanya query, tidak mengubah saldo.
+     * DIKEMBALIKAN KE KODE ASLI YANG BEKERJA DENGAN BAIK (Menghindari Column Not Found)
      */
     private function stockTotals(array $productIds): array
     {
@@ -73,10 +64,6 @@ class CustomerPartNumberController extends Controller
             ->toArray();
     }
 
-    /**
-     * Bentuk response baris Data Customer, termasuk informasi produk Inventory
-     * dan total stok terkini (null bila belum terhubung).
-     */
     private function present(CustomerPartNumber $record, ?array $totals = null): array
     {
         $product = $record->relationLoaded('inventoryProduct') ? $record->inventoryProduct : null;
@@ -90,19 +77,42 @@ class CustomerPartNumberController extends Controller
             $inventoryStockTotal = (int) ($totals[$product->id] ?? 0);
         }
 
+        $productData = $product ? [
+            'id'                   => $product->id,
+            'product_code'         => $product->product_code,
+            'barcode'              => $product->barcode,
+            'part_number'          => $product->part_number,
+            'name'                 => $product->name,
+            'item_type'            => $product->item_type,
+            'unit'                 => $product->unit,
+            'status'               => $product->status,
+            // --- ALIAS KEY UNTUK FORM SALES ORDER ---
+            'stock'                => $inventoryStockTotal,
+            'stok'                 => $inventoryStockTotal,
+            'stock_total'          => $inventoryStockTotal,
+            'inventory_stock_total'=> $inventoryStockTotal,
+            'inventory_stock'      => $inventoryStockTotal,
+            'sisa_stok'            => $inventoryStockTotal,
+            'qty_available'        => $inventoryStockTotal,
+            'stock_gudang'         => $inventoryStockTotal,
+            'available_stock'      => $inventoryStockTotal,
+            'qty'                  => $inventoryStockTotal,
+        ] : null;
+
         return array_merge($record->toArray(), [
-            'inventory_product_id' => $product?->id,
-            'inventory_product'    => $product ? [
-                'id'           => $product->id,
-                'product_code' => $product->product_code,
-                'barcode'      => $product->barcode,
-                'part_number'  => $product->part_number,
-                'name'         => $product->name,
-                'item_type'    => $product->item_type,
-                'unit'         => $product->unit,
-                'status'       => $product->status,
-            ] : null,
+            'inventory_product_id'  => $product?->id,
+            'inventory_product'     => $productData,
+            // --- ALIAS KEY UNTUK FORM SALES ORDER (ROOT LEVEL) ---
             'inventory_stock_total' => $inventoryStockTotal,
+            'stock_total'           => $inventoryStockTotal,
+            'inventory_stock'       => $inventoryStockTotal,
+            'stock'                 => $inventoryStockTotal,
+            'stok'                  => $inventoryStockTotal,
+            'sisa_stok'             => $inventoryStockTotal,
+            'qty_available'         => $inventoryStockTotal,
+            'stock_gudang'          => $inventoryStockTotal,
+            'available_stock'       => $inventoryStockTotal,
+            'qty'                   => $inventoryStockTotal,
         ]);
     }
 
@@ -116,7 +126,6 @@ class CustomerPartNumberController extends Controller
 
         $records = $query->get();
 
-        // Satu query agregasi untuk semua produk sekaligus (menghindari N+1).
         $totals = $this->stockTotals($records->pluck('inventory_product_id')->all());
 
         return response()->json([
@@ -133,7 +142,6 @@ class CustomerPartNumberController extends Controller
         $request->validate([
             'customer_id'           => 'required|exists:customers,id',
             'part_number'           => 'required|string|max:100',
-            // Validasi untuk Jembatan Inventory
             'inventory_part_number' => 'nullable|string|max:255', 
             'item_description'      => 'nullable|string|max:255',
             'selling_price'         => 'nullable|numeric|min:0',
@@ -159,8 +167,8 @@ class CustomerPartNumberController extends Controller
     }
 
     public function update(Request $request, $id)
-{
-    $record = CustomerPartNumber::findOrFail($id);
+    {
+        $record = CustomerPartNumber::findOrFail($id);
 
         $request->validate([
             'customer_id'      => 'required|exists:customers,id',
@@ -179,8 +187,6 @@ class CustomerPartNumberController extends Controller
             'status'           => strtoupper($request->status ?? 'AKTIF'),
         ];
 
-        // Mapping hanya diubah bila field dikirim; mengirim null berarti
-        // melepas relasi (record Part Number Customer tetap dipertahankan).
         if ($request->has('inventory_product_id')) {
             $data['inventory_product_id'] = $this->inventoryProductIdFrom($request);
         }
@@ -243,14 +249,11 @@ class CustomerPartNumberController extends Controller
             }
         }
 
-        // Nama sheet dipakai sebagai customer kecuali sheet "ALL CUSTOMER" —
-        // pada sheet tersebut customer diambil dari kolom CUSTOMER di setiap baris.
         $sheetTitle = trim($sheet->getTitle());
         $sheetCustomer = strtoupper($sheetTitle) === 'ALL CUSTOMER' ? null : $sheetTitle;
 
         if ($headerIndex === null) {
             $headerIndex = 3; 
-            // Tambahkan inventory_part_number ke legacy header array
             $headers = ['no', 'part_number', 'item_description', 'selling_price', 'status', 'inventory_part_number'];
             $legacyFormat = true;
         } else {
@@ -266,7 +269,6 @@ class CustomerPartNumberController extends Controller
                     'item_description'      => $line[2] ?? null,
                     'selling_price'         => $line[3] ?? null,
                     'status'                => $line[4] ?? null,
-                    // Tarik kolom E (index 5) di excel jika ada sebagai inventory code
                     'inventory_part_number' => $line[5] ?? null, 
                 ];
             } else {
@@ -279,8 +281,6 @@ class CustomerPartNumberController extends Controller
             $customerName = $this->value($row, ['customer', 'customer_name', 'pelanggan']) ?: $sheetCustomer;
             $part         = $this->value($row, ['part_number', 'partnumber', 'part_no']);
             $description  = $this->value($row, ['item_description', 'description', 'deskripsi', 'nama_barang', 'nama_produk', 'item']);
-            
-            // Baca kolom untuk Kode Internal Inventory jika ada di dalam file Excel
             $inventoryCode = $this->value($row, ['inventory_part_number', 'kode_inventory', 'inventory_code', 'kode_internal']);
 
             if (
@@ -298,12 +298,10 @@ class CustomerPartNumberController extends Controller
             }
 
             $customer = $this->findOrCreateCustomer($customerName);
-            // Mapping Inventory tidak disentuh saat import: data hasil import tetap
-            // NULL sampai pengguna memetakan secara manual.
             CustomerPartNumber::updateOrCreate(
                 ['customer_id' => $customer->id, 'part_number' => $part],
                 [
-                    'inventory_part_number' => $inventoryCode, // Simpan mapping dari excel
+                    'inventory_part_number' => $inventoryCode,
                     'item_description'      => $description,
                     'selling_price'         => $this->numberValue(
                         $this->value($row, ['harga_jual', 'selling_price', 'harga', 'price'])
@@ -352,17 +350,12 @@ class CustomerPartNumberController extends Controller
         $value = trim((string) $value);
         if (is_numeric($value)) return (float) $value;
 
-        // Hapus prefix mata uang seperti "Rp", "IDR", "$", dsb. dan whitespace
         $value = preg_replace('/^[^0-9,\.\-]+/', '', $value);
         $value = trim($value);
 
-        // Format Indonesia: titik sebagai ribuan, koma sebagai desimal -> "1.290.000" atau "4.290.000"
-        // Format Rp: "4,290,000" (koma sebagai ribuan, seperti format HYUNDAI di PARTNUMBER_APP)
         if (preg_match('/^\d{1,3}(,\d{3})+(\,\d{1,2})?$/', $value)) {
-            // Format: 4,290,000 - koma sebagai separator ribuan (bukan desimal)
             $value = str_replace(',', '', $value);
         } elseif (preg_match('/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/', $value)) {
-            // Format: 4.290.000 atau 4.290.000,50
             $value = str_replace('.', '', $value);
             $value = str_replace(',', '.', $value);
         } else {
@@ -400,10 +393,6 @@ class CustomerPartNumberController extends Controller
         return response($csv)->header('Content-Type', 'text/csv')->header('Content-Disposition', 'attachment; filename=data-customer.csv');
     }
 
-    /**
-     * Daftar produk aktif untuk dropdown mapping Data Customer.
-     * Mendukung pencarian berdasarkan Part Number, Product Code, Barcode, dan Nama.
-     */
     public function inventoryProductOptions(Request $request)
     {
         $query = Product::query()
@@ -425,15 +414,25 @@ class CustomerPartNumberController extends Controller
 
         return response()->json([
             'data' => $products->map(fn(Product $product) => [
-                'id'           => $product->id,
-                'product_code' => $product->product_code,
-                'barcode'      => $product->barcode,
-                'part_number'  => $product->part_number,
-                'name'         => $product->name,
-                'item_type'    => $product->item_type,
-                'unit'         => $product->unit,
-                'status'       => $product->status,
-                'stock_total'  => (int) ($totals[$product->id] ?? 0),
+                'id'                   => $product->id,
+                'product_code'         => $product->product_code,
+                'barcode'              => $product->barcode,
+                'part_number'          => $product->part_number,
+                'name'                 => $product->name,
+                'item_type'            => $product->item_type,
+                'unit'                 => $product->unit,
+                'status'               => $product->status,
+                // --- ALIAS KEY UNTUK DROPDOWN REACT ---
+                'stock'                => (int) ($totals[$product->id] ?? 0),
+                'stok'                 => (int) ($totals[$product->id] ?? 0),
+                'stock_total'          => (int) ($totals[$product->id] ?? 0),
+                'inventory_stock_total'=> (int) ($totals[$product->id] ?? 0),
+                'inventory_stock'      => (int) ($totals[$product->id] ?? 0),
+                'sisa_stok'            => (int) ($totals[$product->id] ?? 0),
+                'qty_available'        => (int) ($totals[$product->id] ?? 0),
+                'stock_gudang'         => (int) ($totals[$product->id] ?? 0),
+                'available_stock'      => (int) ($totals[$product->id] ?? 0),
+                'qty'                  => (int) ($totals[$product->id] ?? 0),
             ])->values(),
         ]);
     }

@@ -22,6 +22,9 @@ class SpkFoundationTest extends TestCase
     {
         parent::setUp();
 
+        // Tahap 1: role harus valid di tabel roles agar lolos middleware permission.
+        $this->ensureRoles(['Administrator']);
+
         // Route modul Operasional berada di dalam middleware auth:sanctum.
         $user = User::create([
             'name' => 'Test User', 'email' => 'spk-test@example.com',

@@ -18,14 +18,14 @@ class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        User::updateOrCreate(
-            ['email' => 'admin@aldigens.co.id'],
-            [
-                'name'      => 'admin',
-                'full_name' => 'Administrator Sistem',
-                'password'  => Hash::make('password'),
-                'role'      => 'Administrator',
-            ]
-        );
+        // `role` dipertahankan kompatibel untuk seeder/tooling internal.
+        $user = User::firstOrNew(['email' => 'admin@aldigens.co.id']);
+        $user->fill([
+            'name'      => 'admin',
+            'full_name' => 'Administrator Sistem',
+            'password'  => Hash::make('password'),
+            'role'      => 'Administrator',
+        ]);
+        $user->save();
     }
 }

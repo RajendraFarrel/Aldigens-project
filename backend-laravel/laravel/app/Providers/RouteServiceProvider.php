@@ -28,6 +28,15 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Route model binding existing dipertahankan agar kontrak endpoint tidak
+        // berubah. Hanya binding `{id}` yang memakai nama eksplisit dipetakan ke
+        // model terkait sehingga {id} tidak lagi menimpa primary key route lain
+        // (mis. /spks/{id} vs apiResource yang memakai {spk}).
+        // Tidak ada binding global untuk {id}: setiap controller SPK/Employee/
+        // Commissioning memakai nama parameter {id} dan melakukan findOrFail.
+        // Mapping Route::model('id', ...) akan menimpa SEMUA route ber-{id}
+        // (mis. /employees/1 menjadi Spk 1) sehingga dilarang.
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

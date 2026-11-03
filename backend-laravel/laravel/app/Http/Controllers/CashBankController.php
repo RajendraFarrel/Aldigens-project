@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\CashBank;
+use App\Services\AuditLogService;
 use App\Services\CashBankService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -223,6 +224,12 @@ class CashBankController extends Controller
         DB::transaction(function () use ($cashBank, $saldo, $tanggal, $request) {
             $this->service->simpanSaldoAwal($cashBank, $saldo, $tanggal, $request->user()?->id);
         });
+
+        // Operasi berisiko tinggi -> wajib tercatat. Tanggal & nominal dicatat,
+        // nomor rekening tidak pernah dimasukkan ke log.
+        AuditLogService::record($request, 'accounting.cash_bank.opening_balance', 'accounting', 'success',
+            'Mengubah saldo awal Kas/Bank', 'cash_bank', $cashBank->id,
+            ['tanggal' => $tanggal, 'saldo_awal' => $saldo]);
 
         return response()->json([
             'message' => 'Saldo awal Kas/Bank berhasil disimpan.',

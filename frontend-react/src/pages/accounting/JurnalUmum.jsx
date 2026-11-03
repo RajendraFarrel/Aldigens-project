@@ -11,6 +11,7 @@ import {
 } from '../../services/accountingApi';
 import { requestVoucherDetail } from '../../Data/accountingStore';
 import { swalSuccess, swalError, swalConfirm } from '../../utils/swal';
+import { usePermissions } from '../../context/PermissionContext';
 
 /** Tanggal jurnal -> [YYYY, MM, DD] tanpa pergeseran timezone. */
 const bagianTanggal = (value) => {
@@ -37,6 +38,7 @@ const bulanJurnal = (value) => {
  * Tab "Daftar Voucher" : semua voucher (Draft & Posted) dari database.
  */
 export default function JurnalUmum() {
+    const { can } = usePermissions();
     const [tab, setTab] = useState('rekap'); // rekap | daftar | form
     const [formEdit, setFormEdit] = useState(null);
 
@@ -411,21 +413,27 @@ export default function JurnalUmum() {
                                                     </button>
                                                     {v.status === 'DRAFT' && (
                                                         <>
+                                                            {can('accounting.journal.update') && (
                                                             <button onClick={() => { setFormEdit(v); setTab('form'); }} title="Edit draft"
                                                                 className="p-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition cursor-pointer">
                                                                 <Pencil className="h-3.5 w-3.5" />
                                                             </button>
+                                                            )}
+                                                            {can('accounting.journal.post') && (
                                                             <button onClick={() => posting(v)} title="Posting"
                                                                 className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition cursor-pointer">
                                                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                                             </button>
+                                                            )}
+                                                            {can('accounting.journal.delete') && (
                                                             <button onClick={() => hapusDraft(v)} title="Hapus draft"
                                                                 className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition cursor-pointer">
                                                                 <Trash2 className="h-3.5 w-3.5" />
                                                             </button>
+                                                            )}
                                                         </>
                                                     )}
-                                                    {v.status === 'POSTED' && !v.reversal_of_id && (
+                                                    {v.status === 'POSTED' && !v.reversal_of_id && can('accounting.journal.reverse') && (
                                                         <button onClick={() => reversal(v)} title="Buat reversal (koreksi)"
                                                             className="p-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition cursor-pointer">
                                                             <Undo2 className="h-3.5 w-3.5" />

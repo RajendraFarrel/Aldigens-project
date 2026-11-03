@@ -39,6 +39,9 @@ class ReceivablePayableTest extends TestCase
     {
         parent::setUp();
 
+        // Tahap 1: role harus valid di tabel roles agar lolos middleware permission.
+        $this->ensureRoles(['Administrator']);
+
         $this->user = User::create([
             'name' => 'Tester AR AP',
             'email' => 'arap@example.com',

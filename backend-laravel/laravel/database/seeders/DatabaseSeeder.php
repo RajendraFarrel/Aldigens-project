@@ -15,14 +15,14 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Akun default untuk login pertama kali
-        User::updateOrCreate(
-            ['email' => 'admin@aldigens.co.id'], [
-                'name'      => 'admin',
-                'full_name' => 'Administrator Sistem',
-                'password'  => Hash::make('password'),
-                'role'      => 'Administrator',
-            ]
-        );
+        $admin = User::firstOrNew(['email' => 'admin@aldigens.co.id']);
+        $admin->fill([
+            'name'      => 'admin',
+            'full_name' => 'Administrator Sistem',
+            'password'  => Hash::make('password'),
+            'role'      => 'Administrator',
+        ]);
+        $admin->save();
 
         $this->call([
             CustomerSeeder::class,

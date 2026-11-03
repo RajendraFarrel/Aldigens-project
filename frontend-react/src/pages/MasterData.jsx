@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Building2, Pencil, Plus, RefreshCw, Save, Trash2, Users, X } from 'lucide-react';
 import CustomerPartNumbers from './CustomerPartNumbers';
+import { usePermissions } from '../context/PermissionContext';
 import {
   createCustomer, createSupplier, deleteCustomer, deleteSupplier, getCustomers, getSuppliers,
   updateCustomer, updateSupplier,
@@ -45,6 +46,9 @@ function Modal({ title, icon: Icon, iconColor = 'text-blue-600', onClose, childr
 
 export default function MasterData({ type = 'customer' }) {
   const isCustomer = type === 'customer';
+  // Permission backend menentukan tombol mana yang tampil.
+  const { can } = usePermissions();
+  const canManage = can(isCustomer ? 'master.customers.manage' : 'master.suppliers.manage');
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
@@ -228,12 +232,14 @@ export default function MasterData({ type = 'customer' }) {
           <p className="text-sm text-slate-500">Kelola data {label.toLowerCase()} sebagai master terpusat.</p>
         </div>
         <div className="flex gap-2">
+          {canManage && (
           <button
             onClick={openAdd}
             className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm transition shadow-sm"
           >
             <Plus className="w-4 h-4" />Tambah {label}
           </button>
+          )}
           <button onClick={load} className="p-2 border rounded-lg hover:bg-slate-50 transition">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -272,6 +278,7 @@ export default function MasterData({ type = 'customer' }) {
                     </span>
                   </td>
                   <td className="p-4">
+                    {canManage && (
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => openEdit(row)}
@@ -288,6 +295,7 @@ export default function MasterData({ type = 'customer' }) {
                           <Trash2 className="w-4 h-4" />
                         </button>
                     </div>
+                    )}
                   </td>
                 </tr>
               ))}

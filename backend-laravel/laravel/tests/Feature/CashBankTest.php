@@ -32,6 +32,9 @@ class CashBankTest extends TestCase
     {
         parent::setUp();
 
+        // Tahap 1: role harus valid di tabel roles agar lolos middleware permission.
+        $this->ensureRoles(['Administrator']);
+
         $this->user = User::create([
             'name'     => 'Tester Akuntansi',
             'email'    => 'kasbank-test@example.com',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\JournalVoucher;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -210,8 +211,14 @@ class JournalVoucherController extends Controller
         });
 
         if ($result['status'] !== 200) {
+            AuditLogService::record($request, 'accounting.journal.post', 'accounting', 'failed',
+                $result['message'] ?? 'Posting voucher gagal', 'journal_voucher', $journalVoucher->id);
+
             return response()->json($result, $result['status']);
         }
+
+        AuditLogService::record($request, 'accounting.journal.post', 'accounting', 'success',
+            $result['message'] ?? 'Posting voucher', 'journal_voucher', $journalVoucher->id);
 
         return response()->json($result);
     }
@@ -287,8 +294,14 @@ class JournalVoucherController extends Controller
         });
 
         if ($result['status'] !== 200) {
+            AuditLogService::record($request, 'accounting.journal.reverse', 'accounting', 'failed',
+                $result['message'] ?? 'Reversal gagal', 'journal_voucher', $journalVoucher->id);
+
             return response()->json($result, $result['status']);
         }
+
+        AuditLogService::record($request, 'accounting.journal.reverse', 'accounting', 'success',
+            $result['message'] ?? 'Reversal voucher', 'journal_voucher', $journalVoucher->id);
 
         return response()->json($result);
     }

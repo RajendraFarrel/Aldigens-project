@@ -25,6 +25,9 @@ class SpkScheduleTest extends TestCase
     {
         parent::setUp();
 
+        // Tahap 1: role harus valid di tabel roles agar lolos middleware permission.
+        $this->ensureRoles(['Administrator']);
+
         // Route Penjadwalan berada di dalam middleware auth:sanctum.
         $user = User::create([
             'name' => 'Test User',
@@ -33,6 +36,8 @@ class SpkScheduleTest extends TestCase
             'role' => 'Administrator',
         ]);
         $this->actingAs($user);
+
+        $this->ensureRoles(['Administrator']);
 
         $this->customerId = DB::table('customers')->insertGetId([
             'customer_code' => 'CUST-TEST',

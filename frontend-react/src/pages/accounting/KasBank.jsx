@@ -13,6 +13,7 @@ import {
 } from '../../services/accountingApi';
 import { printKasBankRingkasan, printKasBankMutasi } from '../../utils/accountingPrint';
 import { swalError, swalSuccess, swalConfirm } from '../../utils/swal';
+import { usePermissions } from '../../context/PermissionContext';
 
 /**
  * Kas & Bank.
@@ -651,6 +652,9 @@ function TabSaldoAwal({ onChanged, onGoCoa }) {
     }
   };
 
+  const { can } = usePermissions();
+  const canManageOpening = can('accounting.cash_bank.opening_balance');
+
   const rows = data?.rows || [];
 
   return (
@@ -715,10 +719,12 @@ function TabSaldoAwal({ onChanged, onGoCoa }) {
                       : <span className="text-slate-400">Terkunci setelah ada transaksi</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <button onClick={() => bukaEdit(r)}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition cursor-pointer text-xs font-semibold">
-                      <Pencil className="h-3.5 w-3.5" /> Atur
-                    </button>
+                    {canManageOpening && (
+                      <button onClick={() => bukaEdit(r)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition cursor-pointer text-xs font-semibold">
+                        <Pencil className="h-3.5 w-3.5" /> Atur
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

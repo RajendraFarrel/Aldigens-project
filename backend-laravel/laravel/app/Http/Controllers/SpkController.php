@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Spk;
 use App\Models\SpkAssignment;
 use App\Models\SpkEhsPermit;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -150,7 +151,7 @@ class SpkController extends Controller
     }
 
     /** DELETE /api/spks/{id} — hanya untuk SPK berstatus DRAFT. */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $spk = Spk::findOrFail($id);
 
@@ -162,6 +163,9 @@ class SpkController extends Controller
         }
 
         $spk->delete();
+
+        AuditLogService::record($request, 'operational.spk.delete', 'operational', 'success',
+            'Menghapus SPK (DRAFT)', 'spk', $id);
 
         return response()->json(['status' => 'success', 'message' => 'SPK berhasil dihapus.']);
     }

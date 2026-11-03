@@ -34,6 +34,9 @@ class CustomerPartNumberInventoryTest extends TestCase
     {
         parent::setUp();
 
+        // Tahap 1: role harus valid + permission tersinkron agar lolos middleware.
+        $this->ensureRoles(['Administrator']);
+
         $this->user = User::create([
             'name' => 'Test User',
             'email' => 'cpn-test@example.com',

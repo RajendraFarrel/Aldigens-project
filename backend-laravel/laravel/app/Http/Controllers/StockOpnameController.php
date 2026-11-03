@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\InventoryStock;
 use App\Models\WarehouseLocation;
 use App\Models\StockOpname;
+use App\Services\AuditLogService;
 use App\Services\InventoryStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -111,6 +112,9 @@ class StockOpnameController extends Controller
 
             return $lockedOpname;
         });
+
+        AuditLogService::record($request, 'inventory.stock_opname.complete', 'inventory', 'success',
+            'Menyelesaikan Stock Opname ' . $completed->document_number, 'stock_opname', $completed->id);
 
         return response()->json([
             'message' => 'Stock opname selesai dan adjustment tercatat.',

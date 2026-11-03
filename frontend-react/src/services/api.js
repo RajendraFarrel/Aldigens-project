@@ -29,6 +29,16 @@ api.interceptors.response.use(
             localStorage.removeItem('auth_user');
             window.dispatchEvent(new Event('auth:logout'));
         }
+        // 403 = ditolak backend (permission). Dispatch event agar UI menampilkan
+        // pesan "akses ditolak" yang rapi, bukan error mentah.
+        if (error.response?.status === 403) {
+            window.dispatchEvent(new CustomEvent('auth:forbidden', {
+                detail: {
+                    message: error.response?.data?.message || 'Anda tidak memiliki hak akses untuk tindakan ini.',
+                    permission: error.response?.data?.permission || null,
+                },
+            }));
+        }
         return Promise.reject(error);
     }
 );
@@ -44,6 +54,17 @@ export const authLogout = () =>
 
 export const authMe = () =>
     api.get('/me');
+
+// Permission user aktif (server sebagai sumber kebenaran).
+export const getMyPermissions = () => api.get('/me');
+
+// Activity log (read-only) — butuh security.activity_logs.view.
+export const getActivityLogs = (params = {}) => api.get('/security/activity-logs', { params });
+
+// Permission katalog (untuk pengaturan role).
+export const getPermissions = () => api.get('/permissions');
+export const updateRolePermissions = (roleId, permissions) =>
+    api.put(`/roles/${roleId}/permissions`, { permissions });
 
 // -----------------------------------------------
 // Inventory – Dashboard

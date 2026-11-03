@@ -52,6 +52,57 @@ import { Menu, Moon, Sun } from 'lucide-react';
 import axios from 'axios';
 import { useTheme } from './context/ThemeContext';
 import { getAllowedMenus } from './config/menus';
+import PermissionGuard from './context/PermissionGuard';
+import { usePermissions } from './context/PermissionContext';
+
+/**
+ * Permission minimum per halaman. Ini HANYA untuk tampilan/guard UI.
+ * Otorisasi sebenarnya tetap dilakukan backend (403 bila tidak berhak).
+ */
+const PAGE_PERMISSIONS = {
+  // Inventory
+  'inventory-products': 'inventory.products.view',
+  'inventory-warehouses': 'inventory.warehouse.view',
+  'inventory-receive': 'inventory.goods_receipt.view',
+  'inventory-issue': 'inventory.goods_issue.view',
+  'inventory-transfer': 'inventory.transfer.view',
+  'inventory-opname': 'inventory.stock_opname.view',
+  'inventory-scan': 'inventory.stock_opname.view',
+  'inventory-transactions': 'inventory.transactions.view',
+  'inventory-reports': 'inventory.reports.view',
+  // Master data
+  'master-customers': 'master.customers.view',
+  'master-suppliers': 'master.suppliers.view',
+  // Akuntansi
+  'accounting-coa': 'accounting.coa.view',
+  'accounting-cash-bank': 'accounting.cash_bank.view',
+  'accounting-receivables-payables': ['accounting.receivables.view', 'accounting.payables.view'],
+  'accounting-journal': 'accounting.journal.view',
+  'accounting-voucher-detail': 'accounting.journal.view',
+  'accounting-ledger': 'accounting.reports.view',
+  'accounting-trial-balance': 'accounting.reports.view',
+  'accounting-adjustment': 'accounting.journal.view',
+  'accounting-reports': 'accounting.reports.view',
+  // Operasional
+  'spk': 'operational.spk.view',
+  'scheduling': 'operational.scheduling.view',
+  'commissioning': 'operational.commissioning.manage',
+  // Network & Security
+  'network-monitoring': 'security.network_monitoring.view',
+  'security-status': 'security.dashboard.view',
+  'activity-log': 'security.activity_logs.view',
+  'users': 'security.users.manage',
+  // Pembelian (dikelola bersama Inventory)
+  'receive-item': 'inventory.goods_receipt.view',
+};
+
+function withGuard(tab, node) {
+  const rule = PAGE_PERMISSIONS[tab];
+  if (!rule) return node;
+  return Array.isArray(rule)
+    ? <PermissionGuard anyOf={rule}>{node}</PermissionGuard>
+    : <PermissionGuard permission={rule}>{node}</PermissionGuard>;
+}
 
 const PAGE_TITLES = {
   'dashboard':              'Dashboard Utama',
@@ -109,19 +160,16 @@ const PAGE_TITLES = {
 
 export default function App() {
   const { isDark, toggleTheme } = useTheme();
+  // User berasal dari context (payload backend /me), dengan cache localStorage
+  // sebagai nilai awal agar refresh tidak menghilangkan hak akses secara keliru.
+  const { user: permissionUser } = usePermissions();
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('auth_token');
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   // Menu aktif disimpan di localStorage agar tetap di halaman yang sama setelah reload.
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('aldigens_active_tab') || 'dashboard');
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('auth_user') || 'null');
-    } catch {
-      return null;
-    }
-  });
+  const currentUser = permissionUser;
 
   const allowedMenus = getAllowedMenus(currentUser);
 
@@ -129,7 +177,7 @@ export default function App() {
     if (isAuthenticated && !allowedMenus.includes(activeTab) && activeTab !== 'accounting-voucher-detail') {
       setActiveTab('dashboard');
     }
-  }, [isAuthenticated, currentUser]);
+  }, [isAuthenticated, currentUser, allowedMenus.join('|'), activeTab]);
 
   /* Simpan menu aktif setiap kali berubah supaya reload tidak kembali ke dashboard. */
   useEffect(() => {
@@ -157,33 +205,18 @@ export default function App() {
       .then(response => console.log(response.data))
       .catch(error => console.error(error));
 
+    // Daftar user dipelihara PermissionProvider; App hanya menangani sesi login.
     const handleLogout = () => {
       setIsAuthenticated(false);
-      setCurrentUser(null);
-    };
-
-    const handleUserUpdate = () => {
-      try {
-        setCurrentUser(JSON.parse(localStorage.getItem('auth_user') || 'null'));
-      } catch {
-        // Abaikan data auth_user yang tidak valid.
-      }
     };
 
     window.addEventListener('auth:logout', handleLogout);
-    window.addEventListener('auth:user-updated', handleUserUpdate);
     return () => {
       window.removeEventListener('auth:logout', handleLogout);
-      window.removeEventListener('auth:user-updated', handleUserUpdate);
     };
   }, []);
 
   const handleLogin = () => {
-    try {
-      setCurrentUser(JSON.parse(localStorage.getItem('auth_user') || 'null'));
-    } catch {
-      setCurrentUser(null);
-    }
     setIsAuthenticated(true);
   };
 
@@ -207,7 +240,7 @@ export default function App() {
       // Modul Pembelian
       case 'purchase-requisition':   return <PurchaseRequisition />;
       case 'purchase-order':         return <POList />;
-      case 'receive-item':           return <ReceiveItem />;
+      case 'receive-item':           return withGuard(activeTab, <ReceiveItem />);
       case 'purchase-invoice':       return <PurchaseInvoice />;
       case 'purchase-return':        return <PurchaseReturn />;
       case 'purchase-payment':       return <PurchasePayment />;
@@ -228,35 +261,36 @@ export default function App() {
       case 'production':             return <Production />;
 
       // Modul Akuntansi
-      case 'accounting-coa':           return <ChartOfAccount />;
-      case 'accounting-cash-bank':     return <KasBank />;
-      case 'accounting-receivables-payables': return <UtangPiutang />;
-      case 'accounting-journal':       return <JurnalUmum />;
-      case 'accounting-voucher-detail':return <JournalVoucherDetail />;
-      case 'accounting-ledger':        return <BukuBesar />;
-      case 'accounting-trial-balance': return <NeracaSaldo />;
-      case 'accounting-adjustment':    return <JurnalPenyesuaian />;
-      case 'accounting-reports':       return <LaporanKeuangan />;
+      case 'accounting-coa':           return withGuard(activeTab, <ChartOfAccount />);
+      case 'accounting-cash-bank':     return withGuard(activeTab, <KasBank />);
+      case 'accounting-receivables-payables': return withGuard(activeTab, <UtangPiutang />);
+      case 'accounting-journal':       return withGuard(activeTab, <JurnalUmum />);
+      case 'accounting-voucher-detail':return withGuard(activeTab, <JournalVoucherDetail />);
+      case 'accounting-ledger':        return withGuard(activeTab, <BukuBesar />);
+      case 'accounting-trial-balance': return withGuard(activeTab, <NeracaSaldo />);
+      case 'accounting-adjustment':    return withGuard(activeTab, <JurnalPenyesuaian />);
+      case 'accounting-reports':       return withGuard(activeTab, <LaporanKeuangan />);
 
       // Modul Pengaturan & Inventory
-      case 'users':                  return <UserManagement />;
-      case 'inventory-products':     return <InventoryProducts />;
-      case 'inventory-warehouses':    return <Warehouse />;
-      case 'inventory-receive':       return <InventoryWarehouse operation="receive" />;
-      case 'inventory-issue':         return <InventoryWarehouse operation="issue" />;
-      case 'inventory-transfer':      return <InventoryWarehouse operation="transfer" />;
-      case 'inventory-opname':        return <StockOpname />;
-      case 'master-customers':        return <MasterData type="customer" />;
-      case 'master-suppliers':        return <MasterData type="supplier" />;
-      case 'inventory-scan':         return <InventoryScan />;
-      case 'inventory-transactions': return <InventoryTransactions />;
-      case 'inventory-reports':      return <InventoryReports />;
-      case 'network-monitoring':     return <NetworkMonitoring />;
-      case 'security-status':        return <SecurityStatus />;
-      case 'activity-log':           return <ActivityLog />;
-      case 'spk':                        return <SPK />;
-      case 'scheduling':                 return <Scheduling />;
-      case 'commissioning':              return <Commissioning />;
+      case 'users':                  return withGuard(activeTab, <UserManagement />);
+      case 'inventory-products':     return withGuard(activeTab, <InventoryProducts />);
+      case 'inventory-warehouses':    return withGuard(activeTab, <Warehouse />);
+      case 'inventory-receive':       return withGuard(activeTab, <InventoryWarehouse operation="receive" />);
+      case 'inventory-issue':         return withGuard(activeTab, <InventoryWarehouse operation="issue" />);
+      case 'inventory-transfer':      return withGuard(activeTab, <InventoryWarehouse operation="transfer" />);
+      case 'inventory-opname':        return withGuard(activeTab, <StockOpname />);
+      case 'master-customers':        return withGuard(activeTab, <MasterData type="customer" />);
+      case 'master-suppliers':        return withGuard(activeTab, <MasterData type="supplier" />);
+      case 'inventory-scan':         return withGuard(activeTab, <InventoryScan />);
+      case 'inventory-transactions': return withGuard(activeTab, <InventoryTransactions />);
+      case 'inventory-reports':      return withGuard(activeTab, <InventoryReports />);
+      case 'network-monitoring':     return withGuard(activeTab, <NetworkMonitoring />);
+      case 'security-status':        return withGuard(activeTab, <SecurityStatus />);
+      case 'activity-log':           return withGuard(activeTab, <ActivityLog />);
+      case 'spk':                        return withGuard(activeTab, <SPK />);
+      case 'scheduling':                 return withGuard(activeTab, <Scheduling />);
+      case 'commissioning':              return withGuard(activeTab, <Commissioning />);
+      case 'receive-item':               return withGuard(activeTab, <ReceiveItem />);
       default:                       return <Dashboard />;
     }
   };

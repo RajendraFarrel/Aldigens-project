@@ -21,9 +21,34 @@ use Tests\TestCase;
  * Uji modul Utang Piutang (piutang customer & utang supplier).
  * Berjalan pada database uji (phpunit.xml) — tidak menyentuh database perusahaan.
  */
+/**
+ * Uji modul Utang Piutang.
+ *
+ * Dijalankan pada database UJI (phpunit.xml: DB_DATABASE=aldigens_test).
+ *
+ * Catatan kompatibilitas skema: tabel `invoices` mewarisi kolom legacy `date`
+ * (NOT NULL) dari migration awal yang tidak pernah di-drop. Production (MariaDB)
+ * mengisinya otomatis; MySQL 8 pada mode STRICT memerlukan nilai eksplisit.
+ * Karena model Invoice memakai `invoice_date`, helper test mengisi kolom legacy
+ * itu agar perilaku kedua server identik (tanpa mengubah skema/kode produksi).
+ */
 class ReceivablePayableTest extends TestCase
 {
     use RefreshDatabase;
+
+    /** Kolom legacy NOT NULL (`date`, `customer_address`) diisi agar insert lolos mode STRICT MySQL 8. */
+    private function invoiceCreate(array $attributes): Invoice
+    {
+        $attributes = array_merge(
+            [
+                'date'             => $attributes['invoice_date'] ?? now()->toDateString(),
+                'customer_address' => '-',
+            ],
+            $attributes
+        );
+
+        return Invoice::create($attributes);
+    }
 
     private User $user;
     private Customer $customer;
@@ -114,7 +139,7 @@ class ReceivablePayableTest extends TestCase
 
     private function buatInvoice(float $total, ?string $dueDate = null): Invoice
     {
-        $inv = Invoice::create([
+        $inv = $this->invoiceCreate([
             'invoice_number' => 'INV-T-' . uniqid(),
             'invoice_date'   => '2026-02-01',
             'due_date'       => $dueDate ?? '2026-12-31',

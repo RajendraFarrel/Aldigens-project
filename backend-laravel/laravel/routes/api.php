@@ -90,7 +90,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:inventory.products.manage');
     Route::post('/inventory/products/import', [ProductController::class, 'import'])
         ->middleware('permission:inventory.products.manage');
-    Route::apiResource('/inventory/products', ProductController::class)->only([]);
+    Route::get('/inventory/products', [ProductController::class, 'index'])
+        ->middleware('permission:inventory.products.view');
     Route::get('/inventory/products/{inventory_product}', [ProductController::class, 'show'])
         ->middleware('permission:inventory.products.view');
     Route::post('/inventory/products', [ProductController::class, 'store'])
@@ -202,11 +203,35 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:inventory.reports.print|master.exports.print');
 
     // Users & Roles — khusus permission administrasi sistem.
-    Route::put('users/{user}/menu-access', [UserController::class, 'updateMenuAccess']);
-    Route::apiResource('users', UserController::class)->except(['show']);
-    Route::get('/permissions', [RoleController::class, 'permissions']);
-    Route::put('/roles/{role}/permissions', [RoleController::class, 'syncRolePermissions']);
-    Route::apiResource('roles', RoleController::class)->except(['show']);
+    // Defense-in-depth (Tahap 1.1): middleware permission di route + policy di
+    // controller. Route ini TIDAK menyentuh Sales.
+    Route::get('/permissions', [RoleController::class, 'permissions'])
+        ->middleware('permission:security.roles.view');
+    Route::put('users/{user}/menu-access', [UserController::class, 'updateMenuAccess'])
+        ->middleware('permission:security.users.manage');
+    Route::get('users', [UserController::class, 'index'])
+        ->middleware('permission:security.users.view');
+    Route::post('users', [UserController::class, 'store'])
+        ->middleware('permission:security.users.manage');
+    Route::put('users/{user}', [UserController::class, 'update'])
+        ->middleware('permission:security.users.manage');
+    Route::patch('users/{user}', [UserController::class, 'update'])
+        ->middleware('permission:security.users.manage');
+    Route::delete('users/{user}', [UserController::class, 'destroy'])
+        ->middleware('permission:security.users.manage');
+
+    Route::put('/roles/{role}/permissions', [RoleController::class, 'syncRolePermissions'])
+        ->middleware('permission:security.permissions.manage|security.roles.manage');
+    Route::get('roles', [RoleController::class, 'index'])
+        ->middleware('permission:security.roles.view');
+    Route::post('roles', [RoleController::class, 'store'])
+        ->middleware('permission:security.roles.manage');
+    Route::put('roles/{role}', [RoleController::class, 'update'])
+        ->middleware('permission:security.roles.manage');
+    Route::patch('roles/{role}', [RoleController::class, 'update'])
+        ->middleware('permission:security.roles.manage');
+    Route::delete('roles/{role}', [RoleController::class, 'destroy'])
+        ->middleware('permission:security.roles.manage');
 
     // Purchase Request dan BOM → dikelola dengan hak Inventory
     Route::apiResource('/purchase-requests', PurchaseRequestController::class)

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Support\MenuCatalog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -19,9 +20,23 @@ use Illuminate\Validation\Rule;
  *  - Role divalidasi terhadap tabel roles.
  *  - Non-administrator tidak dapat menugaskan role Administrator, mengubah
  *    akun Administrator, atau memberikan menu "users".
+ *
+ * Tahap 1.1 (hardening):
+ *  - Perubahan role pengguna HANYA oleh Administrator; role milik sendiri tidak
+ *    dapat diubah siapa pun (termasuk Administrator) untuk mencegah kehilangan
+ *    Administrator terakhir.
+ *  - Penghapusan/demosi selalu dihitung ulang di dalam transaksi dengan row
+ *    locking, sehingga dua request bersamaan tidak dapat menghapus semua
+ *    Administrator.
+ *  - Menu administrasi (users/roles/permissions) hanya untuk Administrator.
  */
 class UserController extends Controller
 {
+    /** Role super administrator (nama existing di tabel roles). */
+    private const ADMIN_ROLE = Role::ADMIN_NAME;
+
+    /** Menu yang bersifat administrasi — hanya boleh dimiliki Administrator. */
+    private const ADMIN_MENUS = ['users', 'roles', 'permissions'];
     /** Daftar key menu yang valid (sinkron dengan config/menus.js di frontend). */
     private const MENU_KEYS = [
         'dashboard',
@@ -125,8 +140,12 @@ class UserController extends Controller
         $user->fill($payload);
 
         // menu_access = null berarti "default role". Daftar yang dikirim hanya
-        // key menu valid dan untuk non-admin tidak boleh berisi 'users'.
-        $user->menu_access = $this->sanitizeMenus($validated['menu_access'] ?? null, $roleName);
+        // key menu valid dan untuk non-admin tidak boleh berisi menu administrasi.
+        $user->menu_access = $this->sanitizeMenus(
+            $validated['menu_access'] ?? null,
+            $roleName,
+            $request->user()->isAdministrator()
+        );
         $user->save();
 
         AuditLogService::record(
@@ -149,6 +168,7 @@ class UserController extends Controller
     {
         $this->authorize('update', $user);
 
+        // Validation (dilakukan di luar transaksi agar 422 tidak membuka transaction)
         $validated = $request->validate([
             'name'          => 'sometimes|required|string|max:255',
             'full_name'     => 'nullable|string|max:255',
@@ -159,49 +179,98 @@ class UserController extends Controller
             'menu_access.*' => 'string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
         ]);
 
-        $newRole = $validated['role'] ?? $user->role;
+        $actor = $request->user();
+        $wantsRoleChange = array_key_exists('role', $validated)
+            && $validated['role'] !== null
+            && $validated['role'] !== $user->role;
 
-        // Perubahan role hanya oleh pemegang security.users.manage (sudah dicek
-        // policy) dan role Administrator hanya oleh Administrator.
-        if (
-            array_key_exists('role', $validated) && strcasecmp($newRole, Role::ADMIN_NAME) === 0
-            && !$request->user()->isAdministrator()
-        ) {
-            return response()->json([
-                'message' => 'Anda tidak berhak menetapkan role Administrator.',
-            ], 403);
+        if ($wantsRoleChange) {
+            // Hanya Administrator yang boleh menetapkan/mengubah role pengguna.
+            if (!$actor->isAdministrator()) {
+                return response()->json([
+                    'message' => 'Hanya Administrator yang dapat mengubah role pengguna.',
+                ], 403);
+            }
+
+            // Role milik sendiri tidak dapat diubah (mencegah demosi diri sendiri
+            // dan hilangnya Administrator terakhir).
+            if ($actor->id === $user->id) {
+                return response()->json([
+                    'message' => 'Anda tidak dapat mengubah role akun yang sedang digunakan.',
+                ], 403);
+            }
+
+            // Gate policy (lapisan tambahan).
+            if (!$actor->can('assignRole', $user)) {
+                return response()->json(['message' => 'This action is unauthorized.'], 403);
+            }
         }
 
         // Akun Administrator tidak dapat diturunkan oleh non-Administrator.
-        if ($user->isAdministrator() && !$request->user()->isAdministrator()) {
+        if ($user->isAdministrator() && !$actor->isAdministrator()) {
             return response()->json([
                 'message' => 'Akun Administrator hanya dapat diubah oleh Administrator.',
             ], 403);
         }
 
-        $data = [];
-        foreach (['name', 'full_name', 'email'] as $field) {
-            if (array_key_exists($field, $validated)) {
-                $data[$field] = $validated[$field];
+        // Menu administrasi hanya boleh diberikan Administrator.
+        if (
+            array_key_exists('menu_access', $validated)
+            && is_array($validated['menu_access'])
+            && !$actor->isAdministrator()
+            && count(array_intersect($validated['menu_access'], self::ADMIN_MENUS)) > 0
+        ) {
+            return response()->json([
+                'message' => 'Menu administrasi hanya dapat diberikan oleh Administrator.',
+            ], 403);
+        }
+
+        DB::transaction(function () use ($validated, $user, $wantsRoleChange, $actor) {
+            // Kunci baris target agar perubahan role/penghapusan tidak balapan.
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->first();
+            if (!$locked) {
+                abort(404);
             }
-        }
-        if (!empty($validated['password'])) {
-            $data['password'] = Hash::make($validated['password']);
-        }
 
-        if ($data) {
-            $user->update($data);
-        }
+            if ($wantsRoleChange) {
+                self::assertAdministratorRemains(
+                    removingAdmin: $locked->isAdministrator(),
+                    addingAdmin: strcasecmp($validated['role'], self::ADMIN_ROLE) === 0,
+                    exceptUserId: $locked->id
+                );
+            }
 
-        if (array_key_exists('role', $validated) && $validated['role'] !== null) {
-            $user->role = $newRole;
-        }
+            $data = [];
+            foreach (['name', 'full_name', 'email'] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $data[$field] = $validated[$field];
+                }
+            }
+            if (!empty($validated['password'])) {
+                $data['password'] = Hash::make($validated['password']);
+            }
 
-        if (array_key_exists('menu_access', $validated)) {
-            $user->menu_access = $this->sanitizeMenus($validated['menu_access'], $user->role);
-        }
+            if ($data) {
+                $locked->update($data);
+            }
 
-        $user->save();
+            if ($wantsRoleChange) {
+                $locked->role = $validated['role'];
+            }
+
+            if (array_key_exists('menu_access', $validated)) {
+                $locked->menu_access = $this->sanitizeMenus(
+                    $validated['menu_access'],
+                    $locked->role,
+                    $actor->isAdministrator()
+                );
+            }
+
+            $locked->save();
+
+            // Samakan instance yang dikembalikan controller.
+            $user->setRawAttributes($locked->getAttributes(), true);
+        });
 
         AuditLogService::record(
             $request,
@@ -232,7 +301,16 @@ class UserController extends Controller
             'menu_access.*' => 'string|max:100|regex:/^[a-zA-Z0-9_-]+$/',
         ]);
 
-        $menus = $this->sanitizeMenus($validated['menu_access'], $user->role);
+        $actor = $request->user();
+
+        // Menu administrasi hanya dapat diberikan Administrator.
+        if (!$actor->isAdministrator() && count(array_intersect($validated['menu_access'], self::ADMIN_MENUS)) > 0) {
+            return response()->json([
+                'message' => 'Menu administrasi hanya dapat diberikan oleh Administrator.',
+            ], 403);
+        }
+
+        $menus = $this->sanitizeMenus($validated['menu_access'], $user->role, $actor->isAdministrator());
 
         $user->menu_access = $menus;
         $user->save();
@@ -263,13 +341,25 @@ class UserController extends Controller
             return response()->json(['message' => 'Tidak dapat menghapus akun yang sedang digunakan.'], 403);
         }
 
-        // Akun Administrator terakhir tidak boleh dihapus.
-        if ($user->isAdministrator() && User::where('role', Role::ADMIN_NAME)->count() <= 1) {
-            return response()->json(['message' => 'Akun Administrator terakhir tidak dapat dihapus.'], 422);
-        }
-
         $email = $user->email;
-        $user->delete();
+
+        DB::transaction(function () use ($user) {
+            // Kunci baris target lalu hitung ulang Administrator yang tersisa.
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->first();
+            if (!$locked) {
+                abort(404);
+            }
+
+            if ($locked->isAdministrator()) {
+                self::assertAdministratorRemains(
+                    removingAdmin: true,
+                    addingAdmin: false,
+                    exceptUserId: $locked->id
+                );
+            }
+
+            $locked->delete();
+        });
 
         AuditLogService::record(
             $request,
@@ -302,14 +392,19 @@ class UserController extends Controller
      * Normalisasi menu_access:
      *  - hanya key menu yang dikenal sistem,
      *  - unik,
-     *  - menu 'users' hanya untuk Administrator,
+     *  - menu administrasi (users/roles/permissions) hanya untuk Administrator,
      *  - null dipertahankan sebagai "belum diatur".
+     *
+     * Catatan: menu_access TIDAK memberi permission API apa pun; permission tetap
+     * dihitung dari role di database.
      */
-    private function sanitizeMenus(?array $menus, ?string $roleName): ?array
+    private function sanitizeMenus(?array $menus, ?string $roleName, ?bool $actorIsAdmin = null): ?array
     {
         if ($menus === null) {
             return null;
         }
+
+        $isAdmin = $actorIsAdmin ?? (strcasecmp((string) $roleName, self::ADMIN_ROLE) === 0);
 
         $valid = array_values(array_unique(array_intersect($menus, self::MENU_KEYS)));
 
@@ -321,12 +416,45 @@ class UserController extends Controller
             }
         }
 
-        if (strcasecmp((string) $roleName, Role::ADMIN_NAME) !== 0) {
-            $valid = array_values(array_diff($valid, ['users']));
+        if (!$isAdmin) {
+            $valid = array_values(array_diff($valid, self::ADMIN_MENUS));
         } elseif (!in_array('users', $valid, true)) {
             $valid[] = 'users';
         }
 
         return $valid;
+    }
+
+    /**
+     * Penjaga Administrator terakhir.
+     *
+     * Dipanggil DI DALAM transaksi dengan baris target terkunci. Menghitung
+     * ulang Administrator lain secara langsung dari database (bukan cache/model
+     * yang mungkin basi) sehingga dua request bersamaan tidak dapat sama-sama
+     * menghapus/demosikan dua Administrator terakhir.
+     *
+     * "Aktif" = ada di tabel users dengan role Administrator (tabel users tidak
+     * memiliki kolom status/nonaktif).
+     */
+    private static function assertAdministratorRemains(
+        bool $removingAdmin,
+        bool $addingAdmin,
+        ?int $exceptUserId = null
+    ): void {
+        if (!$removingAdmin || $addingAdmin) {
+            return;
+        }
+
+        $otherAdmins = User::query()
+            ->where('role', self::ADMIN_ROLE)
+            ->when($exceptUserId !== null, fn($q) => $q->where('id', '!=', $exceptUserId))
+            ->lockForUpdate()
+            ->count();
+
+        if ($otherAdmins < 1) {
+            abort(response()->json([
+                'message' => 'Sistem harus memiliki minimal satu Administrator. Aksi dibatalkan.',
+            ], 422));
+        }
     }
 }

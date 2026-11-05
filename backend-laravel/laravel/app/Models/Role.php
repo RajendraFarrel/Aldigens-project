@@ -35,6 +35,24 @@ class Role extends Model
         return $this->belongsToMany(Permission::class, 'role_permissions');
     }
 
+    /**
+     * True bila role ini pernah menerima default mapping dari PermissionSeeder.
+     * Penanda disimpan di kolom roles.permissions_seeded_at (BUKAN di pivot)
+     * agar tetap ada walau Administrator mengosongkan semua permission role.
+     */
+    public function hasSeededDefaultMapping(): bool
+    {
+        try {
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('roles', 'permissions_seeded_at')) {
+                return false;
+            }
+
+            return $this->getAttribute('permissions_seeded_at') !== null;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     /** Role Administrator (ditentukan dari DB, bukan dari input frontend). */
     public function isAdministrator(): bool
     {

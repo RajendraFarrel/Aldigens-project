@@ -16,9 +16,6 @@ use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
 {
-    /**
-     * 1. Daftar semua Invoice beserta relasi SO, DO, dan item.
-     */
     public function __construct(private ReceivablePayableService $rp)
     {
     }
@@ -35,25 +32,24 @@ class InvoiceController extends Controller
         ], 200);
     }
 
-    /**
-     * 2. Terbitkan Invoice baru dari Sales Order (harga) + Delivery Order (bukti kirim).
-     *    Rincian item ditarik dari SO, dan qty divalidasi terhadap DO (barang benar-benar dikirim).
-     */
     public function store(Request $request)
     {
-        // Menggunakan all() agar menerima semua payload dari React tanpa error 422
         $data = $request->all();
 
-        \Illuminate\Support\Facades\DB::beginTransaction();
+        DB::beginTransaction();
 
         try {
             $invoiceNumber = $data['invoice_number'] ?? ('INV-' . date('Ymd') . '-' . rand(1000, 9999));
             
-            $invoice = \App\Models\Invoice::create([
+            $invoiceDate = !empty($data['date']) ? date('Y-m-d', strtotime($data['date'])) : (!empty($data['invoice_date']) ? date('Y-m-d', strtotime($data['invoice_date'])) : now()->format('Y-m-d'));
+            $dueDate = !empty($data['due_date']) ? date('Y-m-d', strtotime($data['due_date'])) : now()->addDays(30)->format('Y-m-d');
+
+            $invoice = Invoice::create([
                 'invoice_number'   => $invoiceNumber,
-                'invoice_date'     => $data['date'] ?? $data['invoice_date'] ?? now()->format('Y-m-d'),
-                'due_date'         => $data['due_date'] ?? now()->addDays(30)->format('Y-m-d'),
-                'do_number'        => $data['do_reference'] ?? $data['do_number'] ?? '-',
+                'date'             => $invoiceDate, // <-- Menyimpan untuk tabel dengan kolom 'date'
+                'invoice_date'     => $invoiceDate, // <-- Menyimpan untuk tabel dengan kolom 'invoice_date'
+                'due_date'         => $dueDate,
+                'do_reference'     => $data['do_reference'] ?? $data['do_number'] ?? null,
                 'customer_name'    => $data['customer_name'] ?? 'Pelanggan Umum',
                 'customer_address' => $data['customer_address'] ?? '-',
                 'notes'            => $data['notes'] ?? null,
@@ -72,7 +68,7 @@ class InvoiceController extends Controller
                 $amount = $qty * $price;
                 $subTotal += $amount;
 
-                \App\Models\InvoiceItem::create([
+                InvoiceItem::create([
                     'invoice_id'  => $invoice->id,
                     'description' => $item['description'] ?? 'Barang / Jasa',
                     'qty'         => $qty,
@@ -89,7 +85,7 @@ class InvoiceController extends Controller
                 'grand_total' => $grandTotal,
             ]);
 
-            \Illuminate\Support\Facades\DB::commit();
+            DB::commit();
 
             return response()->json([
                 'status'  => 'success',
@@ -98,17 +94,16 @@ class InvoiceController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\DB::rollBack();
+            DB::rollBack();
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Gagal menerbitkan Invoice: ' . $e->getMessage(),
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
             ], 500);
         }
     }
 
-    /**
-     * 3. Detail satu Invoice.
-     */
     public function show($id)
     {
         $invoice = Invoice::with(['salesOrder', 'deliveryOrder.items', 'items'])->find($id);
@@ -126,15 +121,6 @@ class InvoiceController extends Controller
         ], 200);
     }
 
-    /**
-     * 4. Posting invoice ke jurnal (pengakuan pendapatan & piutang).
-     *
-     *   Debit : Piutang Usaha (grand total)
-     *   Kredit: Pendapatan (sub total) + Pajak Keluaran (bila dikonfigurasi)
-     *
-     * Idempoten: invoice yang sudah punya journal_voucher_id tidak diposting ulang.
-     * Akun kontrol diambil dari COA/konfigurasi (tidak di-hardcode).
-     */
     public function postJurnal(Request $request, $id)
     {
         $invoice = Invoice::find($id);
@@ -156,8 +142,6 @@ class InvoiceController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Nilai invoice harus lebih dari nol.'], 422);
         }
 
-        // Akun pendapatan: konfigurasi eksplisit, atau satu-satunya akun Pendapatan
-        // yang namanya mengandung "penjualan". Tidak menebak bila ambigu.
         $pendapatan = $this->akunPendapatan();
         if (! $pendapatan) {
             return response()->json([
@@ -204,7 +188,6 @@ class InvoiceController extends Controller
 
         DB::beginTransaction();
         try {
-            // Kunci & periksa ulang agar request ganda tidak membuat dua voucher.
             $fresh = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
             if ($fresh->journal_voucher_id) {
                 DB::rollBack();
@@ -241,7 +224,6 @@ class InvoiceController extends Controller
         ], 200);
     }
 
-    /** Akun pendapatan penjualan dari konfigurasi atau COA (null bila ambigu). */
     private function akunPendapatan(): ?Account
     {
         $kode = config('accounting.pendapatan_kode');
@@ -261,9 +243,6 @@ class InvoiceController extends Controller
         return $kandidat->count() === 1 ? $kandidat->first() : null;
     }
 
-    /**
-     * 4b. Ubah status pembayaran Invoice (Unpaid / Paid / Cancelled).
-     */
     public function updateStatus(Request $request, $id)
     {
         $validated = $request->validate([

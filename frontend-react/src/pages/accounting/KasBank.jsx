@@ -304,6 +304,9 @@ function Kartu({ label, nilai, tone, bold, small }) {
 /* ═════════════════════════════════ TAB MASTER ═════════════════════════════════ */
 
 function TabMaster({ master, loading, onReload, onGoCoa }) {
+  const { can } = usePermissions();
+  const canCreate = can('accounting.cash_bank.create');
+  const canUpdate = can('accounting.cash_bank.update');
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState(FORM_KOSONG);
@@ -427,9 +430,11 @@ function TabMaster({ master, loading, onReload, onGoCoa }) {
               className={`${inputClass} pl-9`} />
           </div>
         </div>
-        <button onClick={bukaTambah} className={btnPrimary}>
-          <Plus className="h-4 w-4" /> Tambah Kas/Bank
-        </button>
+        {canCreate && (
+          <button onClick={bukaTambah} className={btnPrimary}>
+            <Plus className="h-4 w-4" /> Tambah Kas/Bank
+          </button>
+        )}
       </div>
 
       <div className={`${card} overflow-hidden`}>
@@ -473,6 +478,8 @@ function TabMaster({ master, loading, onReload, onGoCoa }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5 justify-center">
+                      {canUpdate && (
+                      <>
                       <button onClick={() => bukaEdit(cb)} title="Ubah"
                         className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition cursor-pointer">
                         <Pencil className="h-3.5 w-3.5" />
@@ -485,6 +492,8 @@ function TabMaster({ master, loading, onReload, onGoCoa }) {
                         className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition cursor-pointer">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      </>
+                      )}
                     </div>
                   </td>
                 </tr>

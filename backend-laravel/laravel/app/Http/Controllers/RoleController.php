@@ -30,7 +30,7 @@ class RoleController extends Controller
 
     public function permissions()
     {
-        $this->authorize('viewAny', Role::class);
+        $this->authorize('viewPermissions', Role::class);
 
         return response()->json([
             'data' => collect(PermissionCatalog::all())
@@ -76,7 +76,7 @@ class RoleController extends Controller
             'is_system'     => false,
         ]);
 
-        if (array_key_exists('permissions', $validated)) {
+        if (array_key_exists('permissions', $validated) && $request->user()->isAdministrator()) {
             $this->syncPermissions($role, $validated['permissions'] ?? []);
         }
 
@@ -139,7 +139,12 @@ class RoleController extends Controller
             User::where('role', $oldName)->update(['role' => $newName]);
         }
 
-        if (array_key_exists('permissions', $validated) && !$role->isAdministrator()) {
+        // Perubahan permission pada update role juga hanya untuk Administrator.
+        if (
+            array_key_exists('permissions', $validated)
+            && !$role->isAdministrator()
+            && $request->user()->isAdministrator()
+        ) {
             $this->applyPermissions($request, $role, $validated['permissions'] ?? []);
         }
 
@@ -165,6 +170,15 @@ class RoleController extends Controller
     public function syncRolePermissions(Request $request, Role $role)
     {
         $this->authorize('managePermissions', $role);
+
+        // Lapisan kedua (defense-in-depth): hanya Administrator yang boleh
+        // mengubah pemetaan permission. Policy sudah menolak, pemeriksaan ini
+        // menjaga kontrak tetap benar walau policy berubah di masa depan.
+        if (!$request->user()->isAdministrator()) {
+            return response()->json([
+                'message' => 'Hanya Administrator yang dapat mengubah pemetaan permission role.',
+            ], 403);
+        }
 
         $validated = $request->validate([
             'permissions'   => 'present|array',

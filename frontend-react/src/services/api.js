@@ -167,6 +167,7 @@ export const getBoms = () => api.get('/boms');
 export const createBom = (data) => api.post('/boms', data);
 export const updateBom = (id, data) => api.put(`/boms/${id}`, data);
 export const deleteBom = (id) => api.delete(`/boms/${id}`);
+export const finalizeBom = (id, data) => api.post(`/boms/${id}/finalize`, data);
 export const getProductions = () => api.get('/productions');
 export const createProduction = (data) => api.post('/productions', data);
 

@@ -1,268 +1,229 @@
-﻿import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, MoreVertical, ArrowLeft, Save, Edit3, Trash2, Printer, Box, CheckCircle2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Box, Edit3, MoreVertical, Plus, Printer, Save, Search, Trash2 } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
+import { createBom, deleteBom, finalizeBom, getBoms, getProducts, updateBom } from '../services/api';
+
+const newBomNumber = () => `BOM-${new Date().toISOString().slice(0, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`;
+const emptyForm = () => ({ document_number: newBomNumber(), product_id: '', output_quantity: '1', items: [{ product_id: '', quantity: '1' }], notes: '', status: 'DRAFT' });
+const isFinished = (product) => String(product?.item_type || '').toUpperCase() === 'PRODUK JADI';
+const productLabel = (product) => `${product.part_number || product.product_code || ''} — ${product.name} (Stok: ${product.stock ?? 0} ${product.unit || 'PCS'})`;
+const formatQuantity = (value) => {
+  const quantity = Number(value);
+  if (!Number.isFinite(quantity)) return value ?? '';
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 3, useGrouping: false }).format(quantity);
+};
 
 export default function BillOfMaterials() {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('list');
-  const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
-
+  const [activeMenuId, setActiveMenuId] = useState(null);
   const [boms, setBoms] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [formData, setFormData] = useState(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [finishedSearch, setFinishedSearch] = useState('');
+  const [componentSearch, setComponentSearch] = useState({});
 
-  // Struktur default untuk satu baris material
-  const emptyMaterial = { desc: '', brand: '', part_no: '', qty: '', unit: 'pcs' };
-
-  useEffect(() => {
-    const saved = localStorage.getItem('aldigens_boms_v2');
-    if (saved) {
-      setBoms(JSON.parse(saved));
-    } else {
-      // Data awal jika kosong (disesuaikan dengan template baru)
-      const initialData = [{
-        id: 'BOM-202610-001',
-        bomNo: 'BOM-202610-001',
-        model_bracket: 'Backup Alarm For D85 Series J',
-        jobdesc: 'Pembuatan Backup Alarm System',
-        status: 'Active',
-        main_product: [
-          { desc: 'Backup Alarm ECCO 850 112Db', brand: 'ECCO', part_no: '', qty: '1', unit: 'pcs' },
-          { desc: 'Switch Atret (Normaly Open)', brand: '', part_no: '', qty: '1', unit: 'pcs' }
-        ],
-        complementary: [
-          { desc: 'Bracket Mounting BUA', brand: '', part_no: '', qty: '1', unit: 'pcs' }
-        ],
-        wiring_harness: [
-          { desc: 'Kabel AVS 1.25 Merah', brand: '', part_no: '', qty: '', unit: '' },
-          { desc: 'Kabel AVS 1.25 Hitam', brand: '', part_no: '', qty: '', unit: '' }
-        ],
-        consumables: [
-          { desc: 'Isolasi Hitam', brand: '', part_no: 'Dt2', qty: '1', unit: 'Pcs' },
-          { desc: 'kabel ties', brand: '', part_no: '', qty: '6', unit: 'Pcs' }
-        ]
-      }];
-      setBoms(initialData);
-      localStorage.setItem('aldigens_boms_v2', JSON.stringify(initialData));
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [bomResponse, productResponse] = await Promise.all([getBoms(), getProducts()]);
+      setBoms(bomResponse.data?.data || []);
+      setProducts(productResponse.data?.data || []);
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Data BOM dan Inventory gagal dimuat. Pastikan API aktif dan Anda memiliki akses.');
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const filteredBOMs = useMemo(() => {
-    return boms.filter(item =>
-      item.bomNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.model_bracket?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [boms, searchTerm]);
+  useEffect(() => { loadData(); }, []);
 
+  const componentProducts = useMemo(() => products.filter((product) => !isFinished(product) && product.status !== 'NONAKTIF'), [products]);
+  const finishedProducts = useMemo(() => products.filter((product) => isFinished(product) && product.status !== 'NONAKTIF'), [products]);
+  const filteredBOMs = useMemo(() => boms.filter((bom) =>
+    String(bom.document_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(bom.product?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(bom.product?.part_number || '').toLowerCase().includes(searchTerm.toLowerCase())
+  ), [boms, searchTerm]);
   const pagination = usePagination(filteredBOMs, 10);
 
-  const [formData, setFormData] = useState({
-    bomNo: `BOM-${new Date().toISOString().slice(0, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
-    model_bracket: '',
-    jobdesc: '',
-    status: 'Active',
-    main_product: [{ ...emptyMaterial }],
-    complementary: [{ ...emptyMaterial }],
-    wiring_harness: [{ ...emptyMaterial }],
-    consumables: [{ ...emptyMaterial }]
+  const visibleFinishedProducts = useMemo(() => {
+    const term = finishedSearch.trim().toLowerCase();
+    if (!term) return finishedProducts;
+    return finishedProducts.filter((product) => `${product.part_number || ''} ${product.product_code || ''} ${product.name || ''}`.toLowerCase().includes(term));
+  }, [finishedProducts, finishedSearch]);
+
+  const openAddForm = () => {
+    setError('');
+    setNotice('');
+    setEditingId(null);
+    setFinishedSearch('');
+    setComponentSearch({});
+    setFormData(emptyForm());
+    setViewMode('form');
+  };
+
+  const openEditForm = (bom) => {
+    if (bom.status !== 'DRAFT') {
+      setError('Hanya BOM draft yang dapat diedit karena BOM aktif sudah memengaruhi stok.');
+      setActiveMenuId(null);
+      return;
+    }
+    setError('');
+    setNotice('');
+    setEditingId(bom.id);
+    setFinishedSearch('');
+    setComponentSearch({});
+    setFormData({
+      document_number: bom.document_number,
+      product_id: String(bom.product_id),
+      output_quantity: String(Number(bom.output_quantity)),
+      items: (bom.items || []).map((item) => ({ product_id: String(item.product_id), quantity: String(Number(item.quantity)) })),
+      notes: bom.notes || '',
+      status: 'DRAFT',
+    });
+    setViewMode('form');
+    setActiveMenuId(null);
+  };
+
+  const updateItem = (index, field, value) => {
+    setFormData((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item),
+    }));
+  };
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      const selectedProduct = finishedProducts.find((product) => String(product.id) === String(formData.product_id));
+      if (!selectedProduct) throw new Error('Pilih produk jadi yang terdaftar di Inventory.');
+      if (formData.items.some((item) => !item.product_id || Number(item.quantity) < 1)) throw new Error('Pilih komponen dan jumlahnya untuk setiap baris.');
+      const payload = {
+        document_number: formData.document_number,
+        product_id: Number(formData.product_id),
+        output_quantity: Number(formData.output_quantity),
+        unit: selectedProduct.unit || 'PCS',
+        notes: formData.notes || null,
+        items: formData.items.map((item) => {
+          const component = componentProducts.find((product) => String(product.id) === String(item.product_id));
+          return { product_id: Number(item.product_id), quantity: Number(item.quantity), unit: component?.unit || 'PCS' };
+        }),
+      };
+      const response = editingId
+        ? await updateBom(editingId, { ...payload, status: 'DRAFT', action: 'draft' })
+        : await createBom({ ...payload, status: 'DRAFT', action: 'draft' });
+      setNotice(`BOM draft ${response.data?.data?.document_number || payload.document_number} berhasil ${editingId ? 'diperbarui' : 'disimpan'}. Stok belum berubah.`);
+      setViewMode('list');
+      await loadData();
+    } catch (requestError) {
+      const validationMessages = requestError.response?.data?.errors;
+      setError(requestError.response?.data?.message || Object.values(validationMessages || {}).flat()[0] || requestError.message || 'BOM gagal disimpan.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const buildPayload = (bom) => ({
+    document_number: bom.document_number,
+    product_id: Number(bom.product_id),
+    output_quantity: Number(bom.output_quantity),
+    unit: bom.unit,
+    notes: bom.notes || null,
+    items: (bom.items || []).map((item) => ({ product_id: Number(item.product_id), quantity: Number(item.quantity), unit: item.unit })),
   });
 
-  const handleOpenAddForm = () => {
-    setEditingId(null);
-    setFormData({
-      bomNo: `BOM-${new Date().toISOString().slice(0, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
-      model_bracket: '',
-      jobdesc: '',
-      status: 'Active',
-      main_product: [{ ...emptyMaterial }],
-      complementary: [{ ...emptyMaterial }],
-      wiring_harness: [{ ...emptyMaterial }],
-      consumables: [{ ...emptyMaterial }]
-    });
-    setViewMode('form');
-  };
-
-  const handleOpenEditForm = (item) => {
-    setEditingId(item.id);
-    // Memastikan data lama yang belum punya field baru tidak error
-    setFormData({ 
-      ...item,
-      main_product: item.main_product || [{ ...emptyMaterial }],
-      complementary: item.complementary || [{ ...emptyMaterial }],
-      wiring_harness: item.wiring_harness || [{ ...emptyMaterial }],
-      consumables: item.consumables || [{ ...emptyMaterial }]
-    });
-    setViewMode('form');
+  const handleFinalize = async (bom) => {
+    if (!window.confirm(`Finalisasi BOM ${bom.document_number}? Stok komponen akan berkurang dan stok produk jadi bertambah.`)) return;
+    setError('');
+    setNotice('');
+    try {
+      await finalizeBom(bom.id, buildPayload(bom));
+      setNotice(`BOM ${bom.document_number} difinalisasi. Stok Inventory telah diperbarui.`);
+      await loadData();
+    } catch (requestError) {
+      const validationMessages = requestError.response?.data?.errors;
+      setError(requestError.response?.data?.message || Object.values(validationMessages || {}).flat()[0] || 'BOM draft gagal difinalisasi.');
+    }
     setActiveMenuId(null);
   };
 
-  const handleSave = (e) => {
-    e.preventDefault();
-    let updatedList;
-    if (editingId) {
-      updatedList = boms.map(item => item.id === editingId ? { ...item, ...formData } : item);
-    } else {
-      updatedList = [{ id: formData.bomNo, ...formData }, ...boms];
+  const handleDelete = async (bom) => {
+    if (!window.confirm(`Hapus BOM ${bom.document_number}? Hanya BOM draft yang dapat dihapus.`)) return;
+    setError('');
+    setNotice('');
+    try {
+      await deleteBom(bom.id);
+      setNotice('BOM dihapus. Stok tidak berubah karena penghapusan BOM tidak membatalkan mutasi stok.');
+      await loadData();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'BOM gagal dihapus.');
     }
-    
-    setBoms(updatedList);
-    localStorage.setItem('aldigens_boms_v2', JSON.stringify(updatedList));
-    setViewMode('list');
-  };
-
-  const handleDelete = (id) => {
-    if (window.confirm('Yakin ingin menghapus Formula BOM ini?')) {
-      const updated = boms.filter(item => item.id !== id);
-      setBoms(updated);
-      localStorage.setItem('aldigens_boms_v2', JSON.stringify(updated));
-      setActiveMenuId(null);
-    }
-  };
-
-  const handlePrint = (item) => {
     setActiveMenuId(null);
+  };
+
+  const handlePrint = (bom) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
-    const renderTableRows = (title, items) => {
-      if (!items || items.length === 0) return '';
-      let html = `<tr><td colspan="6" style="background-color: #e5e7eb; font-weight: bold; text-align: left; padding-left: 5px;">${title}</td></tr>`;
-      
-      items.forEach((mat, idx) => {
-        // Jangan render jika deskripsi kosong
-        if(!mat.desc) return; 
-        html += `
-          <tr>
-            <td style="text-align: center;">${idx + 1}</td>
-            <td style="padding-left: 5px;">${mat.desc || '-'}</td>
-            <td style="text-align: center;">${mat.brand || ''}</td>
-            <td style="text-align: center;">${mat.part_no || ''}</td>
-            <td style="text-align: center;">${mat.qty || ''}</td>
-            <td style="text-align: center;">${mat.unit || ''}</td>
-          </tr>
-        `;
-      });
-      return html;
-    };
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>BOM - ${item.model_bracket || item.bomNo}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 30px; font-size: 13px; color: #000; }
-            .header-title { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 20px; }
-            .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; border: 2px solid #000; }
-            .items-table th, .items-table td { border: 1px solid #000; padding: 6px 4px; }
-            .items-table th { font-weight: bold; text-align: center; background-color: #f9fafb; }
-            .col-no { width: 4%; }
-            .col-desc { width: 45%; }
-            .col-brand { width: 15%; }
-            .col-part { width: 16%; }
-            .col-qty { width: 10%; }
-            .col-unit { width: 10%; }
-          </style>
-        </head>
-        <body>
-          <div class="header-title">
-            Bill Of Material ${item.model_bracket || ''}
-          </div>
-          
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th class="col-no">No.</th>
-                <th class="col-desc">Parts Description</th>
-                <th class="col-brand">Brand</th>
-                <th class="col-part">Part No.</th>
-                <th class="col-qty">Qty/<br>unit</th>
-                <th class="col-unit">Each</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${renderTableRows('Main Product', item.main_product)}
-              ${renderTableRows('Complementary', item.complementary)}
-              ${renderTableRows('Wiring Harness', item.wiring_harness)}
-              ${renderTableRows('Cable, Sleamer, Heat shrink and Ties, Etc (Consumable)', item.consumables)}
-            </tbody>
-          </table>
-          <script>window.onload = function() { setTimeout(() => { window.print(); }, 500); }</script>
-        </body>
-      </html>
-    `);
+    const rows = (bom.items || []).map((item, index) => `<tr><td>${index + 1}</td><td>${item.product?.part_number || ''}</td><td>${item.product?.name || ''}</td><td>${formatQuantity(item.quantity)} ${item.unit || ''}</td></tr>`).join('');
+    printWindow.document.write(`<html><head><title>${bom.document_number}</title><style>body{font-family:Arial;padding:24px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:8px;text-align:left}</style></head><body><h2>Bill of Materials: ${bom.document_number}</h2><p>Produk jadi: ${bom.product?.part_number || ''} — ${bom.product?.name || ''} | Hasil: ${formatQuantity(bom.output_quantity)} ${bom.unit}</p><table><thead><tr><th>No</th><th>Part Number</th><th>Komponen</th><th>Kuantitas</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()</script></body></html>`);
     printWindow.document.close();
   };
-
-  const renderMaterialFields = (category, label) => (
-    <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
-      <div className="flex justify-between items-center mb-3">
-        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">{label}</h4>
-        <button type="button" onClick={() => setFormData({ ...formData, [category]: [...formData[category], { ...emptyMaterial }] })} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700"><Plus className="h-3 w-3"/> Tambah Baris</button>
-      </div>
-      
-      {/* Header Kolom Form */}
-      <div className="flex gap-2 mb-1 px-1">
-        <div className="flex-1 text-[10px] font-bold text-slate-500 uppercase">Parts Description</div>
-        <div className="w-32 text-[10px] font-bold text-slate-500 uppercase">Brand</div>
-        <div className="w-32 text-[10px] font-bold text-slate-500 uppercase">Part No.</div>
-        <div className="w-16 text-[10px] font-bold text-slate-500 uppercase text-center">Qty</div>
-        <div className="w-20 text-[10px] font-bold text-slate-500 uppercase text-center">Each (Unit)</div>
-        <div className="w-8"></div>
-      </div>
-
-      {formData[category].map((rm, i) => (
-        <div key={i} className="flex gap-2 mb-2">
-          <input type="text" value={rm.desc} onChange={e => { const newArr = [...formData[category]]; newArr[i].desc = e.target.value; setFormData({ ...formData, [category]: newArr }); }} placeholder="Deskripsi Barang..." className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
-          <input type="text" value={rm.brand} onChange={e => { const newArr = [...formData[category]]; newArr[i].brand = e.target.value; setFormData({ ...formData, [category]: newArr }); }} placeholder="Brand" className="w-32 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
-          <input type="text" value={rm.part_no} onChange={e => { const newArr = [...formData[category]]; newArr[i].part_no = e.target.value; setFormData({ ...formData, [category]: newArr }); }} placeholder="Part No" className="w-32 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
-          <input type="number" value={rm.qty} onChange={e => { const newArr = [...formData[category]]; newArr[i].qty = e.target.value; setFormData({ ...formData, [category]: newArr }); }} placeholder="Qty" className="w-16 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
-          <input type="text" value={rm.unit} onChange={e => { const newArr = [...formData[category]]; newArr[i].unit = e.target.value; setFormData({ ...formData, [category]: newArr }); }} placeholder="Unit" className="w-20 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
-          <button type="button" onClick={() => { const newArr = formData[category].filter((_, idx) => idx !== i); setFormData({ ...formData, [category]: newArr }); }} className="p-1.5 w-8 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded flex items-center justify-center"><Trash2 className="h-4 w-4" /></button>
-        </div>
-      ))}
-    </div>
-  );
 
   if (viewMode === 'form') {
     return (
       <div className="p-6 max-w-5xl mx-auto">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
-          <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"><ArrowLeft className="h-5 w-5 text-slate-500" /></button>
-              <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">{editingId ? 'Edit Formula BOM' : 'Buat BOM Baru'}</h2>
-                <p className="text-xs text-slate-500">Master data Bill of Materials berdasarkan template standar</p>
-              </div>
-            </div>
-            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold">{formData.bomNo}</span>
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border-slate-200 dark:border-slate-800 p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <button type="button" onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"><ArrowLeft className="h-5 w-5 text-slate-500" /></button>
+            <div><h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">{editingId ? 'Edit Draft BOM' : 'Buat BOM Baru'}</h2><p className="text-xs text-slate-500">Draft dapat diedit tanpa mengubah stok Inventory.</p></div>
           </div>
-
+          {error && <div className="mb-5 rounded-xl border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+          {!finishedProducts.length && <div className="mb-5 rounded-xl border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Belum ada Produk Jadi aktif. Tambahkan master Produk Jadi di Inventory sebelum membuat BOM.</div>}
           <form onSubmit={handleSave} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">No. BOM</label>
-                <input type="text" value={formData.bomNo} disabled className="w-full px-4 py-2.5 bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-500 cursor-not-allowed" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">Nama Produk / Model Bracket</label>
-                <input required type="text" value={formData.model_bracket} onChange={(e) => setFormData({...formData, model_bracket: e.target.value})} placeholder="Contoh: Backup Alarm For D85 Series J" className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 dark:text-white" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">Jobdesc / Catatan</label>
-                <input type="text" value={formData.jobdesc} onChange={(e) => setFormData({...formData, jobdesc: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 dark:text-white" />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border-slate-200 dark:border-slate-800">
+              <label className="text-xs font-semibold uppercase text-slate-500">Nomor BOM<input className="mt-2 w-full rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm normal-case text-slate-800 dark:text-white" value={formData.document_number} onChange={(event) => setFormData({ ...formData, document_number: event.target.value })} required /></label>
+              <label className="text-xs font-semibold uppercase text-slate-500">Cari Produk Jadi
+                <input type="search" value={finishedSearch} onChange={(event) => setFinishedSearch(event.target.value)} placeholder="Cari Part Number atau nama produk..." className="mt-2 w-full rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm normal-case text-slate-800 dark:text-white" />
+                <select className="mt-2 w-full rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm normal-case text-slate-800 dark:text-white" value={formData.product_id} onChange={(event) => setFormData({ ...formData, product_id: event.target.value })} required><option value="">Pilih Part Number / Nama Produk Jadi</option>{visibleFinishedProducts.map((product) => <option key={product.id} value={product.id}>{product.part_number || product.product_code} — {product.name} (stok {product.stock || 0})</option>)}</select>
+              </label>
+              <label className="text-xs font-semibold uppercase text-slate-500">Jumlah Produk Jadi<input type="number" min="1" step="1" className="mt-2 w-full rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm normal-case text-slate-800 dark:text-white" value={formData.output_quantity} onChange={(event) => setFormData({ ...formData, output_quantity: event.target.value })} required /></label>
+              <label className="text-xs font-semibold uppercase text-slate-500">Catatan<input className="mt-2 w-full rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm normal-case text-slate-800 dark:text-white" value={formData.notes} onChange={(event) => setFormData({ ...formData, notes: event.target.value })} /></label>
             </div>
 
-            {renderMaterialFields('main_product', '1. Main Product')}
-            {renderMaterialFields('complementary', '2. Complementary')}
-            {renderMaterialFields('wiring_harness', '3. Wiring Harness')}
-            {renderMaterialFields('consumables', '4. Cable, Sleamer, Heat shrink, Ties, Etc (Consumable)')}
-
-            <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
-              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition">Batal</button>
-              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition"><Save className="h-4 w-4" /> Simpan BOM</button>
+            <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
+              <div className="flex items-center justify-between mb-3"><div><h3 className="font-bold text-slate-800 dark:text-slate-100">Komponen & Barang Satuan</h3><p className="text-xs text-slate-500">Jumlah komponen yang digunakan untuk setiap BOM ini.</p></div><button type="button" onClick={() => setFormData({ ...formData, items: [...formData.items, { product_id: '', quantity: '1' }] })} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"><Plus className="h-4 w-4" />Tambah Part</button></div>
+              {componentProducts.length === 0 && <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">Belum ada Komponen & Barang Satuan aktif di Inventory.</p>}
+              <div className="space-y-3">
+                {formData.items.map((item, index) => {
+                  const selected = componentProducts.find((product) => String(product.id) === String(item.product_id));
+                  const required = Number(item.quantity || 0) * Number(formData.output_quantity || 0);
+                  const componentTerm = (componentSearch[index] || '').trim().toLowerCase();
+                  const visibleComponents = componentTerm
+                    ? componentProducts.filter((product) => `${product.part_number || ''} ${product.product_code || ''} ${product.name || ''}`.toLowerCase().includes(componentTerm))
+                    : componentProducts;
+                  return <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_150px_auto] gap-3 items-end rounded-xl border-slate-200 dark:border-slate-800 p-3">
+                    <label className="text-xs font-semibold uppercase text-slate-500">Cari Part Number / Nama Komponen
+                      <input type="search" value={componentSearch[index] || ''} onChange={(event) => setComponentSearch((current) => ({ ...current, [index]: event.target.value }))} placeholder="Cari part number atau nama barang..." className="mt-2 w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm normal-case text-slate-800 dark:text-white" />
+                      <select className="mt-2 w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm normal-case text-slate-800 dark:text-white" value={item.product_id} onChange={(event) => updateItem(index, 'product_id', event.target.value)} required><option value="">Pilih Part Number / Nama Komponen</option>{visibleComponents.map((product) => <option key={product.id} value={product.id}>{productLabel(product)}</option>)}</select>
+                      {selected && <span className="mt-1 block text-[11px] normal-case text-slate-500">Dibutuhkan: {required} {selected.unit || 'PCS'} dari stok {selected.stock || 0}</span>}
+                    </label>
+                    <label className="text-xs font-semibold uppercase text-slate-500">Qty / Produk<input type="number" min="1" step="1" className="mt-2 w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm normal-case text-slate-800 dark:text-white" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} required /></label>
+                    <button type="button" disabled={formData.items.length === 1} onClick={() => setFormData({ ...formData, items: formData.items.filter((_, itemIndex) => itemIndex !== index) })} className="h-10 rounded-lg px-3 text-rose-600 hover:bg-rose-50 disabled:opacity-30" title="Hapus baris"><Trash2 className="h-4 w-4" /></button>
+                  </div>;
+                })}
+              </div>
             </div>
+            <div className="rounded-xl border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Simpan draft tidak mengubah stok. Finalisasi BOM dari daftar akan mengurangi stok komponen dan menambah stok produk jadi.</div>
+            <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={() => setViewMode('list')} className="rounded-xl px-5 py-2.5 text-slate-600 hover:bg-slate-100">Batal</button><button type="submit" disabled={saving || !finishedProducts.length || !componentProducts.length} className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 font-medium text-white disabled:opacity-50"><Save className="h-4 w-4" />{saving ? 'Menyimpan...' : editingId ? 'Simpan Perubahan Draft' : 'Simpan Draft BOM'}</button></div>
           </form>
         </div>
       </div>
@@ -271,54 +232,22 @@ export default function BillOfMaterials() {
 
   return (
     <div className="p-6">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
-        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input type="text" placeholder="Cari Nama Produk / BOM..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2.5 w-full sm:w-80 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200" />
-            </div>
-          </div>
-          <button onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition">
-            <Plus className="h-4 w-4" /> Buat Formula (BOM) Baru
-          </button>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border-slate-200 dark:border-slate-800">
+        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex-col sm:flex-row sm:items-center justify-start gap-4">
+          <button onClick={openAddForm} className="order-1 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold"><Plus className="h-4 w-4" /> Buat BOM Baru</button>
+          <div className="relative order-2"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><input type="text" placeholder="Cari Produk / Nomor BOM..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="pl-10 pr-4 py-2.5 w-full sm:w-80 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 rounded-xl text-sm dark:text-slate-200" /></div>
         </div>
-
-        <div className="overflow-x-auto min-h-[350px]">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-xs uppercase font-semibold">
-              <tr>
-                <th className="px-6 py-3.5">No. BOM</th>
-                <th className="px-6 py-3.5">Nama Produk (Model)</th>
-                <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5 text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-              {pagination.paginatedItems.length === 0 ? (
-                <tr><td colSpan="4" className="px-6 py-12 text-center text-slate-400">Tidak ada Formula (BOM) ditemukan.</td></tr>
-              ) : pagination.paginatedItems.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition relative">
-                  <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400 flex items-center gap-2"><Box className="h-4 w-4 text-slate-400" />{item.bomNo}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{item.model_bracket}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-max bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /> {item.status}</span>
-                  </td>
-                  <td className="px-6 py-4 text-center relative">
-                    <button onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"><MoreVertical className="h-4 w-4 inline" /></button>
-                    {activeMenuId === item.id && (
-                      <div className="absolute right-12 top-10 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
-                        <button onClick={() => handleOpenEditForm(item)} className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"><Edit3 className="h-4 w-4 text-blue-500" /> Edit BOM</button>
-                        <button onClick={() => handlePrint(item)} className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"><Printer className="h-4 w-4 text-emerald-500" /> Cetak BOM</button>
-                        <button onClick={() => handleDelete(item.id)} className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700 cursor-pointer"><Trash2 className="h-4 w-4" /> Hapus BOM</button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {error && <div className="mx-5 mt-4 rounded-xl border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+        {notice && <div className="mx-5 mt-4 rounded-xl border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
+        <div className="overflow-x-auto min-h-[300px]"><table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="bg-slate-50 dark:bg-slate-950/50 text-slate-500 border-b border-slate-200 dark:border-slate-800 text-xs uppercase"><tr><th className="px-6 py-3.5">No. BOM</th><th className="px-6 py-3.5">Produk Jadi</th><th className="px-6 py-3.5">Output</th><th className="px-6 py-3.5">Komponen</th><th className="px-6 py-3.5">Status</th><th className="px-6 py-3.5 text-center">Aksi</th></tr></thead>
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+            {loading ? <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">Memuat BOM...</td></tr> : pagination.paginatedItems.length === 0 ? <tr><td colSpan="6" className="px-6 py-12 text-center text-slate-400">Belum ada BOM tersimpan di database.</td></tr> : pagination.paginatedItems.map((bom) => <tr key={bom.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+              <td className="px-6 py-4 font-bold text-blue-600"><Box className="mr-2 inline h-4 w-4 text-slate-400" />{bom.document_number}</td><td className="px-6 py-4 font-semibold">{bom.product?.part_number} — {bom.product?.name}</td><td className="px-6 py-4">{formatQuantity(bom.output_quantity)} {bom.unit}</td><td className="px-6 py-4">{(bom.items || []).map((item) => `${item.product?.part_number || item.product?.name}: ${formatQuantity(item.quantity)} ${item.unit}`).join(', ')}</td><td className="px-6 py-4">{bom.status === 'DRAFT' ? 'Draft' : 'Aktif'}</td>
+              <td className="relative px-6 py-4 text-center"><button onClick={() => setActiveMenuId(activeMenuId === bom.id ? null : bom.id)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><MoreVertical className="inline h-4 w-4" /></button>{activeMenuId === bom.id && <div className="absolute right-12 top-10 z-20 w-48 rounded-xl border-slate-200 bg-white py-1.5 text-left shadow-xl dark:border-slate-700 dark:bg-slate-800">{bom.status === 'DRAFT' && <><button onClick={() => openEditForm(bom)} className="flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50"><Edit3 className="h-4 w-4 text-blue-500" /> Edit Draft</button><button onClick={() => handleFinalize(bom)} className="flex w-full items-center gap-2.5 px-4 py-2 text-xs text-emerald-700 hover:bg-emerald-50"><Save className="h-4 w-4" /> Finalisasi & Proses Stok</button></>}<button onClick={() => { handlePrint(bom); setActiveMenuId(null); }} className="flex w-full items-center gap-2.5 px-4 py-2 text-xs hover:bg-slate-50"><Printer className="h-4 w-4 text-emerald-500" /> Cetak BOM</button><button onClick={() => handleDelete(bom)} className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /> Hapus BOM</button></div>}</td>
+            </tr>)}
+          </tbody>
+        </table></div>
         <Pagination currentPage={pagination.currentPage} totalItems={pagination.totalItems} pageSize={pagination.pageSize} onPageChange={pagination.setCurrentPage} onPageSizeChange={pagination.setPageSize} />
       </div>
     </div>

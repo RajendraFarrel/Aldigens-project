@@ -76,7 +76,12 @@ class AuthController extends Controller
     {
         AuditLogService::record($request, 'security.logout', 'security', 'success', 'Logout');
 
-        $request->user()->currentAccessToken()->delete();
+        // Hapus token yang sedang dipakai. Guard ditangani defensif: token
+        // transien / tanpa access token tidak boleh membuat logout gagal.
+        $token = $request->user()->currentAccessToken();
+        if ($token && method_exists($token, 'delete')) {
+            $token->delete();
+        }
 
         return response()->json([
             'status'  => 'success',

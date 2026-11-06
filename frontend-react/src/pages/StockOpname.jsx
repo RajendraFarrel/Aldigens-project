@@ -9,7 +9,12 @@ import {
   getPeriodRange, isWithinRange, sumQtyByUnit, todayInput, isBlank, fmtText,
 } from '../utils/printAldigensDocument';
 
+import { usePermissions } from '../context/PermissionContext';
+
 export default function StockOpname() {
+  const { can } = usePermissions();
+  const canCreate = can('inventory.stock_opname.create');
+  const canComplete = can('inventory.stock_opname.complete');
   const [rows, setRows] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -260,6 +265,12 @@ export default function StockOpname() {
       {message && <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">{message}</div>}
 
       <form onSubmit={submit} className="bg-white border rounded-2xl p-5 shadow-sm space-y-4">
+        {!canCreate && (
+          <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+            Anda hanya dapat melihat daftar Stock Opname. Pembuatan dokumen memerlukan hak
+            <span className="font-mono"> inventory.stock_opname.create</span>.
+          </div>
+        )}
         <div className="grid md:grid-cols-3 gap-3">
           <input
             required
@@ -324,11 +335,13 @@ export default function StockOpname() {
         ))}
 
         <div className="flex gap-2">
-          <button type="button" onClick={addItem} className="px-4 py-2 border rounded-lg text-sm hover:bg-slate-50 cursor-pointer">
+          <button type="button" onClick={addItem} disabled={!canCreate}
+            className="px-4 py-2 border rounded-lg text-sm hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
             Tambah Item
           </button>
           <button
-            disabled={saving || !form.items.length}
+            type="submit"
+            disabled={!canCreate || saving || !form.items.length}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm flex gap-2 items-center disabled:opacity-60 hover:bg-blue-700 transition cursor-pointer"
           >
             <Save className="w-4 h-4" />
@@ -370,7 +383,7 @@ export default function StockOpname() {
                       </span>
                     </td>
                     <td className="p-3 text-center">
-                      {row.status === 'DRAFT' && (
+                      {row.status === 'DRAFT' && canComplete && (
                         <button
                           onClick={() => complete(row.id)}
                           className="text-blue-600 hover:text-blue-800 transition p-1 hover:bg-blue-50 rounded"

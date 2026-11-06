@@ -90,7 +90,13 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:inventory.products.manage');
     Route::post('/inventory/products/import', [ProductController::class, 'import'])
         ->middleware('permission:inventory.products.manage');
+        
+    // PERBAIKAN: Menambahkan rute GET /inventory/products agar tidak 405 Method Not Allowed
+    Route::get('/inventory/products', [ApiProductController::class, 'index'])
+        ->middleware('permission:inventory.products.view');
+        
     Route::apiResource('/inventory/products', ProductController::class)->only([]);
+    
     Route::get('/inventory/products/{inventory_product}', [ProductController::class, 'show'])
         ->middleware('permission:inventory.products.view');
     Route::post('/inventory/products', [ProductController::class, 'store'])

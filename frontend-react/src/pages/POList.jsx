@@ -786,11 +786,10 @@ export default function POList() {
                                                     <input type="number" min="0" required placeholder="0" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-semibold text-emerald-400 uppercase mb-1 text-center">Pajak (Ketik T)</label>
+                                                    <label className="block text-xs font-semibold text-emerald-400 uppercase mb-1 text-center">Pajak</label>
                                                     <input 
                                                         type="text" 
                                                         maxLength="1" 
-                                                        placeholder="T" 
                                                         value={item.tax_code || ''} 
                                                         onChange={(e) => handleItemChange(index, 'tax_code', e.target.value)} 
                                                         className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm text-center font-bold uppercase placeholder-slate-600 focus:border-emerald-500 outline-none" 

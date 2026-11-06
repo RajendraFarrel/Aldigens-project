@@ -248,6 +248,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->only(['index', 'show'])->middleware('permission:inventory.products.view');
     Route::apiResource('/boms', BomController::class)
         ->only(['store', 'update', 'destroy'])->middleware('permission:inventory.products.manage');
+    Route::post('/boms/{bom}/finalize', [BomController::class, 'finalize'])
+        ->middleware('permission:inventory.products.manage');
     Route::apiResource('/productions', ProductionController::class)
         ->only(['index', 'store'])->middleware('permission:inventory.products.manage');
 

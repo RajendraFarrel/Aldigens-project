@@ -11,11 +11,17 @@ return new class extends Migration
         Schema::create('customer_part_numbers', function (Blueprint $table) {
             $table->id();
             $table->foreignId('customer_id')->constrained('customers')->cascadeOnDelete();
-            $table->string('part_number', 255);
+            $table->string('part_number', 255); // Part number versi customer (misal: OPT-ALAM)
+            
+            // ---> INI KOLOM JEMBATAN PENGHUBUNG KE INVENTORY <---
+            $table->unsignedBigInteger('inventory_product_id')->nullable()->index(); 
+            // ----------------------------------------------------
+
             $table->string('item_description', 500)->nullable();
             $table->decimal('selling_price', 18, 2)->nullable();
             $table->string('status', 30)->default('AKTIF');
             $table->timestamps();
+            
             $table->unique(['customer_id', 'part_number']);
             $table->index('part_number');
         });

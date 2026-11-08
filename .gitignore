@@ -1,0 +1,17 @@
+node_modules/
+vendor/
+.env
+.env.*
+!.env.example
+dist/
+build/
+*.log
+lint-*.json
+.vscode/
+.idea/
+*.err
+mysqlprobe.*
+dbcheck.*
+dbping.php
+probe*
+*.db

@@ -1,7 +1,6 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { FileBarChart, RefreshCw, AlertTriangle } from 'lucide-react';
-import PrintButton from '../../components/PrintButton';
-import PrintHeader from '../../components/PrintHeader';
+import { FileBarChart, RefreshCw, AlertTriangle, Printer } from 'lucide-react';
+import { printLabaRugi, printNeraca } from '../../utils/accountingPrint';
 import {
   getLabaRugi, getNeraca, rupiah, angka, formatTanggal, periodeDefault,
 } from '../../services/accountingApi';
@@ -40,10 +39,17 @@ export default function LaporanKeuangan() {
   const periodeLabel = `${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`;
   const semuaPeringatan = [...(labaRugi?.peringatan || []), ...(neraca?.peringatan || [])];
 
+  /* Cetak laporan yang sedang aktif: Laba Rugi dan Neraca masing-masing
+     menjadi dokumen tersendiri (kop, nomor dokumen, tanda tangan sendiri). */
+  const handlePrint = () => {
+    if (tab === 'laba-rugi') printLabaRugi(labaRugi, { from: periode.from, to: periode.to });
+    else printNeraca(neraca, { from: periode.from, to: periode.to });
+  };
+
   const Baris = ({ label, items, total, totalLabel }) => (
     <div className="mb-5">
       <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">{label}</h4>
-      <table className="w-full text-sm">
+      <table className="w-full text-sm border-slate-200 dark:border-slate-700">
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {items.length === 0 && (
             <tr><td colSpan={2} className="py-2 text-slate-400 text-xs">Tidak ada akun.</td></tr>
@@ -88,7 +94,10 @@ export default function LaporanKeuangan() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Muat Ulang</span>
           </button>
-          <PrintButton label="Cetak Laporan" />
+          <button onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+            <Printer className="h-4 w-4" /> Cetak Laporan
+          </button>
         </div>
       </div>
 
@@ -136,8 +145,8 @@ export default function LaporanKeuangan() {
       {/* ---------- LABA RUGI ---------- */}
       {tab === 'laba-rugi' && labaRugi && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-          <PrintHeader judul="LAPORAN LABA RUGI" periode={periodeLabel} />
-
+          <h3 className="text-base font-bold mb-4 uppercase border-b-2 border-slate-800 pb-2">Laporan Laba Rugi</h3>
+          <p className="text-xs mb-4">Periode: {periodeLabel}</p>
           <Baris label="Pendapatan" items={labaRugi.pendapatan}
             total={labaRugi.total_pendapatan} totalLabel="Total Pendapatan" />
           <Baris label="Harga Pokok Penjualan" items={labaRugi.harga_pokok}
@@ -163,8 +172,8 @@ export default function LaporanKeuangan() {
       {/* ---------- NERACA ---------- */}
       {tab === 'neraca' && neraca && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-          <PrintHeader judul="NERACA (LAPORAN POSISI KEUANGAN)" periode={periodeLabel} />
-
+          <h3 className="text-base font-bold mb-4 uppercase border-b-2 border-slate-800 pb-2">Neraca (Laporan Posisi Keuangan)</h3>
+          <p className="text-xs mb-4">Periode: {periodeLabel}</p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div>
               <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400 mb-2">ASET</h4>
@@ -246,16 +255,6 @@ export default function LaporanKeuangan() {
       {loading && (
         <p className="text-center text-sm text-slate-400">Memuat laporan...</p>
       )}
-
-      <div className="hidden print:block mt-8 text-xs">
-        <div className="flex justify-between">
-          <p>Jakarta, {formatTanggal(new Date().toISOString().slice(0, 10))}</p>
-          <div className="text-center">
-            <p>Mengetahui,</p><p>Finance Manager</p><div className="h-16" />
-            <p className="underline">( ................................ )</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

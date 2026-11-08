@@ -29,6 +29,16 @@ api.interceptors.response.use(
             localStorage.removeItem('auth_user');
             window.dispatchEvent(new Event('auth:logout'));
         }
+        // 403 = ditolak backend (permission). Dispatch event agar UI menampilkan
+        // pesan "akses ditolak" yang rapi, bukan error mentah.
+        if (error.response?.status === 403) {
+            window.dispatchEvent(new CustomEvent('auth:forbidden', {
+                detail: {
+                    message: error.response?.data?.message || 'Anda tidak memiliki hak akses untuk tindakan ini.',
+                    permission: error.response?.data?.permission || null,
+                },
+            }));
+        }
         return Promise.reject(error);
     }
 );
@@ -44,6 +54,17 @@ export const authLogout = () =>
 
 export const authMe = () =>
     api.get('/me');
+
+// Permission user aktif (server sebagai sumber kebenaran).
+export const getMyPermissions = () => api.get('/me');
+
+// Activity log (read-only) — butuh security.activity_logs.view.
+export const getActivityLogs = (params = {}) => api.get('/security/activity-logs', { params });
+
+// Permission katalog (untuk pengaturan role).
+export const getPermissions = () => api.get('/permissions');
+export const updateRolePermissions = (roleId, permissions) =>
+    api.put(`/roles/${roleId}/permissions`, { permissions });
 
 // -----------------------------------------------
 // Inventory – Dashboard
@@ -122,6 +143,7 @@ export const createCustomer = (data) => api.post('/customers', data);
 export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data);
 export const deleteCustomer = (id) => api.delete(`/customers/${id}`);
 export const getCustomerPartNumbers = (params = {}) => api.get('/customer-part-numbers', { params });
+export const getCustomerPartNumberInventoryOptions = (search = '') => api.get('/customer-part-numbers/inventory-options', { params: search ? { search } : {} });
 export const createCustomerPartNumber = (data) => api.post('/customer-part-numbers', data);
 export const updateCustomerPartNumber = (id, data) => api.put(`/customer-part-numbers/${id}`, data);
 export const deleteCustomerPartNumber = (id) => api.delete(`/customer-part-numbers/${id}`);
@@ -145,14 +167,31 @@ export const getBoms = () => api.get('/boms');
 export const createBom = (data) => api.post('/boms', data);
 export const updateBom = (id, data) => api.put(`/boms/${id}`, data);
 export const deleteBom = (id) => api.delete(`/boms/${id}`);
+export const finalizeBom = (id, data) => api.post(`/boms/${id}/finalize`, data);
 export const getProductions = () => api.get('/productions');
 export const createProduction = (data) => api.post('/productions', data);
+
+// -----------------------------------------------
+// Purchase Invoices & Payments (Baru Ditambahkan)
+// -----------------------------------------------
+export const getPurchaseInvoices = (params = {}) => api.get('/purchase-invoices', { params });
+export const getPurchasePayments = (params = {}) => api.get('/purchase-payments', { params });
+export const createPurchasePayment = (data) => api.post('/purchase-payments', data);
+export const updatePurchasePayment = (id, data) => api.put(`/purchase-payments/${id}`, data);
+export const deletePurchasePayment = (id) => api.delete(`/purchase-payments/${id}`);
 
 // -----------------------------------------------
 // Inventory – Reports
 // -----------------------------------------------
 export const getWeeklyReport = (week = '') =>
   api.get('/inventory/reports/weekly', { params: week ? { week } : {} });
+
+/**
+ * Laporan periode (harian/mingguan/bulanan/tahunan/rentang tanggal).
+ * @param {{ period: string, date?: string, start_date?: string, end_date?: string }} params
+ */
+export const getPeriodReport = (params = {}) =>
+  api.get('/inventory/reports/period', { params });
 
 export const downloadExport = (type) => api.get(`/exports/${type}`, { responseType: 'blob' });
 

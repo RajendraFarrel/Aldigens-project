@@ -1,8 +1,14 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { BookOpen, RefreshCw } from 'lucide-react';
-import PrintButton from '../../components/PrintButton';
-import PrintHeader from '../../components/PrintHeader';
-import { getAccounts, getBukuBesar, rupiah, angka, formatTanggal, periodeDefault } from '../../services/accountingApi';
+import { BookOpen, RefreshCw, Printer } from 'lucide-react';
+import SaldoAwalRow from '../../components/accounting/SaldoAwalRow';
+import { printBukuBesar } from '../../utils/accountingPrint';
+import { getAccounts, getBukuBesar, rupiah, angka, periodeDefault } from '../../services/accountingApi';
+
+/** Tanggal mutasi -> 'DD/MM/YYYY' (tanpa pergeseran timezone). */
+const tglDok = (value) => {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (value || '-');
+};
 import { swalError } from '../../utils/swal';
 
 /**
@@ -56,6 +62,8 @@ export default function BukuBesar() {
     </span>
   );
 
+  const handlePrint = () => printBukuBesar(data);
+
   return (
     <div className="p-6 space-y-5 print-area">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
@@ -76,7 +84,10 @@ export default function BukuBesar() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Muat Ulang</span>
           </button>
-          <PrintButton label="Cetak Buku Besar" />
+          <button onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+            <Printer className="h-4 w-4" /> Cetak Buku Besar
+          </button>
         </div>
       </div>
 
@@ -103,13 +114,6 @@ export default function BukuBesar() {
             className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
         </div>
       </div>
-
-      <PrintHeader
-        judul="BUKU BESAR"
-        periode={data
-          ? `${data.account.nomor_akun} â€” ${data.account.nama_akun} | ${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`
-          : ''}
-      />
 
       {accounts.length === 0 && (
         <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl px-4 py-3">
@@ -157,13 +161,14 @@ export default function BukuBesar() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <SaldoAwalRow colSpan={3} debit={angka(Math.abs(data.saldo_awal))} kredit="" />
                   {loading && <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400">Memuat buku besar...</td></tr>}
                   {!loading && data.mutasi.length === 1 && (
                     <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400">Belum ada mutasi pada periode ini.</td></tr>
                   )}
                   {!loading && data.mutasi.map((m, i) => (
                     <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <td className="px-3 py-2 whitespace-nowrap">{formatTanggal(m.tanggal)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{tglDok(m.tanggal)}</td>
                       <td className="px-3 py-2 font-mono">{m.no_voucher}</td>
                       <td className="px-3 py-2">{m.keterangan || '-'}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">{m.debit ? angka(m.debit) : ''}</td>
@@ -183,16 +188,6 @@ export default function BukuBesar() {
                   </tfoot>
                 )}
               </table>
-            </div>
-          </div>
-
-          <div className="hidden print:block mt-6 text-xs space-y-8">
-            <div className="flex justify-between">
-              <p>Jakarta, {formatTanggal(new Date().toISOString().slice(0, 10))}</p>
-              <div className="text-center">
-                <p>Mengetahui,</p><p>Finance Manager</p><div className="h-16" />
-                <p className="underline">( ................................ )</p>
-              </div>
             </div>
           </div>
         </>

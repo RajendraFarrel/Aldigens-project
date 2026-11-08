@@ -8,11 +8,8 @@ import { getProducts } from '../services/api';
 export default function PurchaseRequisition() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
-
-  // Daftar item Inventory untuk pemilih Part Number (bukan ketik manual).
   const [inventoryItems, setInventoryItems] = useState([]);
 
-  // Muat item Inventory sekali saat halaman dibuka.
   useEffect(() => {
     let active = true;
     const loadProducts = async () => {
@@ -32,7 +29,6 @@ export default function PurchaseRequisition() {
     return () => { active = false; };
   }, []);
 
-  // Opsi react-select: value dipakai sebagai id produk, label = kode — nama.
   const productOptions = useMemo(() => inventoryItems.map((inv) => {
     const code = inv.part_number || inv.product_code || inv.barcode;
     const name = inv.name || inv.description || '';
@@ -46,14 +42,11 @@ export default function PurchaseRequisition() {
     };
   }), [inventoryItems]);
 
-  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
+  const [viewMode, setViewMode] = useState('list');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
-
-  // Counter untuk menghasilkan id baris item yang unik & stabil.
   const rowSeq = useRef(0);
 
-  // Data Dummy Permintaan Pembelian (PR)
   const [dummyPRs, setDummyPRs] = useState([
     {
       id: 1,
@@ -91,7 +84,6 @@ export default function PurchaseRequisition() {
 
   const pagination = usePagination(filteredPRs, 10);
 
-  // State Form Input
   const [formData, setFormData] = useState({
     prNo: 'PR-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.floor(1000 + Math.random() * 9000),
     date: new Date().toISOString().split('T')[0],
@@ -123,9 +115,6 @@ export default function PurchaseRequisition() {
     setActiveMenuId(null);
   };
 
-  /* Penanda unik per baris item. `Date.now()` bisa sama untuk dua baris yang
-   * dibuat dalam milidetik yang sama — itu membuat update/perubahan baris
-   * tidak konsisten. Gunakan counter yang selalu bertambah. */
   const nextRowId = () => (Date.now() + (rowSeq.current++));
 
   const handleAddItemRow = () => {
@@ -153,8 +142,6 @@ export default function PurchaseRequisition() {
     }));
   };
 
-  // Saat pengguna memilih barang dari inventory: simpan product_id, part number,
-  // nama barang, dan default satuan agar bisa dikirim ke backend sebagai product_id.
   const handleProductSelect = (id, option) => {
     setFormData({
       ...formData,
@@ -174,7 +161,6 @@ export default function PurchaseRequisition() {
       return;
     }
 
-    // Setiap baris wajib memilih barang dari inventory (bukan ketik bebas).
     const belumDipilih = formData.items.find(i => !i.productId);
     if (belumDipilih) {
       alert('Setiap item harus dipilih dari daftar inventory. Ketik Part Number atau Nama Barang pada kolom pencarian.');
@@ -196,13 +182,8 @@ export default function PurchaseRequisition() {
     }
   };
 
-  // --- FUNGSI KONVERSI PR KE PURCHASE ORDER (PO) ---
   const handleConvertToPO = (prItem) => {
     setActiveMenuId(null);
-
-    // Format item PR agar cocok dengan struktur Purchase Order.
-    // partNumber disimpan sebagai "kode — nama"; pisahkan agar backend PO/DO
-    // tetap bisa menemukan produk berdasarkan part number/kode.
     const poItems = prItem.items.map(i => {
       const [code, ...rest] = String(i.partNumber || '').split(' — ');
       return {
@@ -210,7 +191,7 @@ export default function PurchaseRequisition() {
         description: rest.join(' — ').trim() || i.partNumber,
         qty: i.quantity,
         unit: i.unit || 'PCS',
-        unit_price: 0 // Default harga satuan bisa diisi nanti di form PO
+        unit_price: 0
       };
     });
 
@@ -225,7 +206,6 @@ export default function PurchaseRequisition() {
       status: 'Pending'
     };
 
-    // Simpan ke local storage agar terbaca di halaman POList
     const existingPOs = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
     localStorage.setItem('aldigens_purchase_orders', JSON.stringify([newPO, ...existingPOs]));
 
@@ -255,12 +235,10 @@ export default function PurchaseRequisition() {
     printWindow.document.close(); printWindow.print();
   };
 
-  // --- TAMPILAN FORM ---
   if (viewMode === 'form') {
     return (
       <div className="p-6 max-w-5xl mx-auto">
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
-
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <button onClick={() => setViewMode('list')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition">
@@ -309,7 +287,6 @@ export default function PurchaseRequisition() {
               </div>
             </div>
 
-            {/* Tabel Item Dinamis */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
@@ -339,7 +316,7 @@ export default function PurchaseRequisition() {
                           <Select
                             inputId={`pr-item-product-${item.id}`}
                             classNamePrefix="pr-select"
-                            className="react-select-container"
+                            className="react-select-container text-sm"
                             placeholder="Ketik Part Number / Nama Barang..."
                             isClearable
                             isSearchable
@@ -350,14 +327,42 @@ export default function PurchaseRequisition() {
                             noOptionsMessage={() => 'Barang tidak ditemukan di inventory'}
                             loadingMessage={() => 'Memuat daftar barang...'}
                             menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
-                            styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
+                            styles={{
+                              control: (provided, state) => ({
+                                ...provided,
+                                backgroundColor: '#0f172a',
+                                borderColor: state.isFocused ? '#3b82f6' : '#334155',
+                                color: '#ffffff',
+                                borderRadius: '0.5rem',
+                                padding: '2px',
+                                boxShadow: 'none',
+                                '&:hover': { borderColor: '#475569' }
+                              }),
+                              menu: (provided) => ({
+                                ...provided,
+                                backgroundColor: '#0f172a',
+                                borderRadius: '0.5rem',
+                                border: '1px solid #334155',
+                                zIndex: 9999
+                              }),
+                              option: (provided, state) => ({
+                                ...provided,
+                                backgroundColor: state.isSelected ? '#2563eb' : state.isFocused ? '#1e293b' : '#0f172a',
+                                color: '#ffffff',
+                                cursor: 'pointer',
+                              }),
+                              singleValue: (provided) => ({ ...provided, color: '#ffffff' }),
+                              input: (provided) => ({ ...provided, color: '#ffffff' }),
+                              placeholder: (provided) => ({ ...provided, color: '#94a3b8' }),
+                              menuPortal: (base) => ({ ...base, zIndex: 9999 })
+                            }}
                           />
                         </td>
                         <td className="px-4 py-3">
-                          <input required type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                          <input required type="number" min="1" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
                         </td>
                         <td className="px-4 py-3">
-                          <select value={item.unit} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                          <select value={item.unit} onChange={(e) => handleItemChange(item.id, 'unit', e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
                             <option value="PCS">PCS</option>
                             <option value="Unit">Unit</option>
                             <option value="Batang">Batang</option>
@@ -390,11 +395,9 @@ export default function PurchaseRequisition() {
     );
   }
 
-  // --- TAMPILAN DAFTAR (LIST) ---
   return (
     <div className="p-6">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
-
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -493,7 +496,6 @@ export default function PurchaseRequisition() {
           </table>
         </div>
 
-        {/* Pagination Controller */}
         <Pagination
           currentPage={pagination.currentPage}
           totalItems={pagination.totalItems}

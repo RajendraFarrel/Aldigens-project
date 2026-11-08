@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\DeliveryOrder;
 use App\Models\DeliveryOrderItem;
 use App\Models\Product;
+use App\Models\CustomerPartNumber;
 use App\Services\InventoryStockService;
 use Illuminate\Support\Facades\DB;
 
@@ -14,7 +15,8 @@ class DeliveryOrderController extends Controller
     // 1. Menampilkan daftar semua Delivery Order beserta item dan relasinya
     public function index()
     {
-        $deliveryOrders = DeliveryOrder::with(['salesOrder', 'items'])->latest()->get();
+        // PERBAIKAN: Hapus relasi 'salesOrder' agar tidak memicu Error 500 (API Offline)
+        $deliveryOrders = DeliveryOrder::with(['items'])->latest()->get();
 
         return response()->json([
             'status' => 'success',
@@ -25,7 +27,8 @@ class DeliveryOrderController extends Controller
     // 2. Menampilkan detail satu Delivery Order (untuk cetak Surat Jalan & generate Invoice)
     public function show($id)
     {
-        $deliveryOrder = DeliveryOrder::with(['salesOrder.items', 'items'])->find($id);
+        // PERBAIKAN: Hapus relasi 'salesOrder.items' agar tidak memicu Error 500
+        $deliveryOrder = DeliveryOrder::with(['items'])->find($id);
 
         if (!$deliveryOrder) {
             return response()->json([
@@ -42,16 +45,11 @@ class DeliveryOrderController extends Controller
 
     /**
      * Simpan Delivery Order (Surat Jalan) baru.
-     *
-     * Stok BELUM dipotong di sini. Sesuai alur persetujuan, pengurangan stok
-     * Inventory baru terjadi saat DO di-approve (lihat method approve())
-     * agar barang yang masih berstatus draft/kirim tidak langsung mengurangi
-     * saldo gudang.
      */
     public function store(Request $request)
     {
         $request->validate([
-            'sales_order_id' => 'required|exists:sales_orders,id',
+            'sales_order_id' => 'nullable', 
             'do_number' => 'required|string|max:100|unique:delivery_orders,do_number',
             'do_date' => 'required|date',
             'items' => 'required|array|min:1',
@@ -60,6 +58,7 @@ class DeliveryOrderController extends Controller
             'items.*.qty_sent' => 'required|integer|min:1',
             'items.*.unit' => 'nullable|string|max:50',
         ]);
+        
         DB::beginTransaction();
 
         try {
@@ -67,6 +66,11 @@ class DeliveryOrderController extends Controller
             $deliveryOrder = DeliveryOrder::create([
                 'sales_order_id'   => $request->sales_order_id,
                 'do_number'        => $request->do_number,
+                
+                // PERBAIKAN: Menangkap dan menyimpan No. SO dan No. PO Pelanggan
+                'so_number'        => $request->so_number ?? $request->sales_order_id, 
+                'ref_po'           => $request->ref_po ?? $request->customer_po,
+                
                 'do_date'          => $request->do_date,
                 'customer_name'    => $request->customer_name,
                 'delivery_address' => $request->delivery_address,
@@ -76,7 +80,7 @@ class DeliveryOrderController extends Controller
                 'notes'            => $request->notes,
             ]);
 
-            // Simpan item-item barang yang dikirim (stok dipotong saat approve).
+            // Simpan item-item barang yang dikirim
             if ($request->has('items') && is_array($request->items)) {
                 foreach ($request->items as $item) {
                     DeliveryOrderItem::create([
@@ -108,11 +112,7 @@ class DeliveryOrderController extends Controller
     }
 
     /**
-     * Approve Delivery Order.
-     *
-     * Saat DO di-approve, stok Inventory otomatis BERKURANG untuk setiap item
-     * yang dikirim, dan mutasi KELUAR dicatat via InventoryStockService.
-     * Idempotent: DO yang sudah di-approve tidak akan dipotong dua kali.
+     * Approve Delivery Order dan kurangi stok inventory secara otomatis.
      */
     public function approve(Request $request, $id, InventoryStockService $stockService)
     {
@@ -122,7 +122,6 @@ class DeliveryOrderController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Delivery Order tidak ditemukan.'], 404);
         }
 
-        // Cegah pengurangan stok berulang pada DO yang sudah di-approve.
         if (in_array($deliveryOrder->status, ['Approved', 'Delivered'], true)) {
             return response()->json([
                 'status' => 'success',
@@ -138,13 +137,25 @@ class DeliveryOrderController extends Controller
                     continue;
                 }
 
-                $product = Product::where('part_number', $code)
-                    ->orWhere('barcode', $code)
-                    ->orWhere('product_code', $code)
-                    ->first();
+                $product = null;
+
+                // 1. Cek melalui tabel CustomerPartNumber (pencocokan berdasarkan kolom part_number saja)
+                $customerPart = CustomerPartNumber::where('part_number', $code)->first();
+
+                if ($customerPart) {
+                    $product = Product::find($customerPart->product_id ?? $customerPart->inventory_product_id ?? null);
+                }
+
+                // 2. Jika tidak ketemu, cari langsung berdasarkan part_number/product_code internal produk
+                if (!$product) {
+                    $product = Product::where('part_number', $code)
+                        ->orWhere('barcode', $code)
+                        ->orWhere('product_code', $code)
+                        ->first();
+                }
 
                 if (!$product) {
-                    throw new \RuntimeException("Part Number {$code} tidak ditemukan di Inventory.");
+                    throw new \RuntimeException("Part Number [{$code}] tidak ditemukan di Inventory maupun Mapping Customer.");
                 }
 
                 // Kurangi stok + catat mutasi KELUAR.

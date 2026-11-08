@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Building2, MapPin, Package, Pencil, Plus, RefreshCw, Save, Search,
-  Trash2, X, Hash, ChevronLeft,
+  Trash2, X, Hash, ChevronLeft, Printer,
 } from 'lucide-react';
 import {
   createWarehouse, createWarehouseLocation, deleteWarehouse, getWarehouses,
@@ -9,6 +9,9 @@ import {
 } from '../services/api';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
+import {
+  printAldigensDocument, makeReportNumber, getCurrentUserName, fmtDateLong,
+} from '../utils/printAldigensDocument';
 
 const EMPTY_WAREHOUSE = { code: '', name: '', address: '', status: 'AKTIF' };
 
@@ -113,6 +116,82 @@ export default function Warehouse() {
   });
 
   const pagination = usePagination(filtered, 10);
+
+  /* Cetak / PDF — snapshot daftar master warehouse sesuai pencarian aktif,
+     bukan hanya baris pada halaman pagination. */
+  const handlePrintWarehouses = () => {
+    const rows = filtered;
+    const printedAt = new Date();
+    const totalLocations = rows.reduce((sum, w) => sum + (w.locations?.length || 0), 0);
+
+    // Baris tabel: satu baris warehouse, lokasi dijabarkan di kolom Lokasi.
+    const printRows = [];
+    rows.forEach((w, idx) => {
+      const locs = (w.locations || []).map((l) => `${l.code}${l.name ? ` - ${l.name}` : ''}`);
+      printRows.push({
+        _no: idx + 1,
+        code: w.code,
+        name: w.name,
+        address: w.address,
+        status: w.status || 'AKTIF',
+        locations: locs.length ? locs.join(', ') : 'Belum ada lokasi',
+        locationCount: locs.length,
+        itemCount: w.item_count ?? 0,
+        totalQty: w.total_qty ?? 0,
+      });
+    });
+
+    printAldigensDocument({
+      title: 'LAPORAN MASTER WAREHOUSE',
+      reportNumber: makeReportNumber('MST-WH'),
+      printedAt,
+      printedBy: getCurrentUserName(),
+      metadataLeft: [
+        { label: 'Pencarian', value: search.trim() ? `"${search.trim()}"` : 'Tanpa filter pencarian' },
+        { label: 'Total Warehouse', value: `${rows.length} warehouse`, strong: true },
+      ],
+      metadataRight: [
+        { label: 'Total Lokasi', value: `${totalLocations} lokasi`, strong: true },
+      ],
+      infoBox: [
+        {
+          label: 'Keterangan Laporan',
+          value: 'Laporan master warehouse dan lokasi merupakan snapshot saat laporan dicetak.',
+          full: true,
+        },
+      ],
+      sections: [
+        {
+          title: 'DAFTAR WAREHOUSE & LOKASI',
+          columns: [
+            { header: 'No.', width: '5%', align: 'center', value: (r) => r._no },
+            { header: 'Kode', width: '10%', value: (r) => r.code },
+            { header: 'Nama Warehouse', width: '20%', value: (r) => r.name },
+            { header: 'Alamat', width: '22%', value: (r) => r.address },
+            { header: 'Status', width: '8%', align: 'center', value: (r) => r.status },
+            { header: 'Lokasi', width: '25%', value: (r) => r.locations },
+            { header: 'Jml', width: '10%', align: 'center', value: (r) => r.locationCount },
+          ],
+          rows: printRows,
+          emptyMessage: 'Tidak ada warehouse pada filter yang dipilih.',
+        },
+      ],
+      notes: [
+        'Data warehouse merupakan snapshot master saat laporan dicetak.',
+        'Tidak memuat riwayat stok atau transaksi warehouse.',
+      ],
+      summary: [
+        { label: 'Jumlah Warehouse', value: `${rows.length}`, total: true },
+        { label: 'Jumlah Lokasi', value: `${totalLocations}` },
+        { label: 'Dicetak', value: fmtDateLong(printedAt) },
+      ],
+      signatories: [
+        { label: 'Dibuat Oleh', name: getCurrentUserName(), role: 'Administrator Inventory' },
+        { label: 'Diperiksa Oleh', name: '........................', role: 'Kepala Gudang' },
+      ],
+      landscape: true,
+    });
+  };
 
   const loadWarehouses = useCallback(async () => {
     try {
@@ -357,6 +436,13 @@ export default function Warehouse() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handlePrintWarehouses}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm transition shadow-sm"
+            title="Cetak daftar warehouse sesuai pencarian aktif"
+          >
+            <Printer className="w-4 h-4" />Cetak / PDF
+          </button>
           <button
             onClick={openAdd}
             className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm transition shadow-sm"

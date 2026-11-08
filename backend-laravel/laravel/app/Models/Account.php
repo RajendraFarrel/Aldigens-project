@@ -12,6 +12,7 @@ class Account extends Model
         'is_active'   => 'boolean',
         'is_header'   => 'boolean',
         'saldo_awal'  => 'float',
+        'saldo_awal_tanggal' => 'date',
     ];
 
     public function lines()

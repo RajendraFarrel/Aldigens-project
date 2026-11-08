@@ -1,10 +1,10 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookMarked, Search, Plus, Pencil, Power, RefreshCw } from 'lucide-react';
-import PrintButton from '../../components/PrintButton';
-import PrintHeader from '../../components/PrintHeader';
+import { BookMarked, Search, Plus, Pencil, Power, RefreshCw, Printer } from 'lucide-react';
+import SaldoAwalRow from '../../components/accounting/SaldoAwalRow';
+import { printChartOfAccount } from '../../utils/accountingPrint';
 import {
     getAccounts, createAccount, updateAccount, toggleAccountStatus,
-    ACCOUNT_TYPES, SALDO_NORMAL_BY_TIPE, todayISODate, formatTanggal,
+    ACCOUNT_TYPES, SALDO_NORMAL_BY_TIPE, todayISODate,
 } from '../../services/accountingApi';
 import { swalError, swalSuccess } from '../../utils/swal';
 
@@ -132,6 +132,12 @@ export default function ChartOfAccount() {
     const totalAktif = accounts.filter((a) => a.is_active && !a.is_header).length;
     const totalNonaktif = accounts.filter((a) => !a.is_active).length;
 
+    const handlePrint = () => printChartOfAccount(rows, {
+        filterTipe,
+        filterStatus,
+        search,
+    });
+
     return (
         <div className="p-6 space-y-5 print-area">
             {/* Header halaman */}
@@ -153,15 +159,16 @@ export default function ChartOfAccount() {
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                         <span className="hidden sm:inline">Muat Ulang</span>
                     </button>
-                    <PrintButton label="Cetak COA" />
+                    <button onClick={handlePrint}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+                        <Printer className="h-4 w-4" /> Cetak COA
+                    </button>
                     <button onClick={bukaTambah}
                         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm cursor-pointer">
                         <Plus className="h-4 w-4" /> Tambah Akun
                     </button>
                 </div>
             </div>
-
-            <PrintHeader judul="DAFTAR CHART OF ACCOUNT" />
 
             {/* Ringkasan */}
             <div className="grid grid-cols-3 gap-3 no-print">
@@ -239,7 +246,8 @@ export default function ChartOfAccount() {
                                     </td>
                                     <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
                                         {a.nama_akun}
-                                        {a.is_header && <span className="ml-2 text-[10px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">Induk</span>}
+                                        <span className="hidden print:inline ml-2 text-[10px]">{a.is_header ? '(Induk)' : ''}</span>
+                                        {a.is_header && <span className="ml-2 text-[10px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded no-print">Induk</span>}
                                     </td>
                                     <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{a.tipe_akun}</td>
                                     <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{a.saldo_normal}</td>
@@ -263,24 +271,15 @@ export default function ChartOfAccount() {
                                     </td>
                                 </tr>
                             ))}
+                            {!loading && rows.length > 0 && (
+                                <SaldoAwalRow colSpan={5} label={`Total ${rows.length} akun`}
+                                    debit={`${totalAktif} aktif`} kredit={`${totalNonaktif} nonaktif`} />
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* Tanda tangan cetak */}
-            <div className="hidden print:block mt-8 text-xs">
-                <div className="flex justify-between">
-                    <p>Jakarta, {formatTanggal(todayISODate())}</p>
-                    <div className="text-center">
-                        <p>Mengetahui,</p>
-                        <p>Finance Manager</p>
-                        <div className="h-16" />
-                        <p className="underline">( ................................ )</p>
-                    </div>
-                </div>
-                <p className="mt-6">Dicetak dari Sistem Terintegrasi Aldigens â€” Total {rows.length} akun.</p>
-            </div>
 
             {/* Modal Tambah / Edit */}
             {modalOpen && (

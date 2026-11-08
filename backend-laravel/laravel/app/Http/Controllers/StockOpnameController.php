@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\InventoryStock;
 use App\Models\WarehouseLocation;
 use App\Models\StockOpname;
+use App\Services\AuditLogService;
 use App\Services\InventoryStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,10 @@ class StockOpnameController extends Controller
     {
         $query = StockOpname::with(['warehouse', 'items.product'])->latest();
         if ($request->filled('status')) $query->where('status', $request->status);
+        // Filter periode (opsional) berdasarkan tanggal opname, bukan tanggal cetak.
+        if ($request->filled('start_date')) $query->whereDate('opname_date', '>=', $request->input('start_date'));
+        if ($request->filled('end_date')) $query->whereDate('opname_date', '<=', $request->input('end_date'));
+        if ($request->filled('warehouse_id')) $query->where('warehouse_id', $request->input('warehouse_id'));
         return response()->json(['data' => $query->get()]);
     }
 
@@ -107,6 +112,9 @@ class StockOpnameController extends Controller
 
             return $lockedOpname;
         });
+
+        AuditLogService::record($request, 'inventory.stock_opname.complete', 'inventory', 'success',
+            'Menyelesaikan Stock Opname ' . $completed->document_number, 'stock_opname', $completed->id);
 
         return response()->json([
             'message' => 'Stock opname selesai dan adjustment tercatat.',

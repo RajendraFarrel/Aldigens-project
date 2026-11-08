@@ -29,6 +29,7 @@ import {
     CheckSquare,
     CalendarDays,
     // Modul Akuntansi
+    HandCoins,
     BookMarked,
     NotebookPen,
     BookOpen,
@@ -104,6 +105,8 @@ export const MENU_GROUPS = [{
             icon: BookMarked,
             subItems: [
                 { key: 'accounting-coa', label: 'Chart of Accounts', icon: BookMarked },
+                { key: 'accounting-cash-bank', label: 'Kas & Bank', icon: Wallet },
+                { key: 'accounting-receivables-payables', label: 'Utang Piutang', icon: HandCoins },
                 { key: 'accounting-journal', label: 'General Journal', icon: NotebookPen },
                 { key: 'accounting-ledger', label: 'General Ledger', icon: BookOpen },
                 { key: 'accounting-trial-balance', label: 'Trial Balance', icon: Scale },
@@ -196,15 +199,16 @@ export const ALWAYS_ALLOWED = ['dashboard'];
 export function getAllowedMenus(user) {
     if (!user) return ['dashboard'];
 
-    const isAdmin = user.role === 'Administrator';
+    const isAdmin = user.role === 'Administrator' || user.is_admin === true;
     const access = Array.isArray(user.menu_access) ? user.menu_access : null;
 
     // Administrator tanpa pembatasan eksplisit -> akses semua.
     if (isAdmin && access === null) return [...MENU_KEYS];
 
-    // Selain itu, gunakan daftar menu_access (fallback: semua menu untuk admin,
-    // atau menu non-admin default bila kosong).
-    const base = access && access.length ? access : (isAdmin ? MENU_KEYS : nonAdminDefault());
+    // menu_access kini dihitung BACKEND (sudah memperhitungkan permission),
+    // sehingga array kosong berarti benar-benar tidak ada menu. Default bawaan
+    // hanya dipakai bila backend tidak mengirimkan array sama sekali.
+    const base = access !== null ? access : (isAdmin ? MENU_KEYS : nonAdminDefault());
 
     // Administrator selalu dapat mengakses menu pengaturan.
     const merged = new Set(base);

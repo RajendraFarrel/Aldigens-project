@@ -40,6 +40,131 @@ export const postVoucher = (id) =>
 export const reverseVoucher = (id, alasan) =>
     api.post(`/accounting/vouchers/${id}/reverse`, { alasan });
 
+/* ------------------------------------------------------------------
+ * Modul Kas & Bank
+ * Saldo selalu dibaca dari backend (COA saldo_awal + jurnal POSTED).
+ * Transaksi dicatat sebagai Journal Voucher existing lalu diposting.
+ * ------------------------------------------------------------------ */
+
+export const getCashBanks = (params = {}) =>
+    api.get('/accounting/cash-banks', { params });
+
+export const getCashBank = (id) =>
+    api.get(`/accounting/cash-banks/${id}`);
+
+export const createCashBank = (data) =>
+    api.post('/accounting/cash-banks', data);
+
+export const updateCashBank = (id, data) =>
+    api.put(`/accounting/cash-banks/${id}`, data);
+
+export const deleteCashBank = (id) =>
+    api.delete(`/accounting/cash-banks/${id}`);
+
+export const toggleCashBankStatus = (id) =>
+    api.patch(`/accounting/cash-banks/${id}/toggle-status`);
+
+/** Akun COA (Aset, detail, aktif) yang belum dipasangkan ke master. */
+export const getAkunTersediaUntukCashBank = () =>
+    api.get('/accounting/cash-banks/akun-tersedia');
+
+export const getCashBankSaldoAwal = () =>
+    api.get('/accounting/cash-banks/saldo-awal');
+
+export const simpanCashBankSaldoAwal = (id, data) =>
+    api.put(`/accounting/cash-banks/${id}/saldo-awal`, data);
+
+export const getCashBankRingkasan = (params = {}) =>
+    api.get('/accounting/cash-banks/ringkasan', { params });
+
+export const getCashBankMutasi = (params = {}) =>
+    api.get('/accounting/cash-banks/mutasi', { params });
+
+/** Semua transaksi Kas & Bank menjadi satu Journal Voucher POSTED. */
+export const createCashBankPenerimaan = (data) =>
+    api.post('/accounting/cash-bank/penerimaan', data);
+
+export const createCashBankPengeluaran = (data) =>
+    api.post('/accounting/cash-bank/pengeluaran', data);
+
+export const createCashBankTransfer = (data) =>
+    api.post('/accounting/cash-bank/transfer', data);
+
+/* ------------------------------------------------------------------
+ * Modul Utang Piutang
+ * Piutang & utang dibaca dari invoice asli; pembayaran tersimpan di backend
+ * dan menghasilkan Journal Voucher (bukan localStorage).
+ * ------------------------------------------------------------------ */
+
+export const getRpRingkasan = (params = {}) =>
+    api.get('/accounting/receivables-payables/ringkasan', { params });
+
+export const getPiutang = (params = {}) =>
+    api.get('/accounting/receivables-payables/piutang', { params });
+
+export const getUtang = (params = {}) =>
+    api.get('/accounting/receivables-payables/utang', { params });
+
+export const getRpAging = (params = {}) =>
+    api.get('/accounting/receivables-payables/aging', { params });
+
+/**
+ * Master customer & supplier untuk filter/form Utang Piutang.
+ * Kontrak backend: { customers: [...], suppliers: [...] } (array datar, tanpa `data`).
+ * `onSettled` dipakai agar customer yang berhasil dimuat tetap dipakai walau
+ * supplier gagal (dan sebaliknya) — satu endpoint gagal tidak menutup semuanya.
+ */
+export const getRpCustomers = () =>
+    api.get('/accounting/receivables-payables/master', { params: { only: 'customers' } });
+
+export const getRpSuppliers = () =>
+    api.get('/accounting/receivables-payables/master', { params: { only: 'suppliers' } });
+
+export const getRpMaster = (params = {}) =>
+    api.get('/accounting/receivables-payables/master', { params });
+
+export const getPenerimaanCustomer = (params = {}) =>
+    api.get('/accounting/receivables-payables/penerimaan', { params });
+
+export const createPenerimaanCustomer = (data) =>
+    api.post('/accounting/receivables-payables/penerimaan', data);
+
+export const getPembayaranSupplier = (params = {}) =>
+    api.get('/accounting/receivables-payables/pembayaran', { params });
+
+export const createPembayaranSupplier = (data) =>
+    api.post('/accounting/receivables-payables/pembayaran', data);
+
+// --- Purchase Invoice (tagihan supplier) ---
+export const getPurchaseInvoices = (params = {}) =>
+    api.get('/purchase-invoices', { params });
+
+export const getPurchaseInvoice = (id) =>
+    api.get(`/purchase-invoices/${id}`);
+
+export const createPurchaseInvoice = (data) =>
+    api.post('/purchase-invoices', data);
+
+export const deletePurchaseInvoice = (id) =>
+    api.delete(`/purchase-invoices/${id}`);
+
+export const postPurchaseInvoice = (id) =>
+    api.post(`/purchase-invoices/${id}/post`);
+
+/** Posting invoice penjualan ke jurnal (piutang + pendapatan). */
+export const postSalesInvoiceJournal = (id) =>
+    api.post(`/invoices/${id}/post-jurnal`);
+
+/** Status pembayaran piutang/utang. */
+export const PAYMENT_STATUS = ['UNPAID', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'];
+
+export const PAYMENT_STATUS_LABEL = {
+    UNPAID: 'Belum Dibayar',
+    PARTIALLY_PAID: 'Dibayar Sebagian',
+    PAID: 'Lunas',
+    OVERDUE: 'Terlambat',
+};
+
 // --- Laporan (sumber: jurnal POSTED) ---
 export const getAccountingSummary = () =>
     api.get('/accounting/reports/summary');
@@ -72,6 +197,7 @@ export const VOUCHER_TYPES = [
     'Voucher Kas',
     'Voucher Penjualan',
     'Voucher Beban',
+    'Transfer Kas/Bank',
     'Jurnal Umum',
     'Jurnal Penyesuaian',
 ];
@@ -103,6 +229,10 @@ export const VOUCHER_TEMPLATES = {
         { key: 'pihak_terkait', label: 'Penerima Beban', type: 'text' },
         { key: 'kas_bank', label: 'Kas / Bank', type: 'text' },
     ],
+    'Transfer Kas/Bank': [
+        { key: 'kas_bank', label: 'Kas / Bank Sumber → Tujuan', type: 'text' },
+        { key: 'pihak_terkait', label: 'Diterima Kas/Bank', type: 'text' },
+    ],
 };
 
 export const rupiah = (n) =>
@@ -133,12 +263,27 @@ export const SALDO_NORMAL_BY_TIPE = {
     Pendapatan: 'Kredit',
 };
 
-export const todayISODate = () => new Date().toISOString().slice(0, 10);
+/**
+ * Tanggal lokal (bukan UTC) dalam format 'YYYY-MM-DD'.
+ *
+ * JANGAN memakai `new Date(...).toISOString().slice(0, 10)`: toISOString()
+ * mengonversi ke UTC, sehingga di WIB (UTC+7) tanggal pukul 00:00-06:59
+ * periode default berakhir di KEMARIN dan jurnal hari ini hilang dari rekap
+ * (total debit/kredit 0 -> status "TIDAK BALANCE").
+ */
+export const toLocalISODate = (date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+export const todayISODate = () => toLocalISODate(new Date());
 
 export const periodeDefault = () => {
     const now = new Date();
     return {
-        from: new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10),
-        to: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10),
+        from: toLocalISODate(new Date(now.getFullYear(), 0, 1)),
+        to: toLocalISODate(now),
     };
 };

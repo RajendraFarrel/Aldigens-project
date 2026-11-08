@@ -1,10 +1,324 @@
-﻿import { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { swalConfirm, swalSuccess, swalError } from '../utils/swal';
 import { PlusCircle, X, Trash2, Plus, Printer } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 import Select from 'react-select';
+
+// ============================================================
+// TEMPLATE CETAK PURCHASE ORDER (meniru layout form PO fisik)
+// Logo: file 'LOGO ALDIGENS2.jpeg' harus ada di frontend-react/public
+// ============================================================
+// Template cetak Purchase Order yang mengikuti layout form PO fisik PT. Aldigens.
+
+const COMPANY = {
+    name: 'PT. ALDIGENS PUTERA PERSADA',
+    address: ['Ruko Bekasi Mas Blok C-25', 'Jl. Jend. Ahmad Yani, Margajaya', 'Bekasi Selatan - 17141'],
+};
+
+// Nama file logo di folder public
+const LOGO_FILE = 'LOGO ALDIGENS2.jpeg';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const ONES = [
+    '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven',
+    'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen',
+];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const SCALES = ['', 'thousand', 'million', 'billion', 'trillion'];
+
+const esc = (v) =>
+    String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Teks multi-baris: escape dulu, lalu ubah enter menjadi <br>
+const escLines = (v) => esc(v).replace(/\r?\n/g, '<br/>');
+
+// Tanda "-" dianggap kosong (default form kontak berisi "-")
+const clean = (v) => {
+    const s = String(v ?? '').trim();
+    return s === '-' ? '' : s;
+};
+
+const fmtNumber = (n) => Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+
+// 2026-09-08 -> 8 Sep 2026
+const fmtDate = (value) => {
+    if (!value) return '';
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return String(value);
+    return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+};
+
+const isYes = (v) => v === true || v === 1 || ['1', 'yes', 'true', 'y'].includes(String(v).toLowerCase());
+
+const below1000 = (num) => {
+    const words = [];
+    let n = num;
+    if (n >= 100) {
+        words.push(`${ONES[Math.floor(n / 100)]} hundred`);
+        n %= 100;
+    }
+    if (n >= 20) {
+        words.push(TENS[Math.floor(n / 10)]);
+        if (n % 10) words.push(ONES[n % 10]);
+    } else if (n > 0) {
+        words.push(ONES[n]);
+    }
+    return words.join(' ');
+};
+
+// 5930000 -> "Five million nine hundred thirty thousand"
+const numberToWordsEn = (value) => {
+    let n = Math.floor(Math.abs(Number(value) || 0));
+    if (n === 0) return 'Zero';
+    const chunks = [];
+    let scale = 0;
+    while (n > 0) {
+        const chunk = n % 1000;
+        if (chunk) chunks.unshift(`${below1000(chunk)}${SCALES[scale] ? ` ${SCALES[scale]}` : ''}`);
+        n = Math.floor(n / 1000);
+        scale += 1;
+    }
+    const text = chunks.join(' ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+const STYLE = `
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: Tahoma, Verdana, Arial, sans-serif; font-size: 10px; color: #111; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 10mm 12mm; }
+    .box { border: 1px solid #444; border-radius: 6px; }
+
+    .top { display: flex; gap: 16px; align-items: flex-start; }
+    .top-left { flex: 0 0 62%; }
+    .top-right { flex: 1; }
+    .company { margin-left: 62px; }
+    .company .name { font-weight: 700; padding: 4px 8px; border-bottom: 1px solid #444; }
+    .company .addr { padding: 4px 8px; line-height: 1.4; }
+    .party { display: flex; margin-top: 8px; }
+    .party .lbl { flex: 0 0 62px; text-align: right; padding: 4px 8px 0 0; }
+    .party .box { flex: 1; padding: 5px 8px; min-height: 44px; line-height: 1.45; }
+    .party .contact { margin-top: 10px; }
+
+    .title { text-align: right; font-size: 24px; margin: 0 0 6px; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+    .meta .cell { padding: 3px 6px 5px; min-height: 36px; }
+    .meta .cell:nth-child(odd) { border-right: 1px solid #444; }
+    .meta .cell:nth-child(-n+6) { border-bottom: 1px solid #444; }
+    .meta .k { font-size: 9px; }
+    .meta .v { text-align: center; margin-top: 5px; }
+
+    .items { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; }
+    .items th { border: 1px solid #444; padding: 3px 4px; font-weight: 400; text-align: center; }
+    .items td { border-left: 1px solid #444; border-right: 1px solid #444; padding: 2px 5px; vertical-align: top; word-wrap: break-word; }
+    .items tr.fill td { border-bottom: 1px solid #444; }
+    .items .r { text-align: right; }
+
+    .bottom { display: flex; gap: 14px; margin-top: 6px; align-items: flex-start; }
+    .bottom-left { flex: 0 0 62%; }
+    .bottom-right { flex: 1; }
+    .words { padding: 6px 8px; min-height: 28px; }
+    .desc { position: relative; margin-top: 8px; padding: 10px 8px 6px; min-height: 54px; line-height: 1.4; }
+    .desc .cap { position: absolute; top: -7px; left: 10px; background: #fff; padding: 0 4px; }
+
+    .sum { padding: 4px 8px; margin-bottom: 6px; }
+    .sum .line { display: flex; padding: 2px 0; }
+    .sum .l { flex: 1; text-align: right; padding-right: 14px; }
+    .sum .l.left { text-align: left; padding-right: 0; }
+    .sum .v { flex: 0 0 38%; text-align: right; }
+    .sum.total { font-weight: 700; }
+
+    .sign { display: flex; gap: 10px; margin-top: 10px; }
+    .sign .col { flex: 1; }
+    .sign .space { min-height: 18mm; }
+    /* Logo di pojok kiri atas, sejajar kotak perusahaan. brightness: latar abu-abu muda dibuat putih */
+    .logo { width: 58mm; height: auto; display: block; margin: 0 0 3mm 62px; filter: brightness(1.06); }
+    .sign .line { border-bottom: 1px solid #444; width: 90%; margin-bottom: 3px; }
+`;
+
+function buildPurchaseOrderHtml(po = {}, { autoPrint = false, logoUrl = '' } = {}) {
+    const items = Array.isArray(po.items) ? po.items : [];
+
+    // --- Total ---
+    const subTotal = Number(po.sub_total ?? items.reduce((s, i) => s + Number(i.qty || 0) * Number(i.unit_price || 0), 0));
+    const discount = Number(po.discount ?? po.discount_amount ?? 0);
+    const taxPct = Number(po.tax_percentage || 0);
+    // Pajak dihitung dari item yang bertanda tax_code "T", sama seperti logika lama
+    const taxAmount = Number(
+        po.tax_amount ??
+            items.reduce((sum, it) => {
+                const base = Number(it.qty || 0) * Number(it.unit_price || 0);
+                return String(it.tax_code || '').toUpperCase() === 'T' ? sum + base * ((taxPct || 11) / 100) : sum;
+            }, 0)
+    );
+    const freight = Number(po.estimated_freight ?? po.freight ?? 0);
+    const total = Number(po.grand_total ?? subTotal - discount + taxAmount + freight);
+    const taxLabel = taxPct ? `PPN (${taxPct}%) :` : 'PPN :';
+
+    const hasTaxedItem = items.some((it) => String(it.tax_code || '').toUpperCase() === 'T');
+    const taxable = po.vendor_taxable ?? po.is_taxable ?? (hasTaxedItem || taxAmount > 0);
+    const taxableText = isYes(taxable) ? 'Yes' : 'No';
+
+    // --- Data vendor & pengiriman ---
+    const vendorName = po.customer_name || po.supplier_name || po.vendor_name || '';
+    const vendorAddress = po.customer_address || po.supplier_address || '';
+    const phone = clean(po.supplier_phone ?? po.customer_phone);
+    const fax = clean(po.supplier_fax ?? po.customer_fax);
+    const cp = clean(po.contact_person ?? po.supplier_contact ?? po.customer_contact);
+    const shipTo = po.ship_to || po.ship_to_address || `${COMPANY.address[0]}\n${COMPANY.address[1]}, ${COMPANY.address[2]}`;
+
+    const meta = [
+        ['PO Date', fmtDate(po.date ?? po.po_date)],
+        ['PO Number', po.po_number || ''],
+        ['Terms', po.terms ?? po.payment_terms ?? ''],
+        ['FOB', po.fob ?? po.fob_point ?? ''],
+        ['Ship Via', po.ship_via ?? ''],
+        ['Expected Date', fmtDate(po.expected_date ?? po.delivery_date)],
+        ['Vendor is Taxable', taxableText],
+        ['Rate', po.rate ?? po.exchange_rate ?? 1],
+    ];
+
+    // --- Baris item ---
+    const rows = items
+        .map((it) => {
+            const qty = Number(it.qty || 0);
+            const price = Number(it.unit_price || 0);
+            const disc = Number(it.discount_percent ?? it.disc_percent ?? 0);
+            const amount = qty * price * (1 - disc / 100);
+            return `
+                <tr>
+                    <td>${esc(it.part_number || '')}</td>
+                    <td>${esc(it.description || '')}</td>
+                    <td class="r">${fmtNumber(qty)}</td>
+                    <td class="r">${fmtNumber(price)}</td>
+                    <td class="r">${fmtNumber(disc)}</td>
+                    <td>${esc(String(it.tax_code || '').toUpperCase())}</td>
+                    <td class="r">${fmtNumber(amount)}</td>
+                </tr>`;
+        })
+        .join('');
+
+    // Baris kosong agar garis kolom memanjang sampai bawah, seperti form asli
+    const fillHeightMm = Math.max(0, 108 - items.length * 5);
+
+    // Logo di pojok kiri atas (seperti logo pada form fisik). Disembunyikan jika gambar gagal dimuat.
+    const logoBlock = logoUrl
+        ? `<img class="logo" src="${esc(logoUrl)}" alt="PT. Aldigens Putera Persada" onerror="this.style.display='none'" />`
+        : '';
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Purchase Order ${esc(po.po_number || '')}</title>
+    <style>${STYLE}</style>
+</head>
+<body>
+<div class="page">
+
+    <div class="top">
+        <div class="top-left">
+            ${logoBlock}
+            <div class="box company">
+                <div class="name">${esc(COMPANY.name)}</div>
+                <div class="addr">${COMPANY.address.map(esc).join('<br/>')}</div>
+            </div>
+            <div class="party">
+                <div class="lbl">Vendor :</div>
+                <div class="box">
+                    <strong>${esc(vendorName)}</strong><br/>
+                    ${escLines(vendorAddress)}
+                    <div class="contact">T. ${esc(phone)} &nbsp; F. ${esc(fax)} &nbsp; CP. ${esc(cp)}</div>
+                </div>
+            </div>
+            <div class="party">
+                <div class="lbl">Ship To :</div>
+                <div class="box">${escLines(shipTo)}</div>
+            </div>
+        </div>
+        <div class="top-right">
+            <div class="title">Purchase Order</div>
+            <div class="meta">
+                ${meta.map(([k, v]) => `<div class="cell"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('')}
+            </div>
+        </div>
+    </div>
+
+    <table class="items">
+        <colgroup>
+            <col style="width:18%" /><col style="width:33%" /><col style="width:9%" />
+            <col style="width:13%" /><col style="width:6%" /><col style="width:4%" /><col style="width:17%" />
+        </colgroup>
+        <thead>
+            <tr><th>Item</th><th>Description</th><th>Qty</th><th>Unit Price</th><th>Disc %</th><th>Tax</th><th>Amount</th></tr>
+        </thead>
+        <tbody>
+            ${rows}
+            <tr class="fill"><td style="height:${fillHeightMm}mm"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        </tbody>
+    </table>
+
+    <div class="bottom">
+        <div class="bottom-left">
+            <div class="box words">${esc(numberToWordsEn(total))}</div>
+            <div class="box desc">
+                <span class="cap">Description</span>
+                ${escLines(po.subject ?? po.notes ?? po.description ?? '')}
+            </div>
+            <div class="sign">
+                <div class="col">
+                    <div>Prepared By</div>
+                    <div class="space"></div>
+                    <div class="line"></div>
+                    <div>Date:</div>
+                </div>
+                <div class="col">
+                    <div>Approved By</div>
+                    <div class="space"></div>
+                    <div class="line"></div>
+                    <div>Date:</div>
+                </div>
+            </div>
+        </div>
+        <div class="bottom-right">
+            <div class="box sum">
+                <div class="line"><span class="l">Sub Total :</span><span class="v">${fmtNumber(subTotal)}</span></div>
+                <div class="line"><span class="l">Discount :</span><span class="v">${fmtNumber(discount)}</span></div>
+            </div>
+            <div class="box sum">
+                <div class="line"><span class="l">${esc(taxLabel)}</span><span class="v">${fmtNumber(taxAmount)}</span></div>
+            </div>
+            <div class="box sum">
+                <div class="line"><span class="l left">Estimated Freight</span><span class="v">${fmtNumber(freight)}</span></div>
+            </div>
+            <div class="box sum total">
+                <div class="line"><span class="l left">Total Order :</span><span class="v">${fmtNumber(total)}</span></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+${autoPrint ? '<script>window.onload = function () { window.focus(); setTimeout(function () { window.print(); }, 500); };</script>' : ''}
+</body>
+</html>`;
+}
+
+function printPurchaseOrder(po) {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+        alert('Pop-up diblokir browser. Izinkan pop-up untuk mencetak PO.');
+        return;
+    }
+    // File logo harus ada di folder frontend-react/public
+    const logoUrl = `${window.location.origin}/${encodeURI(LOGO_FILE)}`;
+    printWindow.document.write(buildPurchaseOrderHtml(po, { autoPrint: true, logoUrl }));
+    printWindow.document.close();
+}
+
 
 export default function POList() {
     const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -22,8 +336,10 @@ export default function POList() {
         supplier_phone: '-',
         supplier_email: '-',
         subject: '',
-        tax_percentage: 0,
-        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }],
+        terms: 'FOB',
+        ship_via: '',
+        tax_percentage: 11,
+        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit: 'PCS', unit_price: 0, tax_code: '' }],
     });
 
     useEffect(() => {
@@ -58,37 +374,49 @@ export default function POList() {
 
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setInventoryItems(apiData);
-            } else if (Array.isArray(response?.data)) {
-                setInventoryItems(response.data);
-            } else {
-                const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
-                setInventoryItems(localParts);
+                return;
             }
-        } catch {
+        } catch (err) {
             const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
             setInventoryItems(localParts);
         }
+
+        const localProducts = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
+        const localInventory = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
+        const localCustomerParts = JSON.parse(localStorage.getItem('aldigens_customer_part_numbers') || '[]');
+        
+        const combined = [...localProducts, ...localInventory, ...localCustomerParts];
+        const uniqueItems = Array.from(new Map(combined.map(item => [item.part_number || item.product_code || item.id, item])).values());
+
+        setInventoryItems(uniqueItems);
     };
 
-    // Mapping data inventory ke format options react-select
     const productOptions = inventoryItems.map((inv) => ({
-        value: inv.id,
+        value: inv.id || inv.part_number,
         label: `${inv.part_number || inv.product_code} — ${inv.name || inv.description}`,
         description: inv.name || inv.description || '',
+        part_number: inv.part_number || inv.product_code || '',
         raw: inv,
     }));
 
-    // Kalkulasi Subtotal, PPN, dan Grand Total
     const calculatedSubTotal = formData.items.reduce((acc, item) => {
         return acc + (Number(item.qty || 0) * Number(item.unit_price || 0));
     }, 0);
 
     const numericTaxPercent = Number(formData.tax_percentage || 0);
-    const calculatedTaxAmount = Math.round(calculatedSubTotal * (numericTaxPercent / 100));
+
+    const calculatedTaxAmount = formData.items.reduce((acc, item) => {
+        const itemSubtotal = Number(item.qty || 0) * Number(item.unit_price || 0);
+        if (item.tax_code && item.tax_code.toUpperCase() === 'T') {
+            return acc + Math.round(itemSubtotal * (numericTaxPercent / 100));
+        }
+        return acc;
+    }, 0);
+
     const calculatedGrandTotal = calculatedSubTotal + calculatedTaxAmount;
 
     const handleAddItem = () => {
-        setFormData({ ...formData, items: [...formData.items, { product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }] });
+        setFormData({ ...formData, items: [...formData.items, { product_id: null, part_number: '', description: '', qty: 1, unit: 'PCS', unit_price: 0, tax_code: '' }] });
     };
 
     const handleRemoveItem = (index) => {
@@ -99,14 +427,6 @@ export default function POList() {
     const handleItemChange = (index, field, value) => {
         const updatedItems = [...formData.items];
         updatedItems[index][field] = value;
-
-        if (field === 'part_number') {
-            const selectedPart = inventoryItems.find(p => p.id === value);
-            if (selectedPart) {
-                updatedItems[index].description = selectedPart.name || selectedPart.description || '';
-            }
-        }
-
         setFormData({ ...formData, items: updatedItems });
     };
 
@@ -118,8 +438,10 @@ export default function POList() {
         supplier_phone: '-',
         supplier_email: '-',
         subject: '',
-        tax_percentage: 0,
-        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit_price: 0 }],
+        terms: 'FOB',
+        ship_via: '',
+        tax_percentage: 11,
+        items: [{ product_id: null, part_number: '', description: '', qty: 1, unit: 'PCS', unit_price: 0, tax_code: '' }],
     });
 
     const handleSubmitNewPO = async (e) => {
@@ -132,9 +454,10 @@ export default function POList() {
                     part_number: item.part_number || 'PART-GENERAL',
                     description: item.description,
                     qty: Number(item.qty),
-                    unit: 'PCS',
+                    unit: item.unit || 'PCS',
                     unit_price: Number(item.unit_price),
                     amount: amount,
+                    tax_code: item.tax_code ? item.tax_code.toUpperCase() : null,
                 };
             });
 
@@ -147,6 +470,8 @@ export default function POList() {
                 customer_name: formData.supplier_name,
                 customer_address: formData.supplier_address,
                 subject: formData.subject,
+                terms: formData.terms,
+                ship_via: formData.ship_via,
                 sub_total: calculatedSubTotal,
                 tax_amount: calculatedTaxAmount,
                 tax_percentage: numericTaxPercent,
@@ -177,7 +502,7 @@ export default function POList() {
     const handleConvertToReceiveItem = async (id) => {
         const ok = await swalConfirm({
             title: 'Proses ke Receive Item (RI)?',
-            text: 'Purchase Order ini akan diterima di gudang dan otomatis mencatat stok masuk.',
+            text: 'PO ini akan diterima di gudang dan otomatis mencatat stok masuk ke Database Laravel.',
             confirmText: 'Ya, Terima Barang',
             cancelText: 'Batal',
             icon: 'question',
@@ -188,25 +513,26 @@ export default function POList() {
             const targetPO = purchaseOrders.find(po => po.id === id || po.po_number === id);
 
             if (targetPO) {
-                const receiveNo = `RI-${Math.floor(100000 + Math.random() * 900000)}`;
-                const riItems = (targetPO.items || [])
-                    .filter((it) => it.product_id)
-                    .map((it) => ({ product_id: it.product_id, quantity: Number(it.qty) || 1 }));
+                const poItems = targetPO.items || [];
 
-                // Kirim ke API agar stok inventory ikut bertambah otomatis.
-                try {
-                    await api.post('/receive-items', {
-                        receiveNo,
-                        date: new Date().toISOString().split('T')[0],
-                        vendorName: targetPO.customer_name || 'Supplier Umum',
-                        poRef: targetPO.po_number || targetPO.customer_po_number,
-                        status: 'Completed',
-                        notes: `Penerimaan dari PO ${targetPO.po_number || targetPO.customer_po_number}`,
-                        items: riItems,
-                    });
-                } catch (err) {
-                    console.log('Gagal menyimpan Receive Item ke API.', err);
-                }
+                const payload = {
+                    receiveNo: `RI-${Math.floor(100000 + Math.random() * 900000)}`,
+                    date: new Date().toISOString().split('T')[0],
+                    vendorName: targetPO.customer_name || targetPO.supplier_name || targetPO.vendor_name || 'Supplier Umum',
+                    vendor_name: targetPO.customer_name || targetPO.supplier_name || targetPO.vendor_name || 'Supplier Umum',
+                    supplier_name: targetPO.customer_name || targetPO.supplier_name || targetPO.vendor_name || 'Supplier Umum',
+                    poRef: targetPO.po_number || targetPO.customer_po_number,
+                    status: 'Completed',
+                    notes: `PO Ref: ${targetPO.po_number || 'PO'} | Vendor: ${targetPO.customer_name || targetPO.supplier_name || 'Supplier Umum'}`,
+                    items: poItems.map(item => ({
+                        part_number: item.part_number || '',
+                        description: item.description || '',
+                        qty: Number(item.qty || item.quantity || 1),
+                        unit: item.unit || 'PCS'
+                    }))
+                };
+
+                await api.post('/receive-items', payload);
             }
 
             const updated = purchaseOrders.map(po => {
@@ -218,116 +544,17 @@ export default function POList() {
             setPurchaseOrders(updated);
             localStorage.setItem('aldigens_purchase_orders', JSON.stringify(updated));
 
-            swalSuccess('Berhasil', 'Barang berhasil diterima di gudang (Receive Item tercatat)!');
+            swalSuccess('Berhasil', 'Barang diterima dan rincian item masuk ke Receive Item!');
             fetchPurchaseOrders();
-        } catch {
-            swalError('Gagal', 'Terjadi kesalahan saat memproses penerimaan barang.');
+       } catch (error) {
+            console.error(error);
+            const errorMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang.';
+            swalError('Gagal', errorMsg);
         }
     };
 
-    const handlePrintPO = (po) => {
-        const itemsList = po.items || [];
-        const subTotal = po.sub_total ?? itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0);
-        const taxTotal = po.tax_amount ?? (subTotal * 0.11);
-        const grandTotal = po.grand_total ?? (subTotal + taxTotal);
-        const taxLabel = po.tax_percentage ? `PPN ${po.tax_percentage}%` : 'PPN';
-
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) return;
-
-        printWindow.document.write(`
-            <html>
-                <head>
-                    <title>Purchase Order - ${po.po_number || 'PO'}</title>
-                    <style>
-                        @page { size: A4 portrait; margin: 10mm; }
-                        body { font-family: Arial, sans-serif; font-size: 10px; color: #000; padding: 0; margin: 0; }
-                        .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
-                        .logo-area { width: 55%; vertical-align: top; }
-                        .company-address { font-size: 8.5px; line-height: 1.2; color: #222; }
-                        .title-area { width: 45%; text-align: right; vertical-align: top; }
-                        .doc-title { font-size: 16px; font-weight: bold; margin: 0 0 2px 0; }
-                        .recipient-table { width: 100%; margin-bottom: 10px; border: 1px solid #000; border-collapse: collapse; }
-                        .recipient-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #000; font-size: 9.5px; }
-                        .items-table { width: 100%; border-collapse: collapse; border: 1px solid #000; }
-                        .items-table th, .items-table td { border: 1px solid #000; padding: 4px 6px; font-size: 9.5px; }
-                        .items-table th { background-color: #f1f5f9; text-align: center; font-weight: bold; }
-                        .middle-container { width: 100%; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000; display: table; }
-                        .terbilang-box { display: table-cell; width: 60%; padding: 8px; vertical-align: top; font-size: 9.5px; border-right: 1px solid #000; }
-                        .summary-box { display: table-cell; width: 40%; vertical-align: top; }
-                        .summary-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-                        .summary-table td { padding: 4px 8px; border-bottom: 1px solid #000; }
-                        .summary-table .total-row { background-color: #f1f5f9; font-weight: bold; font-size: 11px; }
-                        .sign-container { margin-top: 15px; width: 100%; border: 1px solid #000; border-collapse: collapse; }
-                        .sign-container td { border: 1px solid #000; padding: 5px; text-align: center; font-size: 9.5px; width: 50%; height: 45px; }
-                    </style>
-                </head>
-                <body>
-                    <table class="header-table">
-                        <tr>
-                            <td class="logo-area">
-                                <div class="company-address">
-                                    <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/>
-                                    Ruko Bekasi Mas Blok C-25, Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan
-                                </div>
-                            </td>
-                            <td class="title-area">
-                                <div class="doc-title">PURCHASE ORDER</div>
-                                <div><strong>No :</strong> ${po.po_number || '-'}</div>
-                            </td>
-                        </tr>
-                    </table>
-                    <table class="recipient-table">
-                        <tr>
-                            <td><strong>Vendor :</strong><br/><strong>${po.customer_name || '-'}</strong><br/><span>${po.customer_address || '-'}</span></td>
-                            <td><strong>PO Date :</strong> ${po.date || '-'}<br/><strong>Terms :</strong> C.O.D</td>
-                        </tr>
-                    </table>
-                    <table class="items-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 5%;">No</th>
-                                <th style="width: 25%;">Part Number</th>
-                                <th style="width: 30%;">Description</th>
-                                <th style="width: 10%;">Qty</th>
-                                <th style="width: 15%;">Unit Price</th>
-                                <th style="width: 15%;">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${itemsList.map((item, idx) => `
-                                <tr>
-                                    <td align="center">${idx + 1}</td>
-                                    <td>${item.part_number || '-'}</td>
-                                    <td>${item.description || '-'}</td>
-                                    <td align="center">${item.qty}</td>
-                                    <td align="right">${Number(item.unit_price || 0).toLocaleString('id-ID')}</td>
-                                    <td align="right">${(Number(item.qty) * Number(item.unit_price || 0)).toLocaleString('id-ID')}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    <table class="middle-container" cellpadding="0" cellspacing="0">
-                        <tr>
-                            <td class="terbilang-box"><strong>Keterangan:</strong><br/><span>${po.subject || '-'}</span></td>
-                            <td class="summary-box">
-                                <table class="summary-table">
-                                    <tr><td>Sub Total</td><td align="right"><strong>${Number(subTotal).toLocaleString('id-ID')}</strong></td></tr>
-                                    <tr><td>${taxLabel}</td><td align="right">${Number(taxTotal).toLocaleString('id-ID')}</td></tr>
-                                    <tr class="total-row"><td>Total Order</td><td align="right">IDR ${Number(grandTotal).toLocaleString('id-ID')}</td></tr>
-                                </table>
-                            </td>
-                        </tr>
-                    </table>
-                    <table class="sign-container">
-                        <tr><td>Prepared By,<br/><br/><strong>( PURCHASING )</strong></td><td>Approved By,<br/><br/><strong>( DIRECTOR )</strong></td></tr>
-                    </table>
-                    <script>window.onload = function() { window.focus(); setTimeout(() => { window.print(); }, 500); };</script>
-                </body>
-            </html>
-        `);
-        printWindow.document.close();
-    };
+    // Template cetak PO ada di bagian printPurchaseOrder di atas file ini
+    const handlePrintPO = (po) => printPurchaseOrder(po);
 
     if (loading) return <div className="p-6 text-slate-600">Memuat data Purchase Order...</div>;
 
@@ -363,7 +590,11 @@ export default function POList() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{po.date}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                        <span className={`px-2 inline-flex text-xs font-semibold rounded-full ${po.status?.includes('Received') ? 'bg-emerald-100 text-emerald-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                                            po.status?.includes('Received') || po.status?.includes('Completed') || po.status === 'Sudah Diterima'
+                                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                                                : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                        }`}>
                                             {po.status || 'Pending'}
                                         </span>
                                     </td>
@@ -429,6 +660,17 @@ export default function POList() {
                                 <input type="text" required placeholder="Alamat lengkap supplier" value={formData.supplier_address} onChange={(e) => setFormData({ ...formData, supplier_address: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Terms (Ketentuan)</label>
+                                    <input type="text" placeholder="Contoh: FOB, COD, Net 30" value={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Ship Via (Pengiriman)</label>
+                                    <input type="text" placeholder="Contoh: Kurir Internal, Ekspedisi" value={formData.ship_via} onChange={(e) => setFormData({ ...formData, ship_via: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
+                                </div>
+                            </div>
+
                             <div className="border-t border-slate-800 pt-4 mt-2">
                                 <div className="flex justify-between items-center mb-3">
                                     <h4 className="font-semibold text-sm text-slate-300">Daftar Item / Part Number</h4>
@@ -450,10 +692,21 @@ export default function POList() {
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Pilih Part Number / Inventory</label>
                                                     <Select
                                                         options={productOptions}
-                                                        value={productOptions.find(opt => opt.value === item.product_id) || null}
+                                                        value={productOptions.find(opt => opt.value === item.product_id || opt.part_number === item.part_number) || null}
                                                         onChange={(selectedOption) => {
-                                                            handleItemChange(index, 'product_id', selectedOption ? selectedOption.value : null);
-                                                            handleItemChange(index, 'part_number', selectedOption ? selectedOption.raw.part_number : '');
+                                                            const updatedItems = [...formData.items];
+                                                            if (selectedOption) {
+                                                                updatedItems[index].product_id = selectedOption.value;
+                                                                updatedItems[index].part_number = selectedOption.part_number;
+                                                                updatedItems[index].description = selectedOption.description;
+                                                                updatedItems[index].unit = selectedOption.raw.unit || 'PCS';
+                                                            } else {
+                                                                updatedItems[index].product_id = null;
+                                                                updatedItems[index].part_number = '';
+                                                                updatedItems[index].description = '';
+                                                                updatedItems[index].unit = 'PCS';
+                                                            }
+                                                            setFormData({ ...formData, items: updatedItems });
                                                         }}
                                                         placeholder="Cari & Pilih Part Number..."
                                                         isSearchable={true}
@@ -511,14 +764,36 @@ export default function POList() {
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-4 gap-4">
                                                 <div>
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Kuantitas (QTY)</label>
                                                     <input type="number" min="1" required value={item.qty} onChange={(e) => handleItemChange(index, 'qty', e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
                                                 </div>
                                                 <div>
+                                                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Satuan (Unit)</label>
+                                                    <select value={item.unit} onChange={(e) => handleItemChange(index, 'unit', e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm">
+                                                        <option value="PCS">PCS</option>
+                                                        <option value="KG">KG</option>
+                                                        <option value="SET">SET</option>
+                                                        <option value="METER">METER</option>
+                                                        <option value="LITER">LITER</option>
+                                                        <option value="BOX">BOX</option>
+                                                        <option value="UNIT">UNIT</option>
+                                                    </select>
+                                                </div>
+                                                <div>
                                                     <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Harga Satuan (IDR)</label>
                                                     <input type="number" min="0" required placeholder="0" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-emerald-400 uppercase mb-1 text-center">Pajak</label>
+                                                    <input 
+                                                        type="text" 
+                                                        maxLength="1" 
+                                                        value={item.tax_code || ''} 
+                                                        onChange={(e) => handleItemChange(index, 'tax_code', e.target.value)} 
+                                                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-lg text-sm text-center font-bold uppercase placeholder-slate-600 focus:border-emerald-500 outline-none" 
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
@@ -526,7 +801,6 @@ export default function POList() {
                                 </div>
                             </div>
 
-                            {/* Bagian Ringkasan Harga & PPN Persentase */}
                             <div className="bg-slate-800/80 border border-slate-700 p-4 rounded-xl space-y-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-400 font-medium">Sub Total:</span>

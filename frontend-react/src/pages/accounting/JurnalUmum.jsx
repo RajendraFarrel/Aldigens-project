@@ -1,17 +1,35 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     NotebookPen, Plus, Search, RefreshCw, Eye, Pencil, CheckCircle2,
-    Undo2, Trash2,
+    Undo2, Trash2, Printer,
 } from 'lucide-react';
-import PrintButton from '../../components/PrintButton';
-import PrintHeader from '../../components/PrintHeader';
+import { printRekapJurnal, printDaftarVoucher } from '../../utils/accountingPrint';
 import JournalVoucherForm from '../../components/accounting/JournalVoucherForm';
 import {
     getVouchers, getVoucher, postVoucher, reverseVoucher, deleteVoucher,
-    getJournalUmum, VOUCHER_TYPES, rupiah, angka, formatTanggal, periodeDefault,
+    getJournalUmum, VOUCHER_TYPES, rupiah, angka, periodeDefault,
 } from '../../services/accountingApi';
 import { requestVoucherDetail } from '../../Data/accountingStore';
 import { swalSuccess, swalError, swalConfirm } from '../../utils/swal';
+import { usePermissions } from '../../context/PermissionContext';
+
+/** Tanggal jurnal -> [YYYY, MM, DD] tanpa pergeseran timezone. */
+const bagianTanggal = (value) => {
+    const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? [m[1], m[2], m[3]] : null;
+};
+
+const tglJurnal = (value) => {
+    const p = bagianTanggal(value);
+    return p ? `${p[2]}/${p[1]}/${p[0]}` : (value || '-');
+};
+
+/** Nama bulan singkat Indonesia dari nomor bulan '01'..'12'. */
+const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const bulanJurnal = (value) => {
+    const p = bagianTanggal(value);
+    return p ? (NAMA_BULAN[Number(p[1]) - 1] || p[1]) : '-';
+};
 
 /**
  * Jurnal Umum / Journal Voucher.
@@ -20,6 +38,7 @@ import { swalSuccess, swalError, swalConfirm } from '../../utils/swal';
  * Tab "Daftar Voucher" : semua voucher (Draft & Posted) dari database.
  */
 export default function JurnalUmum() {
+    const { can } = usePermissions();
     const [tab, setTab] = useState('rekap'); // rekap | daftar | form
     const [formEdit, setFormEdit] = useState(null);
 
@@ -152,6 +171,19 @@ export default function JurnalUmum() {
         return `inline-block px-2 py-1 rounded-full text-xs font-bold ${map[status] || ''}`;
     };
 
+    /* --- cetak (template dokumen sama dengan Sales Order) --- */
+    const handlePrintRekap = () => printRekapJurnal(rekap, { from: periode.from, to: periode.to });
+
+    const handlePrintDaftar = () => printDaftarVoucher(daftar, {
+        title: 'DAFTAR JURNAL VOUCHER',
+        prefix: 'VCR',
+        filterInfo: [
+            { label: 'Status', value: filterStatus || 'Semua' },
+            { label: 'Jenis Voucher', value: filterJenis || 'Semua' },
+            { label: 'Pencarian', value: search.trim() ? `"${search.trim()}"` : '-' },
+        ],
+    });
+
     return (
         <div className="p-6 space-y-5 print-area">
             <div className="flex flex-wrap items-center justify-between gap-3 no-print">
@@ -212,13 +244,11 @@ export default function JurnalUmum() {
                                 onChange={(e) => setPeriode({ ...periode, to: e.target.value })}
                                 className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
                         </div>
-                        <PrintButton label="Cetak Rekap" />
+                        <button onClick={handlePrintRekap}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+                            <Printer className="h-4 w-4" /> Cetak Rekap
+                        </button>
                     </div>
-
-                    <PrintHeader
-                        judul="REKAP JURNAL UMUM"
-                        periode={`${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`}
-                    />
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
                         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm">
@@ -271,8 +301,8 @@ export default function JurnalUmum() {
                                         const d = Number(r.debit) > 0;
                                         return (
                                             <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                                <td className="px-2 py-2 whitespace-nowrap">{formatTanggal(r.tanggal)}</td>
-                                                <td className="px-2 py-2">{String(r.tanggal).slice(5, 7)}</td>
+                                                <td className="px-2 py-2 whitespace-nowrap">{tglJurnal(r.tanggal)}</td>
+                                                <td className="px-2 py-2">{bulanJurnal(r.tanggal)}</td>
                                                 <td className="px-2 py-2 font-mono whitespace-nowrap">{r.no_voucher}</td>
                                                 <td className="px-2 py-2 font-mono">{d ? r.nomor_akun : ''}</td>
                                                 <td className="px-2 py-2">{d ? r.nama_akun : ''}</td>
@@ -292,7 +322,7 @@ export default function JurnalUmum() {
                                             <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_debit)}</td>
                                             <td className="px-2 py-3 text-right whitespace-nowrap">{angka(rekap.total_kredit)}</td>
                                             <td colSpan={3} className="px-2 py-3 text-right">
-                                                Selisih {angka(rekap.selisih)} â€” {rekap.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
+                                                Selisih {angka(rekap.selisih)}  {rekap.balanced ? 'BALANCE' : 'TIDAK BALANCE'}
                                             </td>
                                         </tr>
                                     </tfoot>
@@ -303,7 +333,7 @@ export default function JurnalUmum() {
 
                     {rekap?.rows?.length > 0 && (
                         <div className="hidden print:block mt-6 text-xs">
-                            <p>Dicetak dari Sistem Terintegrasi Aldigens â€” {rekap.jumlah_voucher} voucher posted.</p>
+                            <p>Dicetak dari Sistem Terintegrasi Aldigens  {rekap.jumlah_voucher} voucher posted.</p>
                         </div>
                     )}
                 </div>
@@ -340,7 +370,10 @@ export default function JurnalUmum() {
                                 {VOUCHER_TYPES.map((j) => <option key={j}>{j}</option>)}
                             </select>
                         </div>
-                        <PrintButton label="Cetak Daftar" />
+                        <button onClick={handlePrintDaftar}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+                            <Printer className="h-4 w-4" /> Cetak Daftar
+                        </button>
                     </div>
 
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -366,7 +399,7 @@ export default function JurnalUmum() {
                                     {daftar.map((v) => (
                                         <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                             <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">{v.no_voucher}</td>
-                                            <td className="px-4 py-3 text-xs whitespace-nowrap">{formatTanggal(v.tanggal)}</td>
+                                            <td className="px-4 py-3 text-xs whitespace-nowrap">{tglJurnal(v.tanggal)}</td>
                                             <td className="px-4 py-3 text-xs">{v.jenis}</td>
                                             <td className="px-4 py-3 text-xs max-w-64 truncate">{v.keterangan || '-'}</td>
                                             <td className="px-4 py-3 text-right text-xs whitespace-nowrap">{angka(v.total_debit)}</td>
@@ -380,21 +413,27 @@ export default function JurnalUmum() {
                                                     </button>
                                                     {v.status === 'DRAFT' && (
                                                         <>
+                                                            {can('accounting.journal.update') && (
                                                             <button onClick={() => { setFormEdit(v); setTab('form'); }} title="Edit draft"
                                                                 className="p-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition cursor-pointer">
                                                                 <Pencil className="h-3.5 w-3.5" />
                                                             </button>
+                                                            )}
+                                                            {can('accounting.journal.post') && (
                                                             <button onClick={() => posting(v)} title="Posting"
                                                                 className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition cursor-pointer">
                                                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                                             </button>
+                                                            )}
+                                                            {can('accounting.journal.delete') && (
                                                             <button onClick={() => hapusDraft(v)} title="Hapus draft"
                                                                 className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition cursor-pointer">
                                                                 <Trash2 className="h-3.5 w-3.5" />
                                                             </button>
+                                                            )}
                                                         </>
                                                     )}
-                                                    {v.status === 'POSTED' && !v.reversal_of_id && (
+                                                    {v.status === 'POSTED' && !v.reversal_of_id && can('accounting.journal.reverse') && (
                                                         <button onClick={() => reversal(v)} title="Buat reversal (koreksi)"
                                                             className="p-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition cursor-pointer">
                                                             <Undo2 className="h-3.5 w-3.5" />

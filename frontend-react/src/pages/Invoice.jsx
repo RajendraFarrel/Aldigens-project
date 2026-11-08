@@ -1,24 +1,276 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { FileText, Plus, ArrowLeft, Save, Trash2, Printer, CheckCircle2, RefreshCw, Calendar, DollarSign } from 'lucide-react';
 import api from '../services/api';
-import logoPerusahaan from '../assets/LOGO ALDIGENS.jpeg';
+import logoPerusahaan from '../../LOGO ALDIGENS2.jpeg';
 import { swalError } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
-const terbilang = (angka) => {
-  const bilangan = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
-  if (angka < 12) return bilangan[angka];
-  if (angka < 20) return terbilang(angka - 10) + ' Belas';
-  if (angka < 100) return terbilang(Math.floor(angka / 10)) + ' Puluh ' + terbilang(angka % 10);
-  if (angka < 200) return 'Seratus ' + terbilang(angka - 100);
-  if (angka < 1000) return terbilang(Math.floor(angka / 100)) + ' Ratus ' + terbilang(angka % 100);
-  if (angka < 2000) return 'Seribu ' + terbilang(angka - 1000);
-  if (angka < 1000000) return terbilang(Math.floor(angka / 1000)) + ' Ribu ' + terbilang(angka % 1000);
-  if (angka < 1000000000) return terbilang(Math.floor(angka / 1000000)) + ' Juta ' + terbilang(angka % 1000000);
-  if (angka < 1000000000000) return terbilang(Math.floor(angka / 1000000000)) + ' Miliar ' + terbilang(angka % 1000000000);
-  return '';
+// ============================================================
+// TEMPLATE CETAK INVOICE (mengikuti format invoice fisik / Accurate)
+// ============================================================
+const PRINT_COMPANY = {
+  name: 'PT. ALDIGENS PUTERA PERSADA',
+  address: ['Ruko Bekasi Mas Blok C-25', 'Jl. Jend Ahmad Yani, Margajaya', 'Bekasi Selatan - 17141'],
 };
+const PRINT_DOC_TITLE = 'INVOICE';
+const PRINT_PARTY_LABEL = 'Pelanggan';
+const PRINT_TERBILANG_LANG = 'en';   // 'en' = bahasa Inggris, 'id' = bahasa Indonesia
+const PRINT_SHOW_PAYMENT_INFO = true; 
+const PRINT_PAYMENT_INFO = { accountName: 'PT. ALDIGENS PUTERA PERSADA', bankName: 'BANK PERMATA', accountNo: '070.224.339-4' };
+const PRINT_SIGNER = { name: 'KHAFID YUSUF', title: 'Direktur' };
+
+const P_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const P_ONES = [
+  '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven',
+  'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen',
+];
+const P_TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+const P_SCALES = ['', 'thousand', 'million', 'billion', 'trillion'];
+
+const pEsc = (v) =>
+  String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pLines = (v) => pEsc(v).replace(/\r?\n/g, '<br/>');
+const pFmt = (n) => Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+
+const pDate = (value) => {
+  if (!value) return '-';
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(value);
+  return `${Number(m[3])} ${P_MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+};
+
+const pDaysBetween = (a, b) => {
+  const d1 = Date.parse(String(a || '').slice(0, 10));
+  const d2 = Date.parse(String(b || '').slice(0, 10));
+  return Number.isNaN(d1) || Number.isNaN(d2) ? null : Math.round((d2 - d1) / 86400000);
+};
+
+const pBelow1000 = (num) => {
+  const words = [];
+  let n = num;
+  if (n >= 100) {
+    words.push(`${P_ONES[Math.floor(n / 100)]} hundred`);
+    n %= 100;
+  }
+  if (n >= 20) {
+    words.push(P_TENS[Math.floor(n / 10)] + (n % 10 ? `-${P_ONES[n % 10]}` : ''));
+  } else if (n > 0) {
+    words.push(P_ONES[n]);
+  }
+  return words.join(' ');
+};
+
+const pWords = (value) => {
+  let n = Math.floor(Math.abs(Number(value) || 0));
+  if (n === 0) return 'Zero Rupiah';
+  const chunks = [];
+  let scale = 0;
+  while (n > 0) {
+    const chunk = n % 1000;
+    if (chunk) chunks.unshift(`${pBelow1000(chunk)}${P_SCALES[scale] ? ` ${P_SCALES[scale]}` : ''}`);
+    n = Math.floor(n / 1000);
+    scale += 1;
+  }
+  const text = chunks.join(' ');
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)} Rupiah`;
+};
+
+const pTerbilang = (value) => pWords(value);
+
+const normalizeInvoiceForPrint = (inv = {}) => {
+  const rawItems = inv.items || inv.details || inv.lines || [];
+  const items = rawItems.map((it) => {
+    const qty = Number(it.qty ?? it.quantity ?? 0);
+    const price = Number(it.unit_price ?? it.price ?? 0);
+    const disc = Number(it.discount ?? it.discount_percent ?? it.disc_percent ?? 0);
+    return {
+      code: it.part_number || it.code || '',
+      name: it.description || it.name || '',
+      qty,
+      price,
+      disc,
+      total: Number(qty * price * (1 - disc / 100)),
+    };
+  });
+
+  const taxPct = Number(inv.tax_percentage ?? 11);
+  let subTotal = inv.sub_total ?? inv.subtotal ?? (items.length ? items.reduce((s, i) => s + i.total, 0) : null);
+  let tax = inv.tax_amount ?? inv.tax ?? null;
+  let grand = inv.grand_total ?? inv.total_amount ?? null;
+  
+  if (subTotal == null) subTotal = grand != null ? (tax != null ? Number(grand) - Number(tax) : Math.round(Number(grand) / (1 + taxPct / 100))) : 0;
+  if (tax == null) tax = Math.round(Number(subTotal) * taxPct / 100);
+  if (grand == null) grand = Number(subTotal) + Number(tax);
+
+  const invoiceDate = inv.invoice_date || inv.date;
+  const days = pDaysBetween(invoiceDate, inv.due_date);
+
+  return {
+    number: inv.invoice_number || '-',
+    date: pDate(invoiceDate),
+    term: days == null ? 'Net 30' : days > 0 ? `Net ${days}` : 'Tunai',
+    refPo: inv.do_reference || inv.do_number || '-',
+    partyName: inv.customer_name || '-',
+    partyAddress: inv.customer_address || '',
+    items,
+    subTotal: Number(subTotal),
+    tax: Number(tax),
+    taxPct,
+    grand: Number(grand),
+  };
+};
+
+const PRINT_INVOICE_STYLE = `
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { padding: 10mm 14mm; }
+  .script { font-family: 'Comic Sans MS', 'Comic Sans', 'Comic Neue', cursive; }
+
+  .head { display: flex; justify-content: space-between; align-items: flex-start; }
+  .logo { width: 62mm; height: auto; display: block; margin-bottom: 2mm; filter: brightness(1.06); }
+  .co-name { font-weight: 700; }
+  .co-addr { line-height: 1.35; }
+  .head-right { text-align: right; padding-top: 9mm; }
+  .doc-title { font-size: 17px; font-weight: 700; text-decoration: underline; letter-spacing: .4px; }
+  .doc-no { font-size: 12px; font-weight: 700; margin-top: 2px; }
+
+  .party { display: flex; justify-content: space-between; margin-top: 10mm; }
+  .party-left { flex: 0 0 56%; line-height: 1.4; }
+  .party-left .name { font-weight: 700; margin: 3px 0 7px; }
+  .meta { text-align: right; line-height: 2; }
+
+  .items { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 2mm; }
+  .items th { border: 1px solid #000; padding: 4px; font-weight: 700; text-align: center; background: #ececec; }
+  .items td { border-left: 1px solid #000; border-right: 1px solid #000; padding: 1px 5px; vertical-align: top; word-wrap: break-word; }
+  .items tr.fill td { border-bottom: 1px solid #000; }
+  .items .r { text-align: right; }
+  .items .c { text-align: center; }
+
+  .totals { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .totals td { border: 1px solid #000; padding: 3px 8px; height: 6.2mm; }
+  .totals tr.last td { height: 9mm; }
+  .totals .l { width: 20.5%; text-align: right; }
+  .totals .v { width: 21%; text-align: right; }
+  .totals .words { width: 58.5%; vertical-align: middle; }
+  .totals .strong { font-weight: 700; }
+
+  .pay { margin-top: 3mm; line-height: 1.7; page-break-inside: avoid; }
+  .pay table { border-collapse: collapse; }
+  .pay td { padding: 2px 6px 2px 0; }
+  .sign { margin-top: 10mm; page-break-inside: avoid; }
+  .sign .space { height: 22mm; }
+  .sign .line { border-top: 1px dashed #000; width: 52mm; margin: 2px 0; }
+`;
+
+function buildInvoiceHtml(rawInvoice, { autoPrint = false, logoUrl = '' } = {}) {
+  const d = normalizeInvoiceForPrint(rawInvoice);
+
+  const rows = d.items
+    .map(
+      (it, idx) => `
+        <tr>
+          <td class="c">${idx + 1}</td>
+          <td>${pEsc(it.code)}</td>
+          <td>${pEsc(it.name)}</td>
+          <td class="c">${pFmt(it.qty)}</td>
+          <td class="r">${pFmt(it.price)}</td>
+          <td class="c">${pFmt(it.disc)}</td>
+          <td class="r">${pFmt(it.total)}</td>
+        </tr>`
+    )
+    .join('');
+
+  const fillHeightMm = Math.max(0, 78 - d.items.length * 5);
+
+  const logoTag = logoUrl
+    ? `<img class="logo" src="${pEsc(logoUrl)}" alt="PT. Aldigens Putera Persada" onerror="this.style.display='none'" />`
+    : '';
+
+  const paymentBlock = PRINT_SHOW_PAYMENT_INFO
+    ? `<div class="pay script">
+        Mohon Pembayaran dilakukan ke Account kami sbb :
+        <table class="script">
+          <tr><td>Nama Account</td><td>: ${pEsc(PRINT_PAYMENT_INFO.accountName)}</td></tr>
+          <tr><td>Nama Bank</td><td>: ${pEsc(PRINT_PAYMENT_INFO.bankName)}</td></tr>
+          <tr><td>Account No</td><td>: ${pEsc(PRINT_PAYMENT_INFO.accountNo || '......................')}</td></tr>
+        </table>
+      </div>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${pEsc(PRINT_DOC_TITLE)} ${pEsc(d.number)}</title>
+  <style>${PRINT_INVOICE_STYLE}</style>
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <div class="head-left">
+      ${logoTag}
+      <div class="co-name">${pEsc(PRINT_COMPANY.name)}</div>
+      <div class="co-addr">${PRINT_COMPANY.address.map(pEsc).join('<br/>')}</div>
+    </div>
+    <div class="head-right">
+      <div class="doc-title">${pEsc(PRINT_DOC_TITLE)}</div>
+      <div class="doc-no">No. ${pEsc(d.number)}</div>
+    </div>
+  </div>
+
+  <div class="party">
+    <div class="party-left">
+      <div>${pEsc(PRINT_PARTY_LABEL)} :</div>
+      <div class="name">${pEsc(d.partyName)}</div>
+      <div>${pLines(d.partyAddress)}</div>
+    </div>
+    <div class="meta">
+      <div>Tanggal : ${pEsc(d.date)}</div>
+      <div>Term Pembayaran : ${pEsc(d.term)}</div>
+      <div>Reff D.O. No : ${pEsc(d.refPo)}</div>
+      <div>Mata Uang : Rupiah</div>
+    </div>
+  </div>
+
+  <table class="items">
+    <colgroup>
+      <col style="width:5.5%" /><col style="width:29%" /><col style="width:26.5%" />
+      <col style="width:6%" /><col style="width:12.5%" /><col style="width:6.5%" /><col style="width:14%" />
+    </colgroup>
+    <thead>
+      <tr><th>No.</th><th>Kode Barang</th><th>Nama Barang</th><th>Qty</th><th>Harga @</th><th>Disc %</th><th>Total</th></tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr class="fill"><td style="height:${fillHeightMm}mm"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td class="words"></td><td class="l">Sub Total :</td><td class="v">${pFmt(d.subTotal)}</td></tr>
+    <tr><td class="words"></td><td class="l">PPN ${pEsc(d.taxPct)} % :</td><td class="v">${pFmt(d.tax)}</td></tr>
+    <tr class="last"><td class="words">${pEsc(pTerbilang(d.grand))}</td><td class="l strong">TOTAL :</td><td class="v">${pFmt(d.grand)}</td></tr>
+  </table>
+
+  ${paymentBlock}
+
+  <div class="sign script">
+    <div>${pEsc(PRINT_COMPANY.name)}</div>
+    <div class="space"></div>
+    <div>${pEsc(PRINT_SIGNER.name)}</div>
+    <div class="line"></div>
+    <div>${pEsc(PRINT_SIGNER.title)}</div>
+  </div>
+</div>
+${autoPrint ? '<script>window.onload = function () { window.focus(); setTimeout(function () { window.print(); }, 500); };</script>' : ''}
+</body>
+</html>`;
+}
+// ============================================================
+
 
 export default function Invoice() {
   const [invoices, setInvoices] = useState([]);
@@ -43,19 +295,16 @@ export default function Invoice() {
     items: [],
   });
 
+  const formSubTotal = formData.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || 0)), 0);
+  const formTaxAmount = formSubTotal * 0.11;
+  const formGrandTotal = formSubTotal + formTaxAmount;
+
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
-      let apiInvoices = [];
-      try {
-        const res = await api.get('/invoices');
-        apiInvoices = res.data?.data || res.data || [];
-      } catch {
-        console.warn("API Invoice offline, menggunakan localStorage.");
-      }
-      const localInvoices = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
-      const combined = [...localInvoices, ...(Array.isArray(apiInvoices) ? apiInvoices : [])];
-      setInvoices(combined);
+      const res = await api.get('/invoices');
+      const apiInvoices = res.data?.data || res.data || [];
+      setInvoices(Array.isArray(apiInvoices) ? apiInvoices : []);
     } catch (e) {
       console.error('Gagal memuat Invoice:', e);
       setInvoices([]);
@@ -86,7 +335,6 @@ export default function Invoice() {
     fetchDOs();
   }, [fetchInvoices, fetchDOs]);
 
-  // --- MENANGKAP DATA DARI BAST / KOMISIONING OTOMATIS ---
   useEffect(() => {
     const activeRef = localStorage.getItem('active_invoice_ref');
     if (activeRef) {
@@ -121,22 +369,42 @@ export default function Invoice() {
 
     const selDO = deliveryOrders.find((d) => d.do_number === doNumber);
     if (selDO) {
+      const allSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
+      const relatedSO = allSOs.find(so => so.so_number === selDO.so_number || so.soNo === selDO.so_number);
+
+      const mappedItems = (selDO.items || []).map(it => {
+        let finalPrice = Number(it.unit_price || it.price || it.harga || 0);
+
+        if (finalPrice === 0 && relatedSO && relatedSO.items) {
+          const matchedSoItem = relatedSO.items.find(soItem => 
+            soItem.description === it.description || 
+            soItem.part_number === it.part_number ||
+            soItem.description === it.part_number
+          );
+          if (matchedSoItem) {
+            finalPrice = Number(matchedSoItem.unit_price || matchedSoItem.price || 0);
+          }
+        }
+
+        return {
+          description: it.description || it.part_number || '-',
+          qty: Number(it.qty_sent || it.qty || 1),
+          unit_price: finalPrice
+        };
+      });
+
       setFormData((prev) => ({
         ...prev,
         customer_name: selDO.customer_name || '',
-        customer_address: selDO.delivery_address || '',
-        items: (selDO.items || []).map(it => ({
-          description: it.description || '-',
-          qty: it.qty_sent || 1,
-          unit_price: 0
-        }))
+        customer_address: selDO.delivery_address || selDO.customer_address || '',
+        items: mappedItems
       }));
     }
   };
 
   const handleItemChange = (index, field, value) => {
     const items = [...formData.items];
-    items[index][field] = value;
+    items[index][field] = (field === 'qty' || field === 'unit_price') ? Number(value) : value;
     setFormData({ ...formData, items });
   };
 
@@ -173,29 +441,28 @@ export default function Invoice() {
     }
     setSaving(true);
     setError('');
+    
     try {
-      const newInvoice = {
-        id: Date.now(),
-        ...formData,
-        status: 'Unpaid'
-      };
-
-      const existing = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
-      localStorage.setItem('aldigens_invoices', JSON.stringify([newInvoice, ...existing]));
-
-      try {
-        await api.post('/invoices', formData);
-      } catch {
-        // Backend opsional
-      }
+      await api.post('/invoices', formData);
 
       setSuccessMsg('Invoice berhasil dibuat!');
       setIsCreating(false);
       resetForm();
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch {
-      setError('Gagal menyimpan Invoice.');
+      
+    } catch (err) {
+      console.error(err);
+      
+      // --- KODE UNTUK MEMUNCULKAN ERROR ASLI LARAVEL KE LAYAR ---
+      const errorMsg = err.response?.data?.message || err.message;
+      const errorFile = err.response?.data?.file || 'Tidak diketahui';
+      const errorLine = err.response?.data?.line || 'Tidak diketahui';
+      
+      // Memunculkan Pop-up Alert
+      alert("ERROR DARI BACKEND LARAVEL:\n\n" + errorMsg + "\n\nFile: " + errorFile + "\nBaris: " + errorLine);
+      
+      setError('Gagal: ' + errorMsg);
     } finally {
       setSaving(false);
     }
@@ -205,28 +472,18 @@ export default function Invoice() {
     if (!selectedInvoice) return;
 
     try {
+      await api.put(`/invoices/${selectedInvoice.id}`, { status: newStatus });
+
       const updatedInvoice = { ...selectedInvoice, status: newStatus };
       setSelectedInvoice(updatedInvoice);
-
-      const existing = JSON.parse(localStorage.getItem('aldigens_invoices') || '[]');
-      const updatedList = existing.map(inv =>
-        (inv.id === updatedInvoice.id || inv.invoice_number === updatedInvoice.invoice_number)
-          ? updatedInvoice
-          : inv
-      );
-      localStorage.setItem('aldigens_invoices', JSON.stringify(updatedList));
-
-      try {
-        await api.put(`/invoices/${selectedInvoice.id}`, { status: newStatus });
-      } catch {
-        console.warn("Backend update status offline, disimpan secara lokal.");
-      }
 
       setSuccessMsg(`Status invoice berhasil diubah menjadi ${newStatus}!`);
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch {
-      setError('Gagal mengubah status invoice.');
+      
+    } catch (err) {
+      console.error(err);
+      setError('Gagal mengubah status invoice di Database.');
     }
   };
 
@@ -244,151 +501,16 @@ export default function Invoice() {
 
   const printInvoice = (invData) => {
     if (!invData) return;
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) {
-      swalError('Popup Diblokir', 'Izinkan popup untuk mencetak Invoice.');
+    const logoUrl = new URL(logoPerusahaan, window.location.href).href;
+    const printWindow = window.open('', '_blank');
+    
+    if (!printWindow) {
+      swalError('Pop-up diblokir browser. Izinkan pop-up untuk mencetak invoice.');
       return;
     }
-
-    const itemsList = invData.items || [];
-    const subTotal = itemsList.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.unit_price || 0)), 0);
-    const taxTotal = subTotal * 0.11;
-    const grandTotal = subTotal + taxTotal;
-    const textTerbilang = terbilang(grandTotal).trim() + ' Rupiah';
-
-    const rows = itemsList.map((it, i) => `
-      <tr>
-        <td align="center">${i + 1}</td>
-        <td>${escapeHtml(it.description || '-')}</td>
-        <td align="center">${it.qty}</td>
-        <td align="right">${Number(it.unit_price || 0).toLocaleString('id-ID')}</td>
-        <td align="right">${(Number(it.qty) * Number(it.unit_price || 0)).toLocaleString('id-ID')}</td>
-      </tr>`).join('');
-
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Invoice - ${escapeHtml(invData.invoice_number)}</title>
-          <style>
-            body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 20px; margin: 0; }
-            .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
-            .logo-area { width: 55%; vertical-align: top; }
-            .company-address { font-size: 9px; line-height: 1.3; color: #333; margin-top: 4px; }
-            .title-area { width: 45%; text-align: right; vertical-align: top; }
-            .doc-title { font-size: 20px; font-weight: bold; margin: 0 0 4px 0; letter-spacing: 1px; color: #1e3a8a; }
-            .info-box-table { width: 100%; margin-bottom: 12px; border: 1px solid #999; border-collapse: collapse; }
-            .info-box-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #999; font-size: 10px; }
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            .items-table th, .items-table td { border: 1px solid #000; padding: 5px 6px; font-size: 10px; }
-            .items-table th { background: #f0f0f0; text-align: center; }
-            .summary-table { width: 100%; margin-top: 10px; font-size: 10px; }
-            .sign-container { margin-top: 40px; page-break-inside: avoid; }
-            .sign-table { width: 100%; text-align: center; font-size: 10px; }
-            .sign-box { height: 70px; }
-            .terbilang-box { background: #f8fafc; padding: 6px; border: 1px solid #cbd5e1; font-style: italic; font-weight: bold; font-size: 10px; margin-bottom: 10px; }
-            @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>
-          <table class="header-table">
-            <tr>
-              <td class="logo-area">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px;">
-                  <img src="${logoPerusahaan}" alt="Logo" style="height: 45px; border-radius: 4px;" onerror="this.style.display='none'" />
-                  <span style="font-weight: 900; font-size: 16px; letter-spacing: 0.5px;">PT. ALDIGENS PUTERA PERSADA</span>
-                </div>
-                <div class="company-address">
-                  Ruko Bekasi Mas Blok C-25<br/>
-                  Jl. Jend. Ahmad Yani, Margajaya, Bekasi Selatan - 17141
-                </div>
-              </td>
-              <td class="title-area">
-                <div class="doc-title">INVOICE / FAKTUR</div>
-                <div><strong>No :</strong> ${escapeHtml(invData.invoice_number || '-')}</div>
-              </td>
-            </tr>
-          </table>
-
-          <table class="info-box-table">
-            <tr>
-              <td>
-                <strong>Bill To :</strong><br/>
-                <span style="font-size: 12px; font-weight: bold;">${escapeHtml(invData.customer_name || '-')}</span><br/>
-                <span>${escapeHtml(invData.customer_address || '-')}</span>
-              </td>
-              <td style="vertical-align: middle;">
-                <table style="width: 100%; font-size: 10px; border: none; margin: 0;">
-                  <tr><td style="width: 40%; border: none; padding: 2px;"><strong>Invoice Date</strong></td><td style="border: none; padding: 2px;">: ${escapeHtml(invData.date || '-')}</td></tr>
-                  <tr><td style="border: none; padding: 2px;"><strong>Due Date</strong></td><td style="border: none; padding: 2px;">: ${escapeHtml(invData.due_date || '-')}</td></tr>
-                  <tr><td style="border: none; padding: 2px;"><strong>D.O Ref</strong></td><td style="border: none; padding: 2px;">: ${escapeHtml(invData.do_reference || '-')}</td></tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th style="width: 5%;">No</th>
-                <th style="width: 50%;">Description</th>
-                <th style="width: 10%;">Qty</th>
-                <th style="width: 15%;">Unit Price</th>
-                <th style="width: 20%;">Total Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows || '<tr><td colspan="5" align="center">Tidak ada item</td></tr>'}
-            </tbody>
-          </table>
-
-          <div class="terbilang-box">
-            Terbilang: <span># ${textTerbilang} #</span>
-          </div>
-
-          <table class="summary-table">
-            <tr>
-              <td style="width: 60%; vertical-align: top; padding-right: 15px;">
-                <div style="line-height: 1.5; border: 1px solid #000; padding: 8px;">
-                  <strong>Pembayaran mohon ditransfer ke rekening:</strong><br/>
-                  Bank Permata<br/>
-                  A/C : <strong>070.224.339-4</strong><br/>
-                  A/N : <strong>PT. Aldigens Putera Persada</strong>
-                </div>
-                <div style="margin-top:8px; font-size:9px;">
-                  Catatan: ${escapeHtml(invData.notes || '-')}
-                </div>
-              </td>
-              <td style="width: 40%; vertical-align: bottom;">
-                <table style="width: 100%; font-size: 11px; border-collapse: collapse;">
-                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>Sub Total</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${subTotal.toLocaleString('id-ID')}</td></tr>
-                  <tr><td style="padding: 4px; border-bottom: 1px solid #ddd;"><strong>PPN 11%</strong></td><td align="right" style="padding: 4px; border-bottom: 1px solid #ddd;">${taxTotal.toLocaleString('id-ID')}</td></tr>
-                  <tr><td style="padding: 6px; font-size: 13px; font-weight: bold; background: #e2e8f0;">Grand Total</td><td align="right" style="padding: 6px; font-size: 13px; font-weight: bold; background: #e2e8f0;">IDR ${grandTotal.toLocaleString('id-ID')}</td></tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-
-          <div class="sign-container">
-            <table class="sign-table">
-              <tr>
-                <td style="width: 50%;"></td>
-                <td style="width: 50%;">
-                  Bekasi, ${escapeHtml(invData.date)}<br/>
-                  Hormat Kami,<br/>
-                  <div class="sign-box"></div>
-                  <strong>( FINANCE / DIREKTUR )</strong><br/>
-                  <span style="font-size: 8px; color: #666;">PT. Aldigens Putera Persada</span>
-                </td>
-              </tr>
-            </table>
-          </div>
-          <script>window.onload = function(){ window.focus(); window.print(); };</script>
-        </body>
-      </html>
-    `);
-    win.document.close();
+    
+    printWindow.document.write(buildInvoiceHtml(invData, { autoPrint: true, logoUrl }));
+    printWindow.document.close();
   };
 
   return (
@@ -446,7 +568,7 @@ export default function Invoice() {
               <select
                 value={formData.do_reference}
                 onChange={(e) => handleSelectDO(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
               >
                 <option value="">-- Pilih D.O --</option>
                 {deliveryOrders.map((d) => (
@@ -522,6 +644,23 @@ export default function Invoice() {
                 ))}
               </div>
             )}
+
+            {formData.items.length > 0 && (
+              <div className="bg-indigo-50/50 rounded-xl p-5 border border-indigo-100 space-y-3 mt-6 shadow-sm">
+                <div className="flex justify-between items-center text-sm font-semibold text-slate-500">
+                  <span>Sub Total:</span>
+                  <span className="text-slate-700">{formatRupiah(formSubTotal)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm font-semibold text-slate-500">
+                  <span>PPN 11%:</span>
+                  <span className="text-slate-700">{formatRupiah(formTaxAmount)}</span>
+                </div>
+                <div className="border-t border-indigo-200 pt-3 flex justify-between items-center text-lg font-bold">
+                  <span className="text-slate-800">Grand Total:</span>
+                  <span className="text-indigo-600">{formatRupiah(formGrandTotal)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </form>
       ) : selectedInvoice ? (
@@ -581,7 +720,7 @@ export default function Invoice() {
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Ref D.O / BAST</p>
-              <p className="font-semibold text-slate-800">{selectedInvoice.do_reference || '-'}</p>
+              <p className="font-semibold text-slate-800">{selectedInvoice.do_reference || selectedInvoice.do_number || '-'}</p>
             </div>
           </div>
 
@@ -599,17 +738,45 @@ export default function Invoice() {
               <tbody className="divide-y divide-slate-100">
                 {(selectedInvoice.items || []).length === 0 ? (
                   <tr><td colSpan="5" className="p-12 text-center text-sm text-slate-400">Tidak ada rincian.</td></tr>
-                ) : selectedInvoice.items.map((it, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition">
-                    <td className="p-4 text-sm font-semibold text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-4 text-sm font-medium text-slate-700">{it.description}</td>
-                    <td className="p-4 text-sm text-center font-bold text-slate-800">{it.qty}</td>
-                    <td className="p-4 text-sm text-right text-slate-600">{formatRupiah(it.unit_price)}</td>
-                    <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(it.qty * it.unit_price)}</td>
-                  </tr>
-                ))}
+                ) : selectedInvoice.items.map((it, idx) => {
+                  const safeQty = Number(it.qty) || 1;
+                  const safePrice = Number(it.unit_price || it.price || 0);
+                  
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition">
+                      <td className="p-4 text-sm font-semibold text-slate-500 text-center">{idx + 1}</td>
+                      <td className="p-4 text-sm font-medium text-slate-700">{it.description}</td>
+                      <td className="p-4 text-sm text-center font-bold text-slate-800">{safeQty}</td>
+                      <td className="p-4 text-sm text-right text-slate-600">{formatRupiah(safePrice)}</td>
+                      <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(safeQty * safePrice)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
+            
+            {selectedInvoice.items && selectedInvoice.items.length > 0 && (
+              <div className="bg-slate-100 border-t border-slate-200 p-5 space-y-2 text-sm">
+                <div className="flex justify-end items-center gap-6">
+                  <span className="font-semibold text-slate-500">Sub Total:</span>
+                  <span className="font-bold text-slate-700 w-32 text-right">
+                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0))}
+                  </span>
+                </div>
+                <div className="flex justify-end items-center gap-6">
+                  <span className="font-semibold text-slate-500">PPN 11%:</span>
+                  <span className="font-bold text-slate-700 w-32 text-right">
+                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0) * 0.11)}
+                  </span>
+                </div>
+                <div className="flex justify-end items-center gap-6 pt-3 mt-3 border-t border-slate-300">
+                  <span className="font-bold text-slate-800 text-base">Grand Total:</span>
+                  <span className="font-black text-indigo-600 text-base w-32 text-right">
+                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0) * 1.11)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -642,7 +809,7 @@ export default function Invoice() {
                   <tr key={inv.id || inv.invoice_number} className="hover:bg-slate-50/80 transition text-sm">
                     <td className="p-5 font-bold text-slate-800">{inv.invoice_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{inv.customer_name}</td>
-                    <td className="p-5 text-slate-500">{inv.date}</td>
+                    <td className="p-5 text-slate-500">{inv.date || inv.invoice_date}</td>
                     <td className="p-5 text-slate-500">{inv.due_date}</td>
                     <td className="p-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(inv.status || 'Unpaid')}`}>{inv.status || 'Unpaid'}</span>
@@ -669,10 +836,4 @@ export default function Invoice() {
       )}
     </div>
   );
-}
-
-function escapeHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }

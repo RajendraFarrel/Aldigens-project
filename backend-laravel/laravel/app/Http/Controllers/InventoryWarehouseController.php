@@ -6,6 +6,7 @@ use App\Models\InventoryStock;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\ReceiveItem;
+use App\Services\AuditLogService;
 use App\Services\InventoryStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +46,14 @@ class InventoryWarehouseController extends Controller
                          ->orWhere('name', 'like', "%{$search}%");
                   });
             });
+        }
+
+        // Filter periode (opsional, backward-compatible) berdasarkan tanggal transaksi.
+        if ($request->filled('start_date')) {
+            $query->whereDate('transaction_time', '>=', $request->input('start_date'));
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('transaction_time', '<=', $request->input('end_date'));
         }
 
         $rows = $query->get()->groupBy(fn($t) => $t->group_key ?: 'TX-' . $t->id);
@@ -188,7 +197,7 @@ class InventoryWarehouseController extends Controller
             return response()->json(['message' => 'Transaksi tidak ditemukan atau sudah dibatalkan.'], 404);
         }
 
-        return DB::transaction(function () use ($request, $groupKey, $stockService, $referenceType) {
+        $response = DB::transaction(function () use ($request, $groupKey, $stockService, $referenceType) {
             $this->purgeReceiveItem($groupKey);
             $stockService->revertGroup($groupKey);
             $request->merge(['reference_type' => $referenceType, '_group_key' => $groupKey]);
@@ -199,18 +208,27 @@ class InventoryWarehouseController extends Controller
                 default => $this->issue($request, $stockService),
             };
         });
+
+        AuditLogService::record($request, 'inventory.mutation.update', 'inventory', 'success',
+            'Mengoreksi mutasi stok ' . $referenceType, 'inventory_transaction', $groupKey);
+
+        return $response;
     }
 
     /**
      * Hapus mutasi dan kembalikan saldo ke kondisi sebelum mutasi.
      */
-    public function destroyMutation(string $groupKey, InventoryStockService $stockService)
+    public function destroyMutation(Request $request, string $groupKey, InventoryStockService $stockService)
     {
         $deleted = $stockService->revertGroup($groupKey);
         if ($deleted === 0) {
             return response()->json(['message' => 'Transaksi tidak ditemukan atau sudah dibatalkan.'], 404);
         }
         $this->purgeReceiveItem($groupKey);
+
+        AuditLogService::record($request, 'inventory.mutation.delete', 'inventory', 'success',
+            "Membatalkan {$deleted} baris mutasi stok", 'inventory_transaction', $groupKey);
+
         return response()->json(['message' => "{$deleted} baris mutasi dibatalkan dan stok dikembalikan."]);
     }
 

@@ -1,8 +1,8 @@
 ﻿import { useCallback, useEffect, useState } from 'react';
-import { Scale, RefreshCw } from 'lucide-react';
-import PrintButton from '../../components/PrintButton';
-import PrintHeader from '../../components/PrintHeader';
-import { getNeracaSaldo, ACCOUNT_TYPES, rupiah, angka, formatTanggal, periodeDefault } from '../../services/accountingApi';
+import { Scale, RefreshCw, Printer } from 'lucide-react';
+import SaldoAwalRow from '../../components/accounting/SaldoAwalRow';
+import { printNeracaSaldo } from '../../utils/accountingPrint';
+import { getNeracaSaldo, ACCOUNT_TYPES, rupiah, angka, periodeDefault } from '../../services/accountingApi';
 import { swalError } from '../../utils/swal';
 
 /**
@@ -33,6 +33,8 @@ export default function NeracaSaldo() {
 
   useEffect(() => { muat(); }, [muat]);
 
+  const handlePrint = () => printNeracaSaldo(data, { from: periode.from, to: periode.to, tipe });
+
   return (
     <div className="p-6 space-y-5 print-area">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
@@ -53,7 +55,10 @@ export default function NeracaSaldo() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Muat Ulang</span>
           </button>
-          <PrintButton label="Cetak Neraca Saldo" />
+          <button onClick={handlePrint}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-800 transition shadow-sm cursor-pointer">
+            <Printer className="h-4 w-4" /> Cetak Neraca Saldo
+          </button>
         </div>
       </div>
 
@@ -77,11 +82,6 @@ export default function NeracaSaldo() {
             className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
         </div>
       </div>
-
-      <PrintHeader
-        judul="NERACA SALDO"
-        periode={`${formatTanggal(periode.from)} - ${formatTanggal(periode.to)}`}
-      />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm">
@@ -125,6 +125,9 @@ export default function NeracaSaldo() {
                   Belum ada akun. Tambahkan Chart of Account terlebih dahulu.
                 </td></tr>
               )}
+              {!loading && (data?.rows?.length ?? 0) > 0 && (
+                <SaldoAwalRow colSpan={3} debit={angka(data?.total_debit)} kredit={angka(data?.total_kredit)} />
+              )}
               {(data?.rows || []).map((r) => (
                 <tr key={r.account_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">{r.nomor_akun}</td>
@@ -155,15 +158,6 @@ export default function NeracaSaldo() {
         </div>
       </div>
 
-      <div className="hidden print:block mt-6 text-xs">
-        <div className="flex justify-between">
-          <p>Jakarta, {formatTanggal(new Date().toISOString().slice(0, 10))}</p>
-          <div className="text-center">
-            <p>Mengetahui,</p><p>Finance Manager</p><div className="h-16" />
-            <p className="underline">( ................................ )</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

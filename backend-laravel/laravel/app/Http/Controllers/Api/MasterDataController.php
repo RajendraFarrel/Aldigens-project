@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\CustomerPartNumber;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -41,6 +42,9 @@ class MasterDataController extends Controller
 
         $customer = Customer::create($validated);
 
+        AuditLogService::record($request, 'master.customers.manage', 'master', 'success',
+            'Menambah customer ' . $customer->customer_code, 'customer', $customer->id);
+
         return response()->json([
             'success' => true,
             'message' => 'Customer berhasil ditambahkan',
@@ -63,6 +67,9 @@ class MasterDataController extends Controller
 
         $customer->update($validated);
 
+        AuditLogService::record($request, 'master.customers.manage', 'master', 'success',
+            'Mengubah customer ' . $customer->customer_code, 'customer', $customer->id);
+
         return response()->json([
             'success' => true,
             'message' => 'Customer berhasil diperbarui',
@@ -70,7 +77,7 @@ class MasterDataController extends Controller
         ]);
     }
 
-    public function deleteCustomer($id)
+    public function deleteCustomer(Request $request, $id)
     {
         $customer = Customer::findOrFail($id);
 
@@ -140,6 +147,9 @@ class MasterDataController extends Controller
 
         $supplier = Supplier::create($validated);
 
+        AuditLogService::record($request, 'master.suppliers.manage', 'master', 'success',
+            'Menambah supplier ' . $supplier->supplier_code, 'supplier', $supplier->id);
+
         return response()->json([
             'success' => true,
             'message' => 'Supplier berhasil ditambahkan',
@@ -162,6 +172,9 @@ class MasterDataController extends Controller
 
         $supplier->update($validated);
 
+        AuditLogService::record($request, 'master.suppliers.manage', 'master', 'success',
+            'Mengubah supplier ' . $supplier->supplier_code, 'supplier', $supplier->id);
+
         return response()->json([
             'success' => true,
             'message' => 'Supplier berhasil diperbarui',
@@ -169,10 +182,13 @@ class MasterDataController extends Controller
         ]);
     }
 
-    public function deleteSupplier($id)
+    public function deleteSupplier(Request $request, $id)
     {
         $supplier = Supplier::findOrFail($id);
         $supplier->update(['status' => 'NONAKTIF']);
+
+        AuditLogService::record($request, 'master.suppliers.manage', 'master', 'success',
+            'Menonaktifkan supplier ' . $supplier->supplier_code, 'supplier', $supplier->id);
 
         return response()->json([
             'success' => true,

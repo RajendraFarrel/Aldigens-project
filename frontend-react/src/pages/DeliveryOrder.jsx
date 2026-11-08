@@ -22,7 +22,7 @@ export default function DeliveryOrder() {
 
   const [formData, setFormData] = useState({
     sales_order_id: '',
-    ref_po: '', // Tambahan state untuk No PO Pelanggan
+    ref_po: '',
     do_number: `DO-${Math.floor(1000 + Math.random() * 9000)}`,
     do_date: new Date().toISOString().split('T')[0],
     customer_name: '',
@@ -86,7 +86,7 @@ export default function DeliveryOrder() {
     if (!so) return;
 
     const items = (so.items || []).map((it) => ({
-      part_number: it.code || it.part_number || '',
+      part_number: it.code || it.part_number || it.inventory_part_number || '',
       description: it.name || it.description || '-',
       qty_sent: it.qty || it.qty_sent || 1,
       unit: it.unit || 'PCS',
@@ -95,7 +95,7 @@ export default function DeliveryOrder() {
     setFormData((prev) => ({
       ...prev,
       sales_order_id: soId,
-      ref_po: so.refPo || so.reff_po || '', // Mengambil data PO Pelanggan dari SO
+      ref_po: so.refPo || so.reff_po || so.customer_po || '',
       customer_name: so.customer || so.customer_name || '',
       delivery_address: so.shipTo || so.customer_address || '',
       vehicle_number: so.sentBy || so.delivery_by || '',
@@ -160,9 +160,20 @@ export default function DeliveryOrder() {
       localStorage.setItem('aldigens_delivery_orders', JSON.stringify([newDO, ...existing]));
 
       try {
-        await api.post('/delivery-orders', formData);
-      } catch {
-        // Backend opsional
+        await api.post('/delivery-orders', {
+          sales_order_id: null,
+          do_number: formData.do_number,
+          do_date: formData.do_date,
+          customer_name: formData.customer_name,
+          delivery_address: formData.delivery_address,
+          vehicle_number: formData.vehicle_number,
+          driver_name: formData.driver_name,
+          notes: formData.notes,
+          ref_po: formData.ref_po,
+          items: formData.items
+        });
+      } catch (apiErr) {
+        console.error("DETAIL ERROR API STORE DO:", apiErr.response?.data);
       }
 
       setSuccessMsg('Surat Jalan (Delivery Order) berhasil dibuat!');
@@ -170,7 +181,8 @@ export default function DeliveryOrder() {
       resetForm();
       fetchDOs();
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch {
+    } catch (err) {
+      console.error("DETAIL ERROR SUBMIT:", err);
       setError('Gagal menyimpan Delivery Order.');
     } finally {
       setSaving(false);
@@ -187,7 +199,6 @@ export default function DeliveryOrder() {
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
   };
 
-  /** Approve DO — backend akan mengurangi stok Inventory secara otomatis. */
   const handleApprove = async (doData) => {
     const ok = await swalConfirm({
       title: 'Approve Delivery Order?',
@@ -199,19 +210,70 @@ export default function DeliveryOrder() {
     if (!ok) return;
 
     try {
-      await approveDeliveryOrder(doData.id);
+      let targetId = doData.id;
+
+      if (String(targetId).length > 10 || String(targetId).startsWith('17')) {
+        try {
+          const response = await api.post('/delivery-orders', {
+            sales_order_id: null,
+            do_number: doData.do_number,
+            do_date: doData.do_date,
+            customer_name: doData.customer_name,
+            delivery_address: doData.delivery_address,
+            vehicle_number: doData.vehicle_number,
+            driver_name: doData.driver_name,
+            notes: doData.notes,
+            ref_po: doData.ref_po,
+            items: doData.items
+          });
+          targetId = response.data.data?.id;
+        } catch (syncErr) {
+          console.warn("DO sudah ada di database, mencari ID berdasarkan nomor DO...");
+        }
+
+        try {
+          const listRes = await api.get('/delivery-orders');
+          const foundInApi = (listRes.data.data || listRes.data || []).find(
+            (item) => item.do_number === doData.do_number
+          );
+          if (foundInApi) {
+            targetId = foundInApi.id;
+          }
+        } catch (listErr) {
+          console.error("Gagal mengambil list DO dari API:", listErr);
+        }
+      }
+
+      if (!targetId) {
+        throw new Error("ID Delivery Order tidak valid di database.");
+      }
+
+      await approveDeliveryOrder(targetId);
       swalToast('Delivery Order berhasil di-approve. Stok Inventory berkurang.', 'success');
-      // Perbarui status di state lokal tanpa perlu reload penuh.
+      
+      // UPDATE STATE SECARA LANGSUNG AGAR STATUS BERUBAH JADI 'Approved'
       setDeliveryOrders((prev) => prev.map((d) => (
-        String(d.id) === String(doData.id) ? { ...d, status: 'Approved' } : d
+        String(d.id) === String(doData.id) || d.do_number === doData.do_number 
+          ? { ...d, status: 'Approved', id: targetId } 
+          : d
       )));
-      setSelectedDO((prev) => (prev && String(prev.id) === String(doData.id) ? { ...prev, status: 'Approved' } : prev));
+      
+      setSelectedDO((prev) => (prev ? { ...prev, status: 'Approved', id: targetId } : null));
+      
+      // Sinkronkan juga data localStorage agar ikut tersimpan status terbarunya
+      const updatedLocal = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]').map((d) => 
+        d.do_number === doData.do_number ? { ...d, status: 'Approved' } : d
+      );
+      localStorage.setItem('aldigens_delivery_orders', JSON.stringify(updatedLocal));
+
+      fetchDOs();
     } catch (err) {
-      swalError('Gagal Approve', err.response?.data?.message || 'Terjadi kesalahan saat approve Delivery Order.');
+      console.error("DETAIL ERROR APPROVE DO:", err.response?.data);
+      const serverMsg = err.response?.data?.message || JSON.stringify(err.response?.data) || err.message;
+      swalError('Gagal Approve', `Pesan Server: ${serverMsg}`);
     }
   };
 
-  // --- TEMPLATE CETAK DELIVERY ORDER STANDARD ACCURATE 4 & LOGO ALDIGENS 2 ---
   const printSuratJalan = (doData) => {
     if (!doData) return;
     const win = window.open('', '_blank', 'width=950,height=800');
@@ -236,38 +298,24 @@ export default function DeliveryOrder() {
           <title>Delivery Order - ${escapeHtml(doData.do_number)}</title>
           <style>
             @page { size: A4 portrait; margin: 10mm; }
-            body {
-              font-family: Arial, sans-serif;
-              font-size: 10px;
-              color: #000;
-              margin: 0;
-              padding: 0;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
+            body { font-family: Arial, sans-serif; font-size: 10px; color: #000; margin: 0; padding: 0; }
             .header-table { width: 100%; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 8px; }
             .logo-area { width: 55%; vertical-align: top; }
             .company-address { font-size: 8.5px; line-height: 1.2; color: #222; margin-top: 3px; }
             .title-area { width: 45%; text-align: right; vertical-align: top; }
             .doc-title { font-size: 16px; font-weight: bold; margin: 0 0 2px 0; letter-spacing: 0.5px; }
-
             .meta-table { width: 100%; font-size: 9.5px; margin-bottom: 8px; }
             .meta-table td { vertical-align: top; padding: 2px 0; }
-
             .recipient-table { width: 100%; margin-bottom: 10px; border: 1px solid #000; border-collapse: collapse; }
             .recipient-table td { padding: 5px 8px; vertical-align: top; width: 50%; border: 1px solid #000; font-size: 9.5px; line-height: 1.3; }
-
-            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 0; border: 1px solid #000; }
+            .items-table { width: 100%; border-collapse: collapse; border: 1px solid #000; }
             .items-table th, .items-table td { border: 1px solid #000; padding: 4px 6px; font-size: 9.5px; }
             .items-table th { background-color: #f1f5f9 !important; text-align: center; font-weight: bold; }
-
-            .middle-container { width: 100%; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000; display: table; }
+            .middle-container { width: 100%; border: 1px solid #000; border-top: none; display: table; }
             .notes-box { display: table-cell; width: 100%; padding: 8px; vertical-align: top; font-size: 9.5px; }
-
             .sign-container { margin-top: 15px; width: 100%; border: 1px solid #000; border-collapse: collapse; page-break-inside: avoid; }
             .sign-container td { border: 1px solid #000; padding: 5px; vertical-align: top; text-align: center; font-size: 9.5px; width: 33.33%; }
             .sign-space { height: 45px; }
-
             .footer-info { margin-top: 5px; font-size: 8px; text-align: right; color: #555; }
           </style>
         </head>
@@ -275,9 +323,6 @@ export default function DeliveryOrder() {
           <table class="header-table">
             <tr>
               <td class="logo-area">
-                <div>
-                  <img src="/LOGO ALDIGENS2.jpeg" alt="Logo" style="height: 38px; border-radius: 3px;" onerror="this.style.display='none'" />
-                </div>
                 <div class="company-address">
                   <strong>PT. ALDIGENS PUTERA PERSADA</strong><br/>
                   Ruko Bekasi Mas Blok C-25, Jl. Jend. Ahmad Yani, Margajaya<br/>
@@ -290,7 +335,6 @@ export default function DeliveryOrder() {
               </td>
             </tr>
           </table>
-
           <table class="meta-table">
             <tr>
               <td></td>
@@ -303,27 +347,19 @@ export default function DeliveryOrder() {
               </td>
             </tr>
           </table>
-
           <table class="recipient-table">
             <tr>
-              <td>
-                <strong>Pelanggan :</strong><br/>
-                <span style="font-weight: bold;">${escapeHtml(doData.customer_name || '-')}</span>
-              </td>
-              <td>
-                <strong>Dikirim Ke (Delivery Address) :</strong><br/>
-                <span>${escapeHtml(doData.delivery_address || '-')}</span>
-              </td>
+              <td><strong>Pelanggan :</strong><br/><span style="font-weight: bold;">${escapeHtml(doData.customer_name || '-')}</span></td>
+              <td><strong>Dikirim Ke (Delivery Address) :</strong><br/><span>${escapeHtml(doData.delivery_address || '-')}</span></td>
             </tr>
           </table>
-
           <table class="items-table">
             <thead>
               <tr>
                 <th style="width: 6%;">No.</th>
-                <th style="width: 25%;">Kode Barang / Part No</th>
+                <th style="width: 25%;">Part Number / Kode</th>
                 <th style="width: 45%;">Nama Barang / Deskripsi</th>
-                <th style="width: 12%;">Qty Dikirim</th>
+                <th style="width: 12%;">Qty Kirim</th>
                 <th style="width: 12%;">Satuan</th>
               </tr>
             </thead>
@@ -331,7 +367,6 @@ export default function DeliveryOrder() {
               ${rows || '<tr><td colspan="5" align="center">Tidak ada item pengiriman</td></tr>'}
             </tbody>
           </table>
-
           <table class="middle-container" cellpadding="0" cellspacing="0">
             <tr>
               <td class="notes-box">
@@ -340,40 +375,15 @@ export default function DeliveryOrder() {
               </td>
             </tr>
           </table>
-
           <table class="sign-container">
             <tr>
-              <td>
-                Dibuat Oleh,<br/>
-                <div class="sign-space"></div>
-                <strong>( WAREHOUSE )</strong><br/>
-                <span style="font-size: 7.5px; color: #666;">Warehouse Staff</span>
-              </td>
-              <td>
-                Pengirim / Supir,<br/>
-                <div class="sign-space"></div>
-                <strong>( ${escapeHtml(doData.driver_name || 'LOGISTIK')} )</strong><br/>
-                <span style="font-size: 7.5px; color: #666;">Driver / Kurir</span>
-              </td>
-              <td>
-                Diterima Oleh,<br/>
-                <div class="sign-space"></div>
-                <strong>( ........................................ )</strong><br/>
-                <span style="font-size: 7.5px; color: #666;">Pelanggan / Penerima</span>
-              </td>
+              <td>Dibuat Oleh,<br/><div class="sign-space"></div><strong>( WAREHOUSE )</strong></td>
+              <td>Pengirim / Supir,<br/><div class="sign-space"></div><strong>( ${escapeHtml(doData.driver_name || 'LOGISTIK')} )</strong></td>
+              <td>Diterima Oleh,<br/><div class="sign-space"></div><strong>( ........................................ )</strong></td>
             </tr>
           </table>
-
-          <div class="footer-info">
-            Dibuat oleh: ADMIN | ${new Date().toLocaleDateString('id-ID')} | Powered by Aldigens ERP
-          </div>
-
-          <script>
-            window.onload = function() {
-              window.focus();
-              setTimeout(() => { window.print(); }, 400);
-            };
-          </script>
+          <div class="footer-info">Dibuat oleh: ADMIN | ${new Date().toLocaleDateString('id-ID')} | Powered by Aldigens ERP</div>
+          <script>window.onload = function() { window.focus(); setTimeout(() => { window.print(); }, 400); };</script>
         </body>
       </html>
     `);

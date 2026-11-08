@@ -23,6 +23,15 @@ class InventoryTransactionController extends Controller
             $query->where('product_id', $request->product_id);
         }
 
+        // Filter periode (opsional, backward-compatible).
+        // start_date/end_date diinterpretasikan sebagai tanggal pada zona waktu aplikasi.
+        if ($request->filled('start_date')) {
+            $query->whereDate('transaction_time', '>=', $request->input('start_date'));
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('transaction_time', '<=', $request->input('end_date'));
+        }
+
         $transactions = $query->get()->map(function ($t) {
             return [
                 'id'               => $t->id,

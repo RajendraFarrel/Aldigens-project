@@ -747,7 +747,7 @@ export default function SalesOrder() {
                         <th className="px-4 py-3 w-24">Qty</th>
                         <th className="px-4 py-3 w-24">Satuan</th>
                         <th className="px-4 py-3 w-32">Harga (Rp)</th>
-                        <th className="px-4 py-3 w-24 text-center">Pajak (T)</th>
+                        <th className="px-4 py-3 w-24 text-center">Pajak</th>
                         <th className="px-4 py-3 w-16 text-center">Aksi</th>
                       </tr>
                     </thead>

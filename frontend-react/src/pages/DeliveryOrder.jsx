@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import {
   Truck, Plus, ArrowLeft, Save, Trash2, Printer, Package, RefreshCw,
-  Calendar, CheckCircle2, BadgeCheck
+  Calendar, CheckCircle2, BadgeCheck, Factory, AlertTriangle, Wrench
 } from 'lucide-react';
 import api, { approveDeliveryOrder } from '../services/api';
 import { swalConfirm, swalError, swalToast } from '../utils/swal';
@@ -152,7 +152,7 @@ export default function DeliveryOrder() {
       const newDO = {
         id: Date.now(),
         ...formData,
-        status: 'Shipped',
+        status: 'Waiting Production', 
         so_number: formData.sales_order_id
       };
 
@@ -173,16 +173,15 @@ export default function DeliveryOrder() {
           items: formData.items
         });
       } catch (apiErr) {
-        console.error("DETAIL ERROR API STORE DO:", apiErr.response?.data);
+        console.warn("API DO offline, data disimpan di lokal.");
       }
 
-      setSuccessMsg('Surat Jalan (Delivery Order) berhasil dibuat!');
+      setSuccessMsg('Surat Jalan Draft dibuat (Status: Menunggu Produksi)');
       setIsCreating(false);
       resetForm();
       fetchDOs();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      console.error("DETAIL ERROR SUBMIT:", err);
       setError('Gagal menyimpan Delivery Order.');
     } finally {
       setSaving(false);
@@ -191,12 +190,78 @@ export default function DeliveryOrder() {
 
   const statusBadge = (status) => {
     const map = {
-      Shipped: 'bg-blue-50 text-blue-700 border-blue-200',
-      Approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      Delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      Cancelled: 'bg-rose-50 text-rose-700 border-rose-200',
+      'Shipped': 'bg-blue-50 text-blue-700 border-blue-200',
+      'Waiting Production': 'bg-rose-50 text-rose-700 border-rose-200',
+      'In Production': 'bg-amber-50 text-amber-700 border-amber-200',
+      'Ready to Ship': 'bg-teal-50 text-teal-700 border-teal-200',
+      'Approved': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      'Delivered': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      'Cancelled': 'bg-slate-100 text-slate-700 border-slate-300',
     };
     return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
+  };
+
+  const updateDoStatusLocally = (doNumber, newStatus) => {
+    setDeliveryOrders((prev) => prev.map((d) => (
+      d.do_number === doNumber ? { ...d, status: newStatus } : d
+    )));
+    if (selectedDO && selectedDO.do_number === doNumber) {
+      setSelectedDO(prev => ({ ...prev, status: newStatus }));
+    }
+    const updatedLocal = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]').map((d) => 
+      d.do_number === doNumber ? { ...d, status: newStatus } : d
+    );
+    localStorage.setItem('aldigens_delivery_orders', JSON.stringify(updatedLocal));
+  };
+
+  // FUNGSI UTAMA: Meneruskan data DO ke Modul Work Order (Manufaktur)
+  const handleCreateWO = async (doData) => {
+    const ok = await swalConfirm({
+      title: 'Terbitkan Work Order?',
+      text: `Stok gudang tidak cukup. Terbitkan Surat Perintah Kerja (WO) ke Manufaktur untuk pesanan ${doData.so_number}?`,
+      confirmText: 'Ya, Buat WO',
+      cancelText: 'Batal',
+      icon: 'warning',
+    });
+    if (!ok) return;
+
+    try {
+      const newWO = {
+        id: Date.now(),
+        wo_number: `WO-MFG-${Math.floor(1000 + Math.random() * 9000)}`,
+        wo_date: new Date().toISOString().split('T')[0],
+        ref_do: doData.do_number,
+        ref_so: doData.so_number,
+        customer_name: doData.customer_name,
+        status: 'Draft',
+        items: doData.items.map(it => ({
+          part_number: it.part_number,
+          description: it.description,
+          target_qty: it.qty_sent,
+          unit: it.unit
+        }))
+      };
+
+      const existingWO = JSON.parse(localStorage.getItem('aldigens_work_orders') || '[]');
+      localStorage.setItem('aldigens_work_orders', JSON.stringify([newWO, ...existingWO]));
+
+      try {
+        await api.post('/work-orders', newWO);
+      } catch (apiErr) {
+        console.warn("API Work Order offline, data disimpan di lokal.");
+      }
+      
+      swalToast(`Work Order ${newWO.wo_number} berhasil dikirim ke Pabrik!`, 'success');
+      updateDoStatusLocally(doData.do_number, 'In Production');
+      
+    } catch (error) {
+      swalError('Gagal', 'Sistem gagal meneruskan perintah ke Manufaktur.');
+    }
+  };
+
+  const simulateProductionFinish = (doData) => {
+    swalToast('Simulasi: Produksi selesai. Barang disetor ke Gudang!', 'success');
+    updateDoStatusLocally(doData.do_number, 'Ready to Ship');
   };
 
   const handleApprove = async (doData) => {
@@ -227,9 +292,7 @@ export default function DeliveryOrder() {
             items: doData.items
           });
           targetId = response.data.data?.id;
-        } catch (syncErr) {
-          console.warn("DO sudah ada di database, mencari ID berdasarkan nomor DO...");
-        }
+        } catch (syncErr) {}
 
         try {
           const listRes = await api.get('/delivery-orders');
@@ -239,37 +302,22 @@ export default function DeliveryOrder() {
           if (foundInApi) {
             targetId = foundInApi.id;
           }
-        } catch (listErr) {
-          console.error("Gagal mengambil list DO dari API:", listErr);
-        }
+        } catch (listErr) {}
       }
 
       if (!targetId) {
-        throw new Error("ID Delivery Order tidak valid di database.");
+        updateDoStatusLocally(doData.do_number, 'Approved');
+        swalToast('Mode Offline: DO di-approve secara lokal.', 'success');
+        return;
       }
 
       await approveDeliveryOrder(targetId);
       swalToast('Delivery Order berhasil di-approve. Stok Inventory berkurang.', 'success');
       
-      // UPDATE STATE SECARA LANGSUNG AGAR STATUS BERUBAH JADI 'Approved'
-      setDeliveryOrders((prev) => prev.map((d) => (
-        String(d.id) === String(doData.id) || d.do_number === doData.do_number 
-          ? { ...d, status: 'Approved', id: targetId } 
-          : d
-      )));
-      
-      setSelectedDO((prev) => (prev ? { ...prev, status: 'Approved', id: targetId } : null));
-      
-      // Sinkronkan juga data localStorage agar ikut tersimpan status terbarunya
-      const updatedLocal = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]').map((d) => 
-        d.do_number === doData.do_number ? { ...d, status: 'Approved' } : d
-      );
-      localStorage.setItem('aldigens_delivery_orders', JSON.stringify(updatedLocal));
-
+      updateDoStatusLocally(doData.do_number, 'Approved');
       fetchDOs();
     } catch (err) {
-      console.error("DETAIL ERROR APPROVE DO:", err.response?.data);
-      const serverMsg = err.response?.data?.message || JSON.stringify(err.response?.data) || err.message;
+      const serverMsg = err.response?.data?.message || err.message;
       swalError('Gagal Approve', `Pesan Server: ${serverMsg}`);
     }
   };
@@ -440,8 +488,6 @@ export default function DeliveryOrder() {
             </button>
           </div>
 
-          {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>}
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Referensi Sales Order <span className="text-red-500">*</span></label>
@@ -457,7 +503,7 @@ export default function DeliveryOrder() {
                   const custName = so.customer || so.customer_name || '';
                   return (
                     <option key={so.id || soNum} value={soNum}>
-                      {soNum} - {custName}
+                      {soNum} {custName ? `- ${custName}` : ''}
                     </option>
                   );
                 })}
@@ -560,11 +606,37 @@ export default function DeliveryOrder() {
                 </p>
               </div>
             </div>
+            
             <div className="flex items-center gap-3">
               <span className={`px-4 py-2 rounded-xl text-sm font-bold border ${statusBadge(selectedDO.status)}`}>
                 {selectedDO.status}
               </span>
-              {!['Approved', 'Delivered'].includes(selectedDO.status) && (
+
+              {selectedDO.status === 'Waiting Production' && (
+                <button
+                  onClick={() => handleCreateWO(selectedDO)}
+                  className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer shadow-lg shadow-rose-500/20"
+                >
+                  <Factory className="w-4 h-4" /> Buat Work Order (WO)
+                </button>
+              )}
+
+              {selectedDO.status === 'In Production' && (
+                <>
+                  <button disabled className="flex items-center gap-2 bg-amber-100 text-amber-700 px-5 py-2.5 rounded-xl font-medium cursor-not-allowed">
+                    <Wrench className="w-4 h-4" /> Sedang Dirakit...
+                  </button>
+                  <button 
+                    onClick={() => simulateProductionFinish(selectedDO)}
+                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-3 py-2.5 rounded-xl text-xs font-medium transition cursor-pointer"
+                    title="Simulasi penyelesaian produksi"
+                  >
+                    (Simulasi: Produksi Selesai)
+                  </button>
+                </>
+              )}
+
+              {['Ready to Ship', 'Shipped'].includes(selectedDO.status) && (
                 <button
                   onClick={() => handleApprove(selectedDO)}
                   className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer"
@@ -572,6 +644,7 @@ export default function DeliveryOrder() {
                   <BadgeCheck className="w-4 h-4" /> Approve DO
                 </button>
               )}
+
               <button
                 onClick={() => printSuratJalan(selectedDO)}
                 className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer"
@@ -580,6 +653,16 @@ export default function DeliveryOrder() {
               </button>
             </div>
           </div>
+
+          {selectedDO.status === 'Waiting Production' && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm">Stok Gudang Tidak Mencukupi!</h4>
+                <p className="text-xs mt-1 text-rose-700">Delivery Order ini ditahan sementara. Silakan terbitkan Work Order (WO) agar bagian pabrik segera memproduksi barang pesanan ini.</p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
             <div>
@@ -640,7 +723,6 @@ export default function DeliveryOrder() {
                   <th className="p-5 font-bold">Ref. SO</th>
                   <th className="p-5 font-bold text-orange-600">PO Pelanggan</th>
                   <th className="p-5 font-bold">Tanggal</th>
-                  <th className="p-5 font-bold">Kendaraan</th>
                   <th className="p-5 font-bold text-center">Status</th>
                   <th className="p-5 font-bold text-center">Aksi</th>
                 </tr>
@@ -664,19 +746,13 @@ export default function DeliveryOrder() {
                     <td className="p-5 text-slate-500">{d.so_number || '-'}</td>
                     <td className="p-5 text-orange-600 font-medium">{d.ref_po || '-'}</td>
                     <td className="p-5 text-slate-500">{d.do_date}</td>
-                    <td className="p-5 text-slate-500">{d.vehicle_number || '-'}</td>
                     <td className="p-5 text-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(d.status)}`}>{d.status}</span>
+                      <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${statusBadge(d.status)}`}>{d.status}</span>
                     </td>
                     <td className="p-5 text-center space-x-2 whitespace-nowrap">
                       <button onClick={() => setSelectedDO(d)} className="text-orange-600 hover:text-white font-semibold text-xs bg-orange-50 hover:bg-orange-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
                         Lihat Detail
                       </button>
-                      {!['Approved', 'Delivered'].includes(d.status) && (
-                        <button onClick={() => handleApprove(d)} className="text-emerald-700 hover:text-white font-semibold text-xs bg-emerald-50 hover:bg-emerald-600 px-4 py-2 rounded-xl transition-all cursor-pointer">
-                          Approve
-                        </button>
-                      )}
                     </td>
                   </tr>
                 ))}

@@ -1,27 +1,32 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Trash2, Printer, FileText, CheckCircle2, Box } from 'lucide-react';
+import { Search, Plus, Filter, MoreVertical, ArrowLeft, Save, Trash2, Printer, CheckCircle2, Box } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 import { swalToast } from '../utils/swal';
+import axios from 'axios';
 
 export default function MaterialRelease() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'form'
+  const [viewMode, setViewMode] = useState('list');
   const [activeMenuId, setActiveMenuId] = useState(null);
-
-  const [materialReleases, setMaterialReleases] = useState(() => {
-    const saved = localStorage.getItem('aldigens_material_release');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'MR-202609-001', mrNo: 'MR-202609-001', refWO: 'WO-202609-001', date: '25 Sep 2026', pic: 'Budi Santoso', status: 'Dikeluarkan', materials: [{ desc: 'Body Utama', qty: 50, unit: 'pcs' }, { desc: 'Kawat Las', qty: 2, unit: 'Ea' }] },
-      { id: 'MR-202609-002', mrNo: 'MR-202609-002', refWO: 'WO-202609-002', date: '24 Sep 2026', pic: 'Andi Wijaya', status: 'Dikeluarkan', materials: [{ desc: 'Kabel Utama', qty: 10, unit: 'Meter' }] },
-      { id: 'MR-202609-003', mrNo: 'MR-202609-003', refWO: 'WO-202609-003', date: '26 Sep 2026', pic: 'Siti Aminah', status: 'Draft', materials: [] },
-    ];
-  });
-
+  const [materialReleases, setMaterialReleases] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const fetchMaterialReleases = async () => {
+    try {
+      const saved = localStorage.getItem('aldigens_material_release');
+      if (saved) {
+        setMaterialReleases(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error("Error fetching material releases:", error);
+    }
+  };
 
   useEffect(() => {
+    fetchMaterialReleases();
     const savedWO = localStorage.getItem('aldigens_wo');
     if (savedWO) {
       setWorkOrders(JSON.parse(savedWO));
@@ -60,6 +65,7 @@ export default function MaterialRelease() {
   };
 
   const handleOpenAddForm = () => {
+    setFormError(null);
     setFormData({
       mrNo: `MR-${new Date().toISOString().slice(0, 7).replace('-', '')}-${Math.floor(100 + Math.random() * 900)}`,
       refWO: '',
@@ -76,11 +82,25 @@ export default function MaterialRelease() {
     const wo = workOrders.find(w => w.woNo === selectedWoNo);
     
     if (wo) {
-      const combined = [
-        ...(wo.raw_materials || []).map(m => ({ desc: m.desc || m.itemName || 'Material', qty: wo.targetQty || 1, unit: m.unit || 'pcs' })),
-        ...(wo.consumables_b || []).map(m => ({ desc: m.desc || 'Consumable B', qty: 1, unit: m.unit || 'Ea' })),
-        ...(wo.consumables_c || []).map(m => ({ desc: m.desc || 'Consumable C', qty: 1, unit: m.unit || 'Ea' }))
-      ];
+      const multiplier = Number(wo.targetQty || 1);
+      const rawList = wo.raw_materials || [];
+      
+      const combined = rawList.map(m => ({
+        desc: m.desc || m.description || m.itemName || 'Material',
+        qty: Number(m.qty || 1) * multiplier,
+        unit: m.unit || 'Set'
+      }));
+
+      if (combined.length === 0 && wo.items) {
+        wo.items.forEach(it => {
+          combined.push({
+            desc: it.description || it.desc || 'Komponen',
+            qty: Number(it.target_qty || it.qty_sent || 1),
+            unit: it.unit || 'Set'
+          });
+        });
+      }
+
       setFormData(prev => ({
         ...prev,
         refWO: selectedWoNo,
@@ -91,23 +111,54 @@ export default function MaterialRelease() {
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
+    setFormError(null);
+
+    console.log("Tombol Simpan diklik! Data yang akan dikirim:", formData); // Cek apakah ini muncul di console F12
+
     if (!formData.refWO) {
-      alert('Pilih referensi Work Order terlebih dahulu!');
+      setFormError('Pilih referensi Work Order terlebih dahulu!');
       return;
     }
 
-    const payload = { id: formData.mrNo, ...formData };
-    const updated = [payload, ...materialReleases];
-    setMaterialReleases(updated);
-    localStorage.setItem('aldigens_material_release', JSON.stringify(updated));
-    setViewMode('list');
+    if (!formData.materials || formData.materials.length === 0) {
+      setFormError('Daftar material masih kosong. Pilih Work Order dengan benar!');
+      return;
+    }
 
-    if (typeof swalToast === 'function') {
-      swalToast('Material Release berhasil disimpan!', 'success');
-    } else {
-      alert('Material Release berhasil disimpan!');
+    setLoading(true);
+    try {
+      // Ubah sementara menggunakan URL absolut lengkap atau pastikan axios terpanggil
+      const response = await axios.post('http://localhost:8000/api/material-releases', formData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      console.log("Respon dari Backend Laravel:", response.data);
+
+      alert('Sukses! Dokumen disimpan dan Stok di MySQL terpotong.');
+      
+      const payload = { id: formData.mrNo, ...formData };
+      const updated = [payload, ...materialReleases];
+      setMaterialReleases(updated);
+      localStorage.setItem('aldigens_material_release', JSON.stringify(updated));
+      
+      setViewMode('list');
+    } catch (error) {
+      console.error("Detail Error Axios:", error);
+      if (error.response) {
+        setFormError(`Gagal dari Server: ${error.response.data.message || JSON.stringify(error.response.data)}`);
+      } else if (error.request) {
+        setFormError('Server Laravel di http://localhost:8000 tidak merespons sama sekali!');
+      } else {
+        setFormError(`Error: ${error.message}`);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -185,13 +236,22 @@ export default function MaterialRelease() {
           </div>
 
           <form onSubmit={handleSave} className="space-y-6">
+            {formError && (
+              <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-rose-700 dark:text-rose-300 text-sm flex items-start gap-3">
+                <span className="font-bold">⚠️ Perhatian:</span>
+                <div className="flex-1">{formError}</div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Pilih Work Order (WO)</label>
                 <select required value={formData.refWO} onChange={handleWoChange} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
                   <option value="">-- Pilih Referensi WO --</option>
                   {workOrders.map(wo => (
-                    <option key={wo.id || wo.woNo} value={wo.woNo}>{wo.woNo} - {wo.product || wo.model_bracket}</option>
+                    <option key={wo.id || wo.woNo} value={wo.woNo}>
+                      {wo.woNo} {wo.product || wo.model_bracket}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -245,9 +305,9 @@ export default function MaterialRelease() {
             </div>
 
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
-              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition cursor-pointer">Batal</button>
-              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition cursor-pointer">
-                <Save className="h-4 w-4" /> Simpan Pengeluaran Bahan
+              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition cursor-pointer" disabled={loading}>Batal</button>
+              <button type="submit" disabled={loading} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition cursor-pointer disabled:opacity-50">
+                <Save className="h-4 w-4" /> {loading ? 'Menyimpan...' : 'Simpan Pengeluaran Bahan'}
               </button>
             </div>
           </form>
@@ -259,7 +319,6 @@ export default function MaterialRelease() {
   return (
     <div className="p-6">
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
-        
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="relative">

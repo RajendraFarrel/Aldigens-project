@@ -29,8 +29,6 @@ const EMPTY_FORM = {
 
 const PRODUK_JADI = 'PRODUK JADI';
 
-// Klasifikasi item berdasarkan item_type dari API.
-// Data lama dengan item_type kosong/null dianggap komponen agar tidak hilang.
 const isProdukJadi = (product) => String(product?.item_type || '').toUpperCase() === PRODUK_JADI;
 
 const TABS = [
@@ -51,9 +49,7 @@ export default function InventoryProducts() {
   const [error, setError] = useState('');
   const [barcodeProduct, setBarcodeProduct] = useState(null);
   const [activeTab, setActiveTab] = useState('components');
-  // null = form bebas (edit). 'components' / 'finished' = tipe dikunci sesuai tab asal form.
   const [lockType, setLockType] = useState(null);
-  // Kata kunci terakhir yang diminta — mencegah respons lama (debounce) menimpa data terbaru.
   const searchRef = useRef('');
   searchRef.current = search.trim();
 
@@ -63,7 +59,6 @@ export default function InventoryProducts() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
 
-  // Pisahkan data per tab setelah hasil pencarian diterima (tanpa request tambahan).
   const componentProducts = useMemo(() => products.filter((p) => !isProdukJadi(p)), [products]);
   const finishedProducts = useMemo(() => products.filter((p) => isProdukJadi(p)), [products]);
 
@@ -72,27 +67,19 @@ export default function InventoryProducts() {
 
   const pagination = usePagination(tabItems, 10);
 
-  // Kembali ke halaman 1 saat pindah tab.
   const { setCurrentPage } = pagination;
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, setCurrentPage]);
 
-  // Saat hasil pencarian diterima, arahkan ke tab yang memiliki hasil
-  // (mis. mencari Part Number produk jadi dari tab komponen).
-  // Hanya untuk pencarian aktif, agar tidak memaksa pindah tab saat daftar kosong biasanya.
   useEffect(() => {
     if (loading || !search.trim()) return;
     if (!componentProducts.length && finishedProducts.length) setActiveTab('finished');
     else if (!finishedProducts.length && componentProducts.length) setActiveTab('components');
   }, [products, loading, search]);
 
-  // --- FUNGSI FETCH DISINKRONKAN KE ALDIGENS_PRODUCTS ---
-  // Bukan useCallback: dipanggil oleh useEffect yang dideklarasikan lebih dulu,
-  // jadi tidak boleh bergantung pada variabel yang baru dibuat setelahnya.
   const fetchProducts = async () => {
     setLoading(true);
-    // Snapshot keyword agar respons usang (mis. saat search dikosongkan) tidak menimpa hasil terbaru.
     const keyword = search.trim();
     try {
       const res = await getProducts(keyword);
@@ -101,33 +88,21 @@ export default function InventoryProducts() {
         setError('');
       }
     } catch (err) {
-      // Request yang dibatalkan (pindah halaman / unmount) bukan kegagalan data.
       const cancelled = err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';
       if (!cancelled && keyword === searchRef.current) {
         setProducts([]);
         setError('Gagal memuat data produk.');
       }
     } finally {
-      // Selalu dijalankan agar indikator loading tidak menggantung.
       setLoading(false);
     }
   };
 
-
-  // Fungsi Pembantu membaca LocalStorage aldigens_products
-  const fallbackToLocal = (searchTerm) => {
-    const localInventory = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
-    if (!searchTerm) {
-      setProducts(localInventory);
-      return;
-    }
-    const filtered = localInventory.filter(p =>
-      String(p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      String(p.part_number || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      String(p.product_code || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setProducts(filtered);
-  };
+  // AMBIL DATA OTOMATIS SAAT PERTAMA KALI HALAMAN DIBUKA ATAU SEARCH BERUBAH
+  useEffect(() => {
+    fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const timeout = setTimeout(() => fetchProducts(), 400);
@@ -135,7 +110,6 @@ export default function InventoryProducts() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // Muat daftar customer untuk dropdown "Customer" pada form produk.
   useEffect(() => {
     getCustomers()
       .then((res) => setCustomers(res.data?.data || res.data || []))
@@ -147,7 +121,6 @@ export default function InventoryProducts() {
 
   const openAdd = () => {
     setEditingProduct(null);
-    // Tab Produk Jadi langsung membuat master PRODUK JADI (stok awal 0).
     setForm(isFinishedTab ? { ...EMPTY_FORM, item_type: PRODUK_JADI, stock: 0 } : EMPTY_FORM);
     setLockType(isFinishedTab ? 'finished' : null);
     setError('');
@@ -161,7 +134,6 @@ export default function InventoryProducts() {
       part_number: product.part_number || '',
       name: product.name || product.description || '',
       category: product.category || '',
-      // Pertahankan tipe item asli; hanya null/kosong yang diberi default komponen.
       item_type: product.item_type || 'BAHAN / COMPONENT',
       unit: product.unit || 'PCS',
       stock: product.stock ?? product.qty ?? product.stok ?? 0,
@@ -170,7 +142,6 @@ export default function InventoryProducts() {
       supplier_id: product.supplier_id ?? '',
       customer_id: product.customer_id ?? '',
     });
-    // Edit dari tab Produk Jadi: tipe dikunci agar tidak berubah jadi komponen.
     setLockType(isFinishedTab || isProdukJadi(product) ? 'finished' : null);
     setError('');
     setShowModal(true);
@@ -185,7 +156,6 @@ export default function InventoryProducts() {
       setError('Nama produk wajib diisi.');
       return;
     }
-    // Pastikan tipe tidak berubah jadi komponen saat form dibuka dari tab Produk Jadi.
     const payload = lockType === 'finished' ? { ...form, item_type: PRODUK_JADI } : form;
     setSaving(true);
     setError('');
@@ -224,8 +194,6 @@ export default function InventoryProducts() {
     printBarcodes([product]);
   };
 
-  /* Cetak / PDF — mencetak SELURUH data yang cocok dengan tab & pencarian,
-     bukan hanya baris pada halaman pagination yang sedang tampil. */
   const handlePrintReport = () => {
     const rows = tabItems;
     const title = isFinishedTab ? 'LAPORAN MASTER PRODUK JADI' : 'LAPORAN MASTER PART NUMBER & PRODUK';
@@ -382,7 +350,6 @@ export default function InventoryProducts() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Import hanya untuk tab komponen: importer existing belum menentukan item_type. */}
           {!isFinishedTab && (
             <button onClick={openImport} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow cursor-pointer">
               <Upload className="h-4 w-4" /> Import Excel
@@ -400,7 +367,6 @@ export default function InventoryProducts() {
         </div>
       </div>
 
-      {/* Tab pemisah data berdasarkan item_type */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -523,7 +489,6 @@ export default function InventoryProducts() {
         <Pagination currentPage={pagination.currentPage} totalItems={pagination.totalItems} pageSize={pagination.pageSize} onPageChange={pagination.setCurrentPage} onPageSizeChange={pagination.setPageSize} />
       </div>
 
-      {/* Modal Tambah/Edit */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -602,7 +567,6 @@ export default function InventoryProducts() {
         </div>
       )}
 
-      {/* Modal Barcode */}
       {barcodeProduct && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setBarcodeProduct(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -626,7 +590,6 @@ export default function InventoryProducts() {
         </div>
       )}
 
-      {/* Modal Import Excel */}
       {showImport && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>

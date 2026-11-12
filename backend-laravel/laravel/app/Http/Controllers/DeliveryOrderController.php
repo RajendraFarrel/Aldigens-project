@@ -15,7 +15,6 @@ class DeliveryOrderController extends Controller
     // 1. Menampilkan daftar semua Delivery Order beserta item dan relasinya
     public function index()
     {
-        // PERBAIKAN: Hapus relasi 'salesOrder' agar tidak memicu Error 500 (API Offline)
         $deliveryOrders = DeliveryOrder::with(['items'])->latest()->get();
 
         return response()->json([
@@ -27,7 +26,6 @@ class DeliveryOrderController extends Controller
     // 2. Menampilkan detail satu Delivery Order (untuk cetak Surat Jalan & generate Invoice)
     public function show($id)
     {
-        // PERBAIKAN: Hapus relasi 'salesOrder.items' agar tidak memicu Error 500
         $deliveryOrder = DeliveryOrder::with(['items'])->find($id);
 
         if (!$deliveryOrder) {
@@ -44,7 +42,7 @@ class DeliveryOrderController extends Controller
     }
 
     /**
-     * Simpan Delivery Order (Surat Jalan) baru.
+     * Simpan Delivery Order (Surat Jalan) baru dengan pengecekan stok otomatis.
      */
     public function store(Request $request)
     {
@@ -62,21 +60,48 @@ class DeliveryOrderController extends Controller
         DB::beginTransaction();
 
         try {
+            // --- CEK APAKAH SEMUA STOK ITEM TERSEDIA ---
+            $isStockAvailable = true;
+
+            foreach ($request->items as $item) {
+                $code = $item['part_number'];
+                
+                $customerPart = CustomerPartNumber::where('part_number', $code)->first();
+                $product = $customerPart ? Product::find($customerPart->product_id ?? $customerPart->inventory_product_id ?? null) : null;
+
+                if (!$product) {
+                    $product = Product::where('part_number', $code)
+                        ->orWhere('barcode', $code)
+                        ->orWhere('product_code', $code)
+                        ->orWhere('name', 'LIKE', '%' . $item['description'] . '%')
+                        ->first();
+                }
+
+                $currentStock = $product ? ($product->stock ?? $product->stok ?? $product->quantity ?? 0) : 0;
+                $requiredQty = (int) $item['qty_sent'];
+
+                // Jika ada barang yang stoknya kurang atau tidak ditemukan, tandai stok tidak tersedia
+                if (!$product || $currentStock < $requiredQty) {
+                    $isStockAvailable = false;
+                    break;
+                }
+            }
+
+            // Tentukan status awal: 'Ready' jika barang ada, 'Waiting Production' jika kosong
+            $initialStatus = $isStockAvailable ? 'Ready' : 'Waiting Production';
+
             // Simpan Header Delivery Order (Surat Jalan)
             $deliveryOrder = DeliveryOrder::create([
                 'sales_order_id'   => $request->sales_order_id,
                 'do_number'        => $request->do_number,
-                
-                // PERBAIKAN: Menangkap dan menyimpan No. SO dan No. PO Pelanggan
                 'so_number'        => $request->so_number ?? $request->sales_order_id, 
                 'ref_po'           => $request->ref_po ?? $request->customer_po,
-                
                 'do_date'          => $request->do_date,
                 'customer_name'    => $request->customer_name,
                 'delivery_address' => $request->delivery_address,
                 'vehicle_number'   => $request->vehicle_number,
                 'driver_name'      => $request->driver_name,
-                'status'           => 'Shipped',
+                'status'           => $initialStatus,
                 'notes'            => $request->notes,
             ]);
 
@@ -95,9 +120,13 @@ class DeliveryOrderController extends Controller
 
             DB::commit();
 
+            $message = $isStockAvailable 
+                ? 'Delivery Order berhasil dibuat. Stok tersedia dan siap di-Approve!' 
+                : 'Delivery Order dibuat. Stok kosong, dialihkan ke Waiting Production.';
+
             return response()->json([
                 'status' => 'success',
-                'message' => 'Delivery Order berhasil dibuat. Stok akan berkurang setelah DO di-approve.',
+                'message' => $message,
                 'data' => $deliveryOrder->load('items')
             ], 201);
 
@@ -122,7 +151,7 @@ class DeliveryOrderController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Delivery Order tidak ditemukan.'], 404);
         }
 
-        if (in_array($deliveryOrder->status, ['Approved', 'Delivered'], true)) {
+        if (in_array($deliveryOrder->status, ['Approved', 'Delivered', 'BAST Signed'], true)) {
             return response()->json([
                 'status' => 'success',
                 'message' => 'Delivery Order ini sudah di-approve sebelumnya.',
@@ -130,35 +159,65 @@ class DeliveryOrderController extends Controller
             ], 200);
         }
 
+        // --- TAHAP 1: VALIDASI KETERSEDIAAN STOK ---
+        foreach ($deliveryOrder->items as $item) {
+            $code = $item->part_number;
+            if (!$code) continue;
+
+            $product = null;
+
+            // 1. Cari melalui CustomerPartNumber (Mapping Pelanggan)
+            $customerPart = CustomerPartNumber::where('part_number', $code)->first();
+            if ($customerPart) {
+                $product = Product::find($customerPart->product_id ?? $customerPart->inventory_product_id ?? null);
+            }
+
+            // 2. Jika tidak ketemu di mapping, cari langsung berdasarkan part_number/barcode/product_code/name internal
+            if (!$product) {
+                $product = Product::where('part_number', $code)
+                    ->orWhere('barcode', $code)
+                    ->orWhere('product_code', $code)
+                    ->orWhere('name', 'LIKE', '%' . $item->description . '%')
+                    ->first();
+            }
+
+            if (!$product) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Part Number [{$code}] / Deskripsi [{$item->description}] tidak ditemukan di Master Inventory."
+                ], 422);
+            }
+
+            $currentStock = $product->stock ?? $product->stok ?? $product->quantity ?? 0;
+            $requiredQty = (int) $item->qty_sent;
+
+            // JIKA STOK KURANG
+            if ($currentStock < $requiredQty) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Stok tidak mencukupi untuk '{$product->name}'. Stok gudang: {$currentStock}, dibutuhkan: {$requiredQty}. Silakan buat Work Order jika ingin memproduksi."
+                ], 422);
+            }
+        }
+
+        // --- TAHAP 2: EKSEKUSI APPROVAL & POTONG STOK ---
         return DB::transaction(function () use ($request, $deliveryOrder, $stockService) {
             foreach ($deliveryOrder->items as $item) {
                 $code = $item->part_number;
-                if (!$code) {
-                    continue;
-                }
+                if (!$code) continue;
 
-                $product = null;
-
-                // 1. Cek melalui tabel CustomerPartNumber (pencocokan berdasarkan kolom part_number saja)
                 $customerPart = CustomerPartNumber::where('part_number', $code)->first();
+                $product = $customerPart ? Product::find($customerPart->product_id ?? $customerPart->inventory_product_id ?? null) : null;
 
-                if ($customerPart) {
-                    $product = Product::find($customerPart->product_id ?? $customerPart->inventory_product_id ?? null);
-                }
-
-                // 2. Jika tidak ketemu, cari langsung berdasarkan part_number/product_code internal produk
                 if (!$product) {
                     $product = Product::where('part_number', $code)
                         ->orWhere('barcode', $code)
                         ->orWhere('product_code', $code)
+                        ->orWhere('name', 'LIKE', '%' . $item->description . '%')
                         ->first();
                 }
 
-                if (!$product) {
-                    throw new \RuntimeException("Part Number [{$code}] tidak ditemukan di Inventory maupun Mapping Customer.");
-                }
-
-                // Kurangi stok + catat mutasi KELUAR.
+                // Kurangi stok menggunakan InventoryStockService
                 $stockService->adjust($product, (int) $item->qty_sent, 'KELUAR', [
                     'user_id' => $request->user()?->id,
                     'user_name' => $request->user()?->name,

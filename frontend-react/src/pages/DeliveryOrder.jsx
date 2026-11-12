@@ -149,40 +149,33 @@ export default function DeliveryOrder() {
     setSaving(true);
     setError('');
     try {
-      const newDO = {
-        id: Date.now(),
-        ...formData,
-        status: 'Waiting Production', 
-        so_number: formData.sales_order_id
-      };
+      const response = await api.post('/delivery-orders', {
+        sales_order_id: null, // DIKEMBALIKAN KE NULL AGAR TIDAK ERROR 500
+        so_number: formData.sales_order_id, // TETAP KIRIM NOMOR SO KESINI
+        do_number: formData.do_number,
+        do_date: formData.do_date,
+        customer_name: formData.customer_name,
+        delivery_address: formData.delivery_address,
+        vehicle_number: formData.vehicle_number,
+        driver_name: formData.driver_name,
+        notes: formData.notes,
+        ref_po: formData.ref_po,
+        items: formData.items
+      });
+
+      const createdDO = response.data.data;
 
       const existing = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
-      localStorage.setItem('aldigens_delivery_orders', JSON.stringify([newDO, ...existing]));
+      localStorage.setItem('aldigens_delivery_orders', JSON.stringify([createdDO, ...existing]));
 
-      try {
-        await api.post('/delivery-orders', {
-          sales_order_id: null,
-          do_number: formData.do_number,
-          do_date: formData.do_date,
-          customer_name: formData.customer_name,
-          delivery_address: formData.delivery_address,
-          vehicle_number: formData.vehicle_number,
-          driver_name: formData.driver_name,
-          notes: formData.notes,
-          ref_po: formData.ref_po,
-          items: formData.items
-        });
-      } catch (apiErr) {
-        console.warn("API DO offline, data disimpan di lokal.");
-      }
-
-      setSuccessMsg('Surat Jalan Draft dibuat (Status: Menunggu Produksi)');
+      setSuccessMsg(response.data.message || 'Surat Jalan berhasil dibuat.');
       setIsCreating(false);
       resetForm();
       fetchDOs();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      setError('Gagal menyimpan Delivery Order.');
+      const serverMsg = err.response?.data?.message || err.message;
+      setError('Gagal menyimpan Delivery Order: ' + serverMsg);
     } finally {
       setSaving(false);
     }
@@ -190,6 +183,7 @@ export default function DeliveryOrder() {
 
   const statusBadge = (status) => {
     const map = {
+      'Ready': 'bg-blue-50 text-blue-700 border-blue-200',
       'Shipped': 'bg-blue-50 text-blue-700 border-blue-200',
       'Waiting Production': 'bg-rose-50 text-rose-700 border-rose-200',
       'In Production': 'bg-amber-50 text-amber-700 border-amber-200',
@@ -214,7 +208,6 @@ export default function DeliveryOrder() {
     localStorage.setItem('aldigens_delivery_orders', JSON.stringify(updatedLocal));
   };
 
-  // FUNGSI UTAMA: Meneruskan data DO ke Modul Work Order (Manufaktur)
   const handleCreateWO = async (doData) => {
     const ok = await swalConfirm({
       title: 'Terbitkan Work Order?',
@@ -280,7 +273,8 @@ export default function DeliveryOrder() {
       if (String(targetId).length > 10 || String(targetId).startsWith('17')) {
         try {
           const response = await api.post('/delivery-orders', {
-            sales_order_id: null,
+            sales_order_id: null, // DIKEMBALIKAN KE NULL AGAR TIDAK ERROR 500
+            so_number: doData.so_number || doData.sales_order_id,
             do_number: doData.do_number,
             do_date: doData.do_date,
             customer_name: doData.customer_name,
@@ -636,7 +630,7 @@ export default function DeliveryOrder() {
                 </>
               )}
 
-              {['Ready to Ship', 'Shipped'].includes(selectedDO.status) && (
+              {['Ready', 'Ready to Ship', 'Shipped'].includes(selectedDO.status) && (
                 <button
                   onClick={() => handleApprove(selectedDO)}
                   className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer"

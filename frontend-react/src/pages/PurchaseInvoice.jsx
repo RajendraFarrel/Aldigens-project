@@ -569,7 +569,7 @@ export default function PurchaseInvoice() {
     return (
         <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Purchase Invoice (Faktur Pembelian)</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Purchase Invoice</h2>
                 <button
                     onClick={() => setIsModalOpen(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition cursor-pointer"

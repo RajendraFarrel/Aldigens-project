@@ -116,7 +116,7 @@ const PAGE_TITLES = {
   // Penjualan
   'quotation':              'Quotation',
   'sales-order':            'Sales Order',
-  'delivery-order':         'Delivery Order (Surat Jalan)',
+  'delivery-order':         'Delivery Order',
   'invoice':                'Invoice',
   'sales-return':           'Sales Return',
   'sales-receipt':          'Sales Receipt',

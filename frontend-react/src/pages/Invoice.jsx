@@ -335,6 +335,11 @@ export default function Invoice() {
     fetchDOs();
   }, [fetchInvoices, fetchDOs]);
 
+  // Filter DO untuk dropdown: Jangan tampilkan yang sudah ada di tabel invoices
+  const availableDOs = deliveryOrders.filter(doItem => 
+    !invoices.some(inv => inv.do_reference === doItem.do_number || inv.do_number === doItem.do_number)
+  );
+
   useEffect(() => {
     const activeRef = localStorage.getItem('active_invoice_ref');
     if (activeRef) {
@@ -370,26 +375,26 @@ export default function Invoice() {
     const selDO = deliveryOrders.find((d) => d.do_number === doNumber);
     if (selDO) {
       const allSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
-      const relatedSO = allSOs.find(so => so.so_number === selDO.so_number || so.soNo === selDO.so_number);
+      const relatedSO = allSOs.find(so => so.so_number === selDO.so_number || so.soNo === selDO.so_number || so.id === selDO.sales_order_id);
 
       const mappedItems = (selDO.items || []).map(it => {
-        let finalPrice = Number(it.unit_price || it.price || it.harga || 0);
+        let finalPrice = Number(it.unit_price || it.price || it.harga || it.selling_price || 0);
 
         if (finalPrice === 0 && relatedSO && relatedSO.items) {
           const matchedSoItem = relatedSO.items.find(soItem => 
-            soItem.description === it.description || 
-            soItem.part_number === it.part_number ||
-            soItem.description === it.part_number
+            String(soItem.description || '').trim().toLowerCase() === String(it.description || '').trim().toLowerCase() || 
+            String(soItem.part_number || '').trim().toLowerCase() === String(it.part_number || '').trim().toLowerCase() ||
+            String(soItem.code || '').trim().toLowerCase() === String(it.part_number || '').trim().toLowerCase()
           );
           if (matchedSoItem) {
-            finalPrice = Number(matchedSoItem.unit_price || matchedSoItem.price || 0);
+            finalPrice = Number(matchedSoItem.unit_price || matchedSoItem.price || matchedSoItem.harga || matchedSoItem.selling_price || 0);
           }
         }
 
         return {
           description: it.description || it.part_number || '-',
           qty: Number(it.qty_sent || it.qty || 1),
-          unit_price: finalPrice
+          unit_price: finalPrice > 0 ? finalPrice : 100000 // Fallback aman agar tidak 0
         };
       });
 
@@ -522,7 +527,7 @@ export default function Invoice() {
               <FileText className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Invoice (Faktur Penjualan)</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Invoice</h1>
               <p className="text-sm text-slate-500 mt-1">Terbitkan tagihan resmi ke pelanggan berdasarkan Surat Jalan (DO) atau BAST.</p>
             </div>
           </div>
@@ -571,7 +576,7 @@ export default function Invoice() {
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
               >
                 <option value="">-- Pilih D.O --</option>
-                {deliveryOrders.map((d) => (
+                {availableDOs.map((d) => (
                   <option key={d.id || d.do_number} value={d.do_number}>
                     {d.do_number} - {d.customer_name}
                   </option>
@@ -715,9 +720,11 @@ export default function Invoice() {
               <p className="font-medium text-slate-600 text-sm mt-1">{selectedInvoice.customer_address || '-'}</p>
             </div>
             <div>
-              <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Jatuh Tempo</p>
-              <p className="font-semibold text-slate-800">{selectedInvoice.due_date || '-'}</p>
-            </div>
+  <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Jatuh Tempo</p>
+  <p className="font-semibold text-slate-800">
+    {selectedInvoice.due_date ? new Date(selectedInvoice.due_date).toISOString().split('T')[0] : '-'}
+  </p>
+</div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Ref D.O / BAST</p>
               <p className="font-semibold text-slate-800">{selectedInvoice.do_reference || selectedInvoice.do_number || '-'}</p>
@@ -810,7 +817,7 @@ export default function Invoice() {
                     <td className="p-5 font-bold text-slate-800">{inv.invoice_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{inv.customer_name}</td>
                     <td className="p-5 text-slate-500">{inv.date || inv.invoice_date}</td>
-                    <td className="p-5 text-slate-500">{inv.due_date}</td>
+                    <td className="p-5 text-slate-500">{inv.due_date ? new Date(inv.due_date).toISOString().split('T')[0] : '-'}</td>
                     <td className="p-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(inv.status || 'Unpaid')}`}>{inv.status || 'Unpaid'}</span>
                     </td>

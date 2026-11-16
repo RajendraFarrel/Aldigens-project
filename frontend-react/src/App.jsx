@@ -27,6 +27,8 @@ import Login from './pages/Login';
 import InventoryProducts from './pages/InventoryProducts';
 import Warehouse from './pages/Warehouse';
 import InventoryWarehouse from './pages/InventoryWarehouse';
+import GoodReceipt from './pages/GoodReceipt';
+import GoodIssue from './pages/GoodIssue';
 import StockOpname from './pages/StockOpname';
 import MasterData from './pages/MasterData';
 import InventoryScan from './pages/InventoryScan';
@@ -162,7 +164,7 @@ export default function App() {
   const { isDark, toggleTheme } = useTheme();
   // User berasal dari context (payload backend /me), dengan cache localStorage
   // sebagai nilai awal agar refresh tidak menghilangkan hak akses secara keliru.
-  const { user: permissionUser } = usePermissions();
+  const { user: permissionUser, refresh: refreshPermissions } = usePermissions();
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('auth_token');
   });
@@ -224,9 +226,11 @@ export default function App() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
     localStorage.removeItem('aldigens_active_tab');
-    setCurrentUser(null);
     setActiveTab('dashboard');
     setIsAuthenticated(false);
+    // Buang cache user dari PermissionProvider agar tidak ada sisa hak akses
+    // milik sesi sebelumnya saat login berikutnya.
+    refreshPermissions?.();
   };
 
   if (!isAuthenticated) {
@@ -275,9 +279,9 @@ export default function App() {
       case 'users':                  return withGuard(activeTab, <UserManagement />);
       case 'inventory-products':     return withGuard(activeTab, <InventoryProducts />);
       case 'inventory-warehouses':    return withGuard(activeTab, <Warehouse />);
-      case 'inventory-receive':       return withGuard(activeTab, <InventoryWarehouse operation="receive" />);
-      case 'inventory-issue':         return withGuard(activeTab, <InventoryWarehouse operation="issue" />);
-      case 'inventory-transfer':      return withGuard(activeTab, <InventoryWarehouse operation="transfer" />);
+      case 'inventory-receive':       return withGuard(activeTab, <GoodReceipt />);
+      case 'inventory-issue':         return withGuard(activeTab, <GoodIssue />);
+      case 'inventory-transfer':      return withGuard(activeTab, <InventoryWarehouse />);
       case 'inventory-opname':        return withGuard(activeTab, <StockOpname />);
       case 'master-customers':        return withGuard(activeTab, <MasterData type="customer" />);
       case 'master-suppliers':        return withGuard(activeTab, <MasterData type="supplier" />);
@@ -290,7 +294,6 @@ export default function App() {
       case 'spk':                        return withGuard(activeTab, <SPK />);
       case 'scheduling':                 return withGuard(activeTab, <Scheduling />);
       case 'commissioning':              return withGuard(activeTab, <Commissioning />);
-      case 'receive-item':               return withGuard(activeTab, <ReceiveItem />);
       default:                       return <Dashboard />;
     }
   };

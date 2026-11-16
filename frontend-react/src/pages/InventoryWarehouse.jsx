@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRightLeft, ClipboardPlus, PackageMinus, Pencil, Plus, Printer, RefreshCw, Save,
-  Search, Trash2, X,
+  ArrowRightLeft, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
 } from 'lucide-react';
 import {
   getInventoryMutations, getProducts, getWarehouses,
-  receiveInventory, issueInventory, transferInventory,
-  updateInventoryMutation, deleteInventoryMutation,
+  transferInventory, updateInventoryMutation, deleteInventoryMutation,
 } from '../services/api';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
@@ -16,41 +14,26 @@ import {
   fmtDateTime, fmtQty, getPeriodRange, isWithinRange, isBlank, sumQtyByUnit, todayInput,
 } from '../utils/printAldigensDocument';
 
+/**
+ * Halaman transfer lokasi (perpindahan stok antar warehouse/lokasi).
+ * Mutasi yang tampil: reference_type = 'TRANSFER' (satu grup = satu transfer, OUT + IN).
+ *
+ * Penerimaan barang dan pengeluaran barang masing-masing punya halaman sendiri:
+ * `GoodReceipt.jsx` (RECEIVE) dan `GoodIssue.jsx` (ISSUE).
+ */
 const CONFIG = {
-  receive: {
-    label: 'Penerimaan Barang',
-    referenceType: 'RECEIVE',
-    icon: ClipboardPlus,
-    color: 'text-emerald-600',
-    button: 'bg-emerald-600 hover:bg-emerald-700',
-    printTitle: 'LAPORAN PENERIMAAN BARANG',
-    printPrefix: 'RCV',
-  },
-  issue: {
-    label: 'Pengeluaran Barang',
-    referenceType: 'ISSUE',
-    icon: PackageMinus,
-    color: 'text-rose-600',
-    button: 'bg-rose-600 hover:bg-rose-700',
-    printTitle: 'LAPORAN PENGELUARAN BARANG',
-    printPrefix: 'ISS',
-  },
-  transfer: {
-    label: 'Transfer Lokasi',
-    referenceType: 'TRANSFER',
-    icon: ArrowRightLeft,
-    color: 'text-blue-600',
-    button: 'bg-blue-600 hover:bg-blue-700',
-    printTitle: 'LAPORAN TRANSFER LOKASI',
-    printPrefix: 'TRF',
-  },
+  label: 'Transfer Lokasi',
+  referenceType: 'TRANSFER',
+  icon: ArrowRightLeft,
+  color: 'text-blue-600',
+  button: 'bg-blue-600 hover:bg-blue-700',
+  printTitle: 'LAPORAN TRANSFER LOKASI',
+  printPrefix: 'TRF',
 };
 
 const EMPTY = {
   barcode: '',
   quantity: 1,
-  warehouse_id: '',
-  warehouse_location_id: '',
   source_warehouse_id: '',
   source_location_id: '',
   destination_warehouse_id: '',
@@ -89,11 +72,9 @@ const inputClass =
   'w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white';
 const labelClass = 'text-xs font-semibold text-slate-600';
 
-export default function InventoryWarehouse({ operation = 'receive' }) {
-  const config = CONFIG[operation] ?? CONFIG.receive;
-  const isTransfer = operation === 'transfer';
-  const Icon = config.icon;
+const Icon = CONFIG.icon;
 
+export default function InventoryWarehouse() {
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [products, setProducts] = useState([]);
@@ -129,10 +110,11 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
   const load = useCallback(async () => {
     try {
       const [mutationRes, productRes, warehouseRes] = await Promise.all([
-        getInventoryMutations({ reference_types: config.referenceType, search: search || undefined }),
+        getInventoryMutations({ reference_types: CONFIG.referenceType, search: search || undefined }),
         getProducts(),
         getWarehouses(),
-      ]);      setRows(mutationRes.data?.data || []);
+      ]);
+      setRows(mutationRes.data?.data || []);
       setProducts(productRes.data?.data || []);
       setWarehouses(warehouseRes.data?.data || []);
       setError('');
@@ -141,7 +123,7 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
     } finally {
       setLoading(false);
     }
-  }, [config.referenceType, search]);
+  }, [search]);
 
   // Debounce pencarian agar tidak memanggil API setiap ketikan.
   useEffect(() => {
@@ -168,8 +150,6 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
       quantity: row.quantity,
       reference_number: row.reference_number || '',
       notes: row.notes || '',
-      warehouse_id: row.warehouse?.id || '',
-      warehouse_location_id: row.location?.id || '',
       source_warehouse_id: row.warehouse?.id || '',
       source_location_id: row.location?.id || '',
       destination_warehouse_id: row.destination_warehouse?.id || '',
@@ -186,31 +166,17 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
     setFormError('');
   };
 
-  const buildPayload = () => {
-    const quantity = Number(form.quantity);
-    const base = {
-      quantity,
-      reference_type: config.referenceType,
-      reference_number: form.reference_number || null,
-      notes: form.notes || null,
-    };
-    if (isTransfer) {
-      return {
-        ...base,
-        barcode: form.barcode,
-        source_warehouse_id: form.source_warehouse_id,
-        source_location_id: form.source_location_id || null,
-        destination_warehouse_id: form.destination_warehouse_id,
-        destination_location_id: form.destination_location_id || null,
-      };
-    }
-    return {
-      ...base,
-      barcode: form.barcode,
-      warehouse_id: form.warehouse_id || null,
-      warehouse_location_id: form.warehouse_location_id || null,
-    };
-  };
+  const buildPayload = () => ({
+    quantity: Number(form.quantity),
+    reference_type: CONFIG.referenceType,
+    reference_number: form.reference_number || null,
+    notes: form.notes || null,
+    barcode: form.barcode,
+    source_warehouse_id: form.source_warehouse_id,
+    source_location_id: form.source_location_id || null,
+    destination_warehouse_id: form.destination_warehouse_id,
+    destination_location_id: form.destination_location_id || null,
+  });
 
   const submit = async (event) => {
     event.preventDefault();
@@ -219,17 +185,10 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
     setMessage('');
     try {
       const payload = buildPayload();
-      let response;
-      if (editingKey) {
-        response = await updateInventoryMutation(editingKey, payload);
-      } else if (operation === 'receive') {
-        response = await receiveInventory(payload);
-      } else if (operation === 'issue') {
-        response = await issueInventory(payload);
-      } else {
-        response = await transferInventory(payload);
-      }
-      setMessage(response.data?.message || `${config.label} berhasil disimpan.`);
+      const response = editingKey
+        ? await updateInventoryMutation(editingKey, payload)
+        : await transferInventory(payload);
+      setMessage(response.data?.message || `${CONFIG.label} berhasil disimpan.`);
       closeModal();
       setLoading(true);
       await load();
@@ -246,7 +205,7 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
 
   const remove = async (row) => {
     const doc = row.reference_number || 'tanpa nomor dokumen';
-    if (!window.confirm(`Hapus ${config.label} ${doc}? Stok akan dikembalikan ke saldo sebelum transaksi.`)) return;
+    if (!window.confirm(`Hapus ${CONFIG.label} ${doc}? Stok akan dikembalikan ke saldo sebelum transaksi.`)) return;
     setLoading(true);
     try {
       const response = await deleteInventoryMutation(row.group_key);
@@ -286,79 +245,58 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
     [products, form.barcode]
   );
 
-  const columns = useMemo(() => {
-    const base = [
-      {
-        header: 'Dokumen', render: r => (
-          <div>
-            <p className="font-mono font-semibold text-slate-800">{r.reference_number || '-'}</p>
-            <p className="text-xs text-slate-400">
-              {r.transaction_time ? new Date(r.transaction_time).toLocaleString('id-ID') : '-'}
-            </p>
-          </div>
-        )
-      },
-      {
-        header: 'Part Number', render: r => (
-          <div>
-            <p className="font-mono font-medium text-blue-600">{r.product?.part_number || '-'}</p>
-            <p className="text-xs text-slate-500 max-w-[220px] truncate">{r.product?.name || '-'}</p>
-          </div>
-        )
-      },
-    ];
-
-    if (isTransfer) {
-      base.push(
-        {
-          header: 'Dari', render: r => (
-            <div className="text-sm">
-              <p className="font-semibold text-slate-700">{r.warehouse?.name || '-'}</p>
-              <p className="text-xs text-slate-500">{r.location?.code || 'Saldo umum'}</p>
-            </div>
-          )
-        },
-        {
-          header: 'Ke', render: r => (
-            <div className="text-sm">
-              <p className="font-semibold text-slate-700">{r.destination_warehouse?.name || '-'}</p>
-              <p className="text-xs text-slate-500">{r.destination_location?.code || 'Saldo umum'}</p>
-            </div>
-          )
-        }
-      );
-    } else {
-      base.push({
-        header: 'Warehouse', render: r => (
-          <div className="text-sm">
-            <p className="font-semibold text-slate-700">{r.warehouse?.name || 'Warehouse Utama'}</p>
-            <p className="text-xs text-slate-500">{r.location?.code || 'Saldo umum'}</p>
-          </div>
-        )
-      });
-    }
-
-    base.push(
-      {
-        header: 'Qty', render: r => (
-          <span className="font-semibold text-slate-800">{r.quantity} {r.product?.unit || ''}</span>
-        )
-      },
-      {
-        header: 'Stok', render: r => (
-          <div className="text-sm">
-            <p className="text-slate-600">
-              {r.stock_before} → <span className="font-semibold text-slate-800">{r.stock_after}</span>
-            </p>
-            <p className="text-xs text-slate-400">Total {r.product?.stock ?? 0}</p>
-          </div>
-        )
-      },
-      { header: 'Keterangan', render: r => <span className="text-sm text-slate-500">{r.notes || '-'}</span> }
-    );
-
-    return base;
-  }, [isTransfer]);
+  const columns = useMemo(() => ([
+    {
+      header: 'Dokumen', render: r => (
+        <div>
+          <p className="font-mono font-semibold text-slate-800">{r.reference_number || '-'}</p>
+          <p className="text-xs text-slate-400">
+            {r.transaction_time ? new Date(r.transaction_time).toLocaleString('id-ID') : '-'}
+          </p>
+        </div>
+      )
+    },
+    {
+      header: 'Part Number', render: r => (
+        <div>
+          <p className="font-mono font-medium text-blue-600">{r.product?.part_number || '-'}</p>
+          <p className="text-xs text-slate-500 max-w-[220px] truncate">{r.product?.name || '-'}</p>
+        </div>
+      )
+    },
+    {
+      header: 'Dari', render: r => (
+        <div className="text-sm">
+          <p className="font-semibold text-slate-700">{r.warehouse?.name || '-'}</p>
+          <p className="text-xs text-slate-500">{r.location?.code || 'Saldo umum'}</p>
+        </div>
+      )
+    },
+    {
+      header: 'Ke', render: r => (
+        <div className="text-sm">
+          <p className="font-semibold text-slate-700">{r.destination_warehouse?.name || '-'}</p>
+          <p className="text-xs text-slate-500">{r.destination_location?.code || 'Saldo umum'}</p>
+        </div>
+      )
+    },
+    {
+      header: 'Qty', render: r => (
+        <span className="font-semibold text-slate-800">{r.quantity} {r.product?.unit || ''}</span>
+      )
+    },
+    {
+      header: 'Stok', render: r => (
+        <div className="text-sm">
+          <p className="text-slate-600">
+            {r.stock_before} → <span className="font-semibold text-slate-800">{r.stock_after}</span>
+          </p>
+          <p className="text-xs text-slate-400">Total {r.product?.stock ?? 0}</p>
+        </div>
+      )
+    },
+    { header: 'Keterangan', render: r => <span className="text-sm text-slate-500">{r.notes || '-'}</span> },
+  ]), []);
 
   /* Cetak PDF — memakai seluruh grup transaksi pada periode terpilih.
      Satu grup transfer (OUT + IN) dicetak sebagai satu baris. Read-only. */
@@ -385,36 +323,24 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
       { header: 'Satuan', width: '6%', align: 'center', value: (r) => r.product?.unit },
     ];
 
-    let columns;
-    if (isTransfer) {
-      columns = [
-        ...baseColumns,
-        { header: 'WH Asal', width: '10%', value: (r) => r.warehouse?.name },
-        { header: 'Lokasi Asal', width: '7%', value: (r) => r.location?.code || 'Saldo umum' },
-        { header: 'WH Tujuan', width: '10%', value: (r) => r.destination_warehouse?.name },
-        { header: 'Lokasi Tujuan', width: '8%', value: (r) => r.destination_location?.code || 'Saldo umum' },
-        { header: 'Petugas', width: '9%', value: (r) => r.user_name },
-        { header: 'Keterangan', width: '12%', value: (r) => r.notes },
-      ];
-    } else {
-      columns = [
-        ...baseColumns,
-        { header: 'Warehouse', width: '11%', value: (r) => r.warehouse?.name },
-        { header: 'Lokasi', width: '7%', value: (r) => r.location?.code || 'Saldo umum' },
-        { header: 'Referensi', width: '9%', value: (r) => r.reference_type },
-        { header: 'Petugas', width: '9%', value: (r) => r.user_name },
-        { header: 'Keterangan', width: '12%', value: (r) => r.notes },
-      ];
-    }
+    const columns = [
+      ...baseColumns,
+      { header: 'WH Asal', width: '10%', value: (r) => r.warehouse?.name },
+      { header: 'Lokasi Asal', width: '7%', value: (r) => r.location?.code || 'Saldo umum' },
+      { header: 'WH Tujuan', width: '10%', value: (r) => r.destination_warehouse?.name },
+      { header: 'Lokasi Tujuan', width: '8%', value: (r) => r.destination_location?.code || 'Saldo umum' },
+      { header: 'Petugas', width: '9%', value: (r) => r.user_name },
+      { header: 'Keterangan', width: '12%', value: (r) => r.notes },
+    ];
 
     printAldigensDocument({
-      title: config.printTitle,
-      reportNumber: makeReportNumber(config.printPrefix),
+      title: CONFIG.printTitle,
+      reportNumber: makeReportNumber(CONFIG.printPrefix),
       printedAt,
       printedBy: getCurrentUserName(),
       periodLabel: periodRange.label,
       metadataLeft: [
-        { label: 'Jenis Transaksi', value: config.label, strong: true },
+        { label: 'Jenis Transaksi', value: CONFIG.label, strong: true },
         { label: 'Pencarian', value: search.trim() ? `"${search.trim()}"` : 'Tanpa filter pencarian' },
       ],
       metadataRight: [
@@ -426,25 +352,18 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
       ],
       sections: [
         {
-          title: isTransfer ? 'DAFTAR TRANSFER LOKASI' : `DAFTAR ${config.label.toUpperCase()}`,
-          note: isTransfer
-            ? 'Satu baris = satu transfer (perpindahan lokasi), bukan barang masuk + barang keluar.'
-            : undefined,
+          title: 'DAFTAR TRANSFER LOKASI',
+          note: 'Satu baris = satu transfer (perpindahan lokasi), bukan barang masuk + barang keluar.',
           columns,
           rows: data.map((r, idx) => ({ ...r, _no: idx + 1 })),
           emptyMessage: 'Tidak ada data pada periode/filter yang dipilih.',
         },
       ],
-      notes: isTransfer
-        ? [
-            `Total ${docCount} transfer pada periode ini.`,
-            'Perpindahan lokasi tidak menambah atau mengurangi total stok perusahaan.',
-            ...(data.some((r) => isBlank(r.destination_warehouse?.name)) ? ['Sebagian data transfer tidak memiliki data warehouse tujuan.'] : []),
-          ]
-        : [
-            `Total ${docCount} dokumen ${config.label.toLowerCase()} pada periode ini.`,
-            'Ringkasan kuantitas dipisahkan per satuan agar tidak mencampur unit berbeda.',
-          ],
+      notes: [
+        `Total ${docCount} transfer pada periode ini.`,
+        'Perpindahan lokasi tidak menambah atau mengurangi total stok perusahaan.',
+        ...(data.some((r) => isBlank(r.destination_warehouse?.name)) ? ['Sebagian data transfer tidak memiliki data warehouse tujuan.'] : []),
+      ],
       summary,
       signatories: [
         { label: 'Dibuat Oleh', name: getCurrentUserName(), role: 'Administrator Inventory' },
@@ -459,9 +378,9 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div className="flex items-center gap-3">
-          <Icon className={`w-8 h-8 ${config.color}`} />
+          <Icon className={`w-8 h-8 ${CONFIG.color}`} />
           <div>
-            <h2 className="text-2xl font-bold text-slate-800">{config.label}</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{CONFIG.label}</h2>
             <p className="text-sm text-slate-500">Kelola mutasi stok, edit, dan hapus dengan pembalikan saldo otomatis.</p>
           </div>
         </div>
@@ -471,13 +390,13 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
             className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm transition shadow-sm"
             title="Cetak PDF sesuai periode terpilih"
           >
-            <Printer className="w-4 h-4" />Cetak PDF {config.label}
+            <Printer className="w-4 h-4" />Cetak PDF {CONFIG.label}
           </button>
           <button
             onClick={openAdd}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl ${config.button} text-white text-sm transition shadow-sm`}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl ${CONFIG.button} text-white text-sm transition shadow-sm`}
           >
-            <Plus className="w-4 h-4" />Tambah {config.label}
+            <Plus className="w-4 h-4" />Tambah {CONFIG.label}
           </button>
           <button onClick={() => { setLoading(true); load(); }} className="p-2 border rounded-lg hover:bg-slate-50 transition" title="Muat ulang">
             <RefreshCw className="w-4 h-4" />
@@ -547,7 +466,7 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
                 {!periodRows.length && (
                   <tr>
                     <td colSpan={columns.length + 1} className="p-12 text-center text-slate-400">
-                      Belum ada data {config.label.toLowerCase()} pada periode ini.
+                      Belum ada data {CONFIG.label.toLowerCase()} pada periode ini.
                     </td>
                   </tr>
                 )}
@@ -568,10 +487,10 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
       {/* Modal Tambah / Edit */}
       {showModal && (
         <Modal
-          title={editingKey ? `Edit ${config.label}` : `Tambah ${config.label}`}
+          title={editingKey ? `Edit ${CONFIG.label}` : `Tambah ${CONFIG.label}`}
           subtitle={editingKey ? 'Perubahan membatalkan mutasi lama lalu menerapkan data baru.' : 'Isi detail mutasi stok di bawah ini.'}
           icon={Icon}
-          iconColor={config.color}
+          iconColor={CONFIG.color}
           onClose={closeModal}
         >
           <form onSubmit={submit} className="space-y-3">
@@ -602,14 +521,10 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
               </div>
             </div>
 
-            {isTransfer ? (
-              <div className="space-y-3">
-                {warehouseFields('source_warehouse_id', 'source_location_id', 'Warehouse Sumber')}
-                {warehouseFields('destination_warehouse_id', 'destination_location_id', 'Warehouse Tujuan')}
-              </div>
-            ) : (
-              warehouseFields('warehouse_id', 'warehouse_location_id', 'Warehouse')
-            )}
+            <div className="space-y-3">
+              {warehouseFields('source_warehouse_id', 'source_location_id', 'Warehouse Sumber')}
+              {warehouseFields('destination_warehouse_id', 'destination_location_id', 'Warehouse Tujuan')}
+            </div>
 
             <div className="space-y-1">
               <label className={labelClass}>Keterangan</label>
@@ -624,15 +539,15 @@ export default function InventoryWarehouse({ operation = 'receive' }) {
               </button>
               <button
                 disabled={saving}
-                className={`flex-1 ${config.button} text-white py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:opacity-60`}
+                className={`flex-1 ${CONFIG.button} text-white py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:opacity-60`}
               >
                 <Save className="w-4 h-4" />
-                {saving ? 'Menyimpan...' : editingKey ? 'Simpan Perubahan' : `Tambah ${config.label}`}
+                {saving ? 'Menyimpan...' : editingKey ? 'Simpan Perubahan' : `Tambah ${CONFIG.label}`}
               </button>
             </div>
           </form>
         </Modal>
       )}
     </div>
-  );
+    );
 }

@@ -441,7 +441,7 @@ export default function DeliveryOrder() {
               <Truck className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Delivery Order (DO)</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Delivery Order</h1>
               <p className="text-sm text-slate-500 mt-1">Terbitkan Surat Jalan dari SO untuk mengawal pengiriman fisik barang.</p>
             </div>
           </div>

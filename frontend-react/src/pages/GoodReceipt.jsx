@@ -1,8 +1,8 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ClipboardPlus, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
+  ClipboardPlus, FileText, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
 } from 'lucide-react';
-import {
+import api, {
   getInventoryMutations, getProducts, getWarehouses,
   receiveInventory, updateInventoryMutation, deleteInventoryMutation,
 } from '../services/api';
@@ -38,11 +38,11 @@ const EMPTY = {
 };
 
 /* ─── Modal ─── */
-function Modal({ title, subtitle, icon: Icon, iconColor, onClose, children }) {
+function Modal({ title, subtitle, icon: Icon, iconColor, maxWidth = 'max-w-2xl', onClose, children }) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+        className={`bg-white rounded-2xl shadow-2xl w-full ${maxWidth} p-6 space-y-4 max-h-[90vh] overflow-y-auto`}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
@@ -74,6 +74,7 @@ export default function GoodReceipt() {
   const [form, setForm] = useState(EMPTY);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [editingKey, setEditingKey] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
@@ -82,6 +83,11 @@ export default function GoodReceipt() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Mode sumber penerimaan: 'PO' (tarik multi-item dari Purchase Order) | 'MANUAL' (input satuan)
+  const [receiveMode, setReceiveMode] = useState('PO');
+  const [selectedPoNumber, setSelectedPoNumber] = useState('');
+  const [poItems, setPoItems] = useState([]);
 
   // Filter periode transaksi (dipakai untuk tabel, statistik, dan PDF).
   const [periodMode, setPeriodMode] = useState('monthly');
@@ -101,6 +107,38 @@ export default function GoodReceipt() {
   );
 
   const pagination = usePagination(periodRows, 10);
+
+  const fetchPOs = useCallback(async () => {
+    try {
+      let apiPOs = [];
+      try {
+        const res = await api.get('/purchase-orders');
+        apiPOs = res.data?.data || res.data || [];
+      } catch {
+        console.warn('API PO offline, menggunakan localStorage.');
+      }
+
+      const localPOs = JSON.parse(
+        localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]'
+      );
+
+      const merged = new Map();
+      [...localPOs, ...(Array.isArray(apiPOs) ? apiPOs : [])].forEach((po) => {
+        const num = po?.po_number || po?.poNo || po?.number || (po?.id ? `PO-${po.id}` : '');
+        if (!num) return;
+        if (['Cancelled', 'Closed', 'Completed', 'Received'].includes(po.status)) return;
+        merged.set(String(num), {
+          ...po,
+          _poNumber: String(num),
+          items: po.items || po.details || [],
+        });
+      });
+
+      setPurchaseOrders(Array.from(merged.values()));
+    } catch (e) {
+      console.error('Gagal memuat Purchase Order:', e);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -126,19 +164,186 @@ export default function GoodReceipt() {
     return () => clearTimeout(timer);
   }, [load, search]);
 
+  useEffect(() => {
+    fetchPOs();
+  }, [fetchPOs]);
+
   const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
   const locations = (id) => warehouses.find(w => String(w.id) === String(id))?.locations || [];
+
+  const findProductMatch = useCallback(
+    (item) => {
+      const codeCandidates = [
+        item.barcode,
+        item.part_number,
+        item.code,
+        item.product_code,
+        item.inventory_part_number,
+      ]
+        .filter(Boolean)
+        .map((v) => String(v).trim().toLowerCase());
+
+      const nameCandidate = String(item.description || item.name || '').trim().toLowerCase();
+
+      return products.find((p) => {
+        const pCodes = [p.barcode, p.part_number, p.product_code]
+          .filter(Boolean)
+          .map((v) => String(v).trim().toLowerCase());
+        if (codeCandidates.some((c) => pCodes.includes(c))) return true;
+        if (nameCandidate && String(p.name || '').trim().toLowerCase() === nameCandidate) return true;
+        return false;
+      });
+    },
+    [products]
+  );
+
+  const handleSelectPO = (poNumber) => {
+    setSelectedPoNumber(poNumber);
+    setFormError('');
+
+    if (!poNumber) {
+      setPoItems([]);
+      setForm((prev) => ({ ...prev, reference_number: '' }));
+      return;
+    }
+
+    const po = purchaseOrders.find((p) => p._poNumber === String(poNumber));
+    if (!po) return;
+
+    const supplierName = po.supplier_name || po.supplier || po.vendor_name || '';
+
+    const mapped = (po.items || []).map((it, idx) => {
+      const matched = findProductMatch(it);
+      const barcode = matched ? (matched.barcode || matched.part_number || matched.product_code || '') : '';
+      const partNumber = matched?.part_number || it.part_number || it.code || it.product_code || '';
+      const itemName = matched?.name || it.description || it.name || '-';
+      const unit = matched?.unit || it.unit || 'PCS';
+      const ordered = Number(it.qty ?? it.quantity ?? 0);
+
+      // Hitung qty yang sudah pernah diterima sebelumnya untuk PO & barang ini
+      const alreadyReceivedFromLogs = rows
+        .filter(
+          (r) =>
+            String(r.reference_number || '').trim().toLowerCase() === String(poNumber).trim().toLowerCase() &&
+            ((partNumber && String(r.product?.part_number || '').trim().toLowerCase() === String(partNumber).trim().toLowerCase()) ||
+              (barcode && String(r.product?.barcode || '').trim().toLowerCase() === String(barcode).trim().toLowerCase()))
+        )
+        .reduce((sum, r) => sum + Number(r.quantity || 0), 0);
+
+      const alreadyReceived = Math.max(Number(it.qty_received || 0), alreadyReceivedFromLogs);
+      const remaining = Math.max(0, ordered - alreadyReceived);
+
+      return {
+        key: `${poNumber}-${idx}`,
+        barcode,
+        part_number: partNumber,
+        name: itemName,
+        unit,
+        qty_ordered: ordered,
+        qty_received_before: alreadyReceived,
+        qty_remaining: remaining,
+        qty_receive: remaining,
+      };
+    });
+
+    setPoItems(mapped);
+    setForm((prev) => ({
+      ...prev,
+      reference_number: poNumber,
+      notes: prev.notes || (supplierName ? `Penerimaan PO ${poNumber} (${supplierName})` : `Penerimaan PO ${poNumber}`),
+    }));
+  };
+
+  const handlePoItemChange = (index, field, value) => {
+    setPoItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        if (field === 'barcode') {
+          const matched = products.find(
+            (p) => (p.barcode || p.part_number || p.product_code) === value
+          );
+          return {
+            ...item,
+            barcode: value,
+            part_number: matched?.part_number || matched?.product_code || item.part_number,
+            name: matched?.name || item.name,
+            unit: matched?.unit || item.unit,
+          };
+        }
+        return { ...item, [field]: field === 'qty_receive' ? Number(value) : value };
+      })
+    );
+  };
+
+  const handleRemovePoItem = (index) => {
+    setPoItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const markPurchaseOrderProgress = async (poNumber, receivedItems) => {
+    const targetPO = purchaseOrders.find((p) => p._poNumber === String(poNumber));
+    if (!targetPO) return;
+
+    const updatedItems = (targetPO.items || []).map((it) => {
+      const code = String(it.part_number || it.code || it.barcode || '').trim().toLowerCase();
+      const name = String(it.description || it.name || '').trim().toLowerCase();
+      const matched = receivedItems.find(
+        (r) =>
+          (code && String(r.part_number || '').trim().toLowerCase() === code) ||
+          (name && String(r.name || '').trim().toLowerCase() === name)
+      );
+      const addedQty = matched ? Number(matched.qty_receive || 0) : 0;
+      return {
+        ...it,
+        qty_received: Number(it.qty_received || 0) + addedQty,
+      };
+    });
+
+    const isAllReceived =
+      updatedItems.length > 0 &&
+      updatedItems.every((it) => Number(it.qty_received || 0) >= Number(it.qty ?? it.quantity ?? 0));
+    const nextStatus = isAllReceived ? 'Completed' : 'Partial';
+
+    ['aldigens_purchase_orders', 'purchase_orders'].forEach((storageKey) => {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const list = JSON.parse(raw).map((po) => {
+        const num = po?.po_number || po?.poNo || po?.number;
+        if (String(num) !== String(poNumber)) return po;
+        return { ...po, status: nextStatus, items: updatedItems };
+      });
+      localStorage.setItem(storageKey, JSON.stringify(list));
+    });
+
+    if (targetPO.id) {
+      try {
+        await api.put(`/purchase-orders/${targetPO.id}`, {
+          ...targetPO,
+          status: nextStatus,
+          items: updatedItems,
+        });
+      } catch {
+        // Abaikan jika backend belum mendukung update status PO parsial
+      }
+    }
+  };
 
   const openAdd = () => {
     setEditingKey(null);
     setForm(EMPTY);
+    setReceiveMode('PO');
+    setSelectedPoNumber('');
+    setPoItems([]);
     setFormError('');
+    fetchPOs();
     setShowModal(true);
   };
 
   const openEdit = (row) => {
     const p = row.product || {};
     setEditingKey(row.group_key);
+    setReceiveMode('MANUAL');
+    setSelectedPoNumber('');
+    setPoItems([]);
     setForm({
       ...EMPTY,
       barcode: p.barcode || p.part_number || '',
@@ -156,6 +361,8 @@ export default function GoodReceipt() {
     setShowModal(false);
     setEditingKey(null);
     setForm(EMPTY);
+    setSelectedPoNumber('');
+    setPoItems([]);
     setFormError('');
   };
 
@@ -174,7 +381,52 @@ export default function GoodReceipt() {
     setSaving(true);
     setFormError('');
     setMessage('');
+
     try {
+      // Mode tarik multi-item dari Purchase Order
+      if (!editingKey && receiveMode === 'PO') {
+        if (!selectedPoNumber) {
+          setFormError('Pilih Nomor PO terlebih dahulu.');
+          setSaving(false);
+          return;
+        }
+
+        const itemsToReceive = poItems.filter((it) => Number(it.qty_receive) > 0);
+        if (itemsToReceive.length === 0) {
+          setFormError('Minimal ada 1 barang dengan Qty Terima lebih dari 0.');
+          setSaving(false);
+          return;
+        }
+
+        const unmapped = itemsToReceive.find((it) => !it.barcode);
+        if (unmapped) {
+          setFormError(`Barang "${unmapped.name}" belum terhubung ke Part Number master. Pilih Part Number-nya pada baris tersebut.`);
+          setSaving(false);
+          return;
+        }
+
+        // Proses berurutan agar perhitungan stock_before -> stock_after akurat
+        for (const item of itemsToReceive) {
+          await receiveInventory({
+            barcode: item.barcode,
+            quantity: Number(item.qty_receive),
+            reference_type: CONFIG.referenceType,
+            reference_number: form.reference_number || selectedPoNumber,
+            warehouse_id: form.warehouse_id || null,
+            warehouse_location_id: form.warehouse_location_id || null,
+            notes: form.notes || `Penerimaan dari ${selectedPoNumber}`,
+          });
+        }
+
+        await markPurchaseOrderProgress(selectedPoNumber, itemsToReceive);
+        setMessage(`Penerimaan barang dari ${selectedPoNumber} (${itemsToReceive.length} item) berhasil disimpan.`);
+        closeModal();
+        setLoading(true);
+        await Promise.all([load(), fetchPOs()]);
+        return;
+      }
+
+      // Mode Manual / Edit
       const payload = buildPayload();
       const response = editingKey
         ? await updateInventoryMutation(editingKey, payload)
@@ -352,6 +604,8 @@ export default function GoodReceipt() {
     });
   };
 
+  const isPoReceiveMode = !editingKey && receiveMode === 'PO';
+
   return (
     <div className="p-6 space-y-5 max-w-7xl mx-auto w-full">
       {/* Header */}
@@ -467,38 +721,210 @@ export default function GoodReceipt() {
       {showModal && (
         <Modal
           title={editingKey ? `Edit ${CONFIG.label}` : `Tambah ${CONFIG.label}`}
-          subtitle={editingKey ? 'Perubahan membatalkan mutasi lama lalu menerapkan data baru.' : 'Isi detail mutasi stok di bawah ini.'}
+          subtitle={
+            editingKey
+              ? 'Perubahan membatalkan mutasi lama lalu menerapkan data baru.'
+              : 'Tarik seluruh barang dari Nomor PO atau pilih input manual satuan.'
+          }
           icon={Icon}
           iconColor={CONFIG.color}
+          maxWidth={isPoReceiveMode ? 'max-w-3xl' : 'max-w-2xl'}
           onClose={closeModal}
         >
-          <form onSubmit={submit} className="space-y-3">
-            <div className="space-y-1">
-              <label className={labelClass}>Part Number / Barcode <span className="text-red-500">*</span></label>
-              <select required value={form.barcode} onChange={e => set('barcode', e.target.value)} className={inputClass}>
-                <option value="">Pilih Part Number / Barcode</option>
-                {products.map(p => {
-                  const code = p.barcode || p.part_number || p.product_code;
-                  return <option key={p.id} value={code}>{p.part_number || p.product_code} — {p.name} (stok {p.stock})</option>;
-                })}
-              </select>
-              {selectedProduct && (
-                <p className="text-xs text-slate-500">
-                  Stok saat ini: <span className="font-semibold text-slate-700">{selectedProduct.stock}</span> {selectedProduct.unit || ''}
-                </p>
-              )}
-            </div>
+          <form onSubmit={submit} className="space-y-4">
+            {/* Switch Mode Sumber Penerimaan (Hanya saat Tambah Baru) */}
+            {!editingKey && (
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => { setReceiveMode('PO'); setFormError(''); }}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    receiveMode === 'PO'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-800'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Tarik dari Nomor PO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setReceiveMode('MANUAL'); setFormError(''); }}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    receiveMode === 'MANUAL'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-800'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Input Manual (Non-PO)
+                </button>
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className={labelClass}>Quantity <span className="text-red-500">*</span></label>
-                <input required type="number" min="1" value={form.quantity} onChange={e => set('quantity', e.target.value)} className={inputClass} />
-              </div>
-              <div className="space-y-1">
-                <label className={labelClass}>Nomor Dokumen</label>
-                <input value={form.reference_number} onChange={e => set('reference_number', e.target.value)} placeholder="Contoh: PO-2026-001" className={inputClass} />
-              </div>
-            </div>
+            {isPoReceiveMode ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className={labelClass}>Nomor Purchase Order (PO) <span className="text-red-500">*</span></label>
+                    <select
+                      required
+                      value={selectedPoNumber}
+                      onChange={e => handleSelectPO(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="">-- Pilih Nomor PO --</option>
+                      {purchaseOrders.map(po => {
+                        const supplier = po.supplier_name || po.supplier || po.vendor_name || '';
+                        return (
+                          <option key={po._poNumber} value={po._poNumber}>
+                            {po._poNumber} {supplier ? `— ${supplier}` : ''} ({(po.items || []).length} item)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Nomor Dokumen</label>
+                    <input
+                      value={form.reference_number}
+                      onChange={e => set('reference_number', e.target.value)}
+                      placeholder="Otomatis terisi No. PO"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                {/* Daftar Barang dari PO */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className={labelClass}>Rincian Barang dari PO ({poItems.length} item)</label>
+                    {poItems.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPoItems((prev) => prev.map((it) => ({ ...it, qty_receive: it.qty_remaining })))
+                        }
+                        className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer"
+                      >
+                        Isi Penuh Sesuai Sisa PO
+                      </button>
+                    )}
+                  </div>
+
+                  {!selectedPoNumber ? (
+                    <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-xl bg-slate-50">
+                      Pilih Nomor PO di atas untuk memuat seluruh daftar barang secara otomatis.
+                    </div>
+                  ) : poItems.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-300 rounded-xl bg-slate-50">
+                      PO ini tidak memiliki rincian item.
+                    </div>
+                  ) : (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="overflow-x-auto max-h-64">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
+                            <tr>
+                              <th className="p-2.5 text-left font-semibold">Part Number &amp; Nama Barang</th>
+                              <th className="p-2.5 text-center font-semibold w-20">Qty PO</th>
+                              <th className="p-2.5 text-center font-semibold w-20">Sisa</th>
+                              <th className="p-2.5 text-center font-semibold w-28">Qty Terima</th>
+                              <th className="p-2.5 text-center font-semibold w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {poItems.map((it, idx) => (
+                              <tr key={it.key} className="hover:bg-slate-50">
+                                <td className="p-2.5">
+                                  <p className="font-mono font-semibold text-blue-600">
+                                    {it.part_number || 'Kode belum cocok'}
+                                  </p>
+                                  <p className="text-slate-700 font-medium">{it.name}</p>
+                                  {!it.barcode && (
+                                    <select
+                                      value={it.barcode}
+                                      onChange={e => handlePoItemChange(idx, 'barcode', e.target.value)}
+                                      className="mt-1.5 w-full border border-amber-400 rounded-lg px-2 py-1 text-xs bg-white"
+                                    >
+                                      <option value="">-- Cocokkan ke Part Number Master --</option>
+                                      {products.map(p => {
+                                        const code = p.barcode || p.part_number || p.product_code;
+                                        return (
+                                          <option key={p.id} value={code}>
+                                            {p.part_number || p.product_code} — {p.name}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-center text-slate-600">
+                                  {it.qty_ordered} {it.unit}
+                                </td>
+                                <td className="p-2.5 text-center font-semibold text-slate-700">
+                                  {it.qty_remaining} {it.unit}
+                                </td>
+                                <td className="p-2.5">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={it.qty_receive}
+                                    onChange={e => handlePoItemChange(idx, 'qty_receive', e.target.value)}
+                                    className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-center font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  {poItems.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemovePoItem(idx)}
+                                      className="p-1 text-red-500 hover:bg-red-50 rounded-lg transition"
+                                      title="Hapus baris"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  <label className={labelClass}>Part Number / Barcode <span className="text-red-500">*</span></label>
+                  <select required value={form.barcode} onChange={e => set('barcode', e.target.value)} className={inputClass}>
+                    <option value="">Pilih Part Number / Barcode</option>
+                    {products.map(p => {
+                      const code = p.barcode || p.part_number || p.product_code;
+                      return <option key={p.id} value={code}>{p.part_number || p.product_code} — {p.name} (stok {p.stock})</option>;
+                    })}
+                  </select>
+                  {selectedProduct && (
+                    <p className="text-xs text-slate-500">
+                      Stok saat ini: <span className="font-semibold text-slate-700">{selectedProduct.stock}</span> {selectedProduct.unit || ''}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className={labelClass}>Quantity <span className="text-red-500">*</span></label>
+                    <input required type="number" min="1" value={form.quantity} onChange={e => set('quantity', e.target.value)} className={inputClass} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Nomor Dokumen</label>
+                    <input value={form.reference_number} onChange={e => set('reference_number', e.target.value)} placeholder="Contoh: PO-2026-001" className={inputClass} />
+                  </div>
+                </div>
+              </>
+            )}
 
             {warehouseFields('warehouse_id', 'warehouse_location_id', 'Warehouse')}
 
@@ -518,12 +944,18 @@ export default function GoodReceipt() {
                 className={`flex-1 ${CONFIG.button} text-white py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition disabled:opacity-60`}
               >
                 <Save className="w-4 h-4" />
-                {saving ? 'Menyimpan...' : editingKey ? 'Simpan Perubahan' : `Tambah ${CONFIG.label}`}
+                {saving
+                  ? 'Menyimpan...'
+                  : editingKey
+                    ? 'Simpan Perubahan'
+                    : isPoReceiveMode
+                      ? 'Simpan Penerimaan PO'
+                      : `Tambah ${CONFIG.label}`}
               </button>
             </div>
           </form>
         </Modal>
       )}
     </div>
-    );
+  );
 }

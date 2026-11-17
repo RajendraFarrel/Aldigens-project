@@ -1,6 +1,6 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  PackageMinus, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
+  Lock, PackageMinus, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
 } from 'lucide-react';
 import {
   getInventoryMutations, getProducts, getWarehouses,
@@ -17,6 +17,7 @@ import {
 /**
  * Halaman pengeluaran barang (Good Issue).
  * Semua mutasi yang tampil dan dibuat di sini memiliki reference_type = 'ISSUE'.
+ * Riwayat pengeluaran dari Delivery Order otomatis masuk ke sini dan dikunci agar tidak diubah sepihak.
  */
 const CONFIG = {
   label: 'Pengeluaran Barang',
@@ -36,6 +37,147 @@ const EMPTY = {
   reference_number: '',
   notes: '',
 };
+
+/* Deteksi apakah mutasi berasal otomatis dari approval Delivery Order */
+const isFromDeliveryOrder = (row) => {
+  if (!row) return false;
+  if (row.delivery_order_id || row.is_from_do) return true;
+  const ref = String(row.reference_number || '').trim();
+  const notes = String(row.notes || '').trim();
+  return /^DO[-/]/i.test(ref) || /delivery\s*order/i.test(notes);
+};
+
+const getProductCode = (p) => p?.barcode || p?.part_number || p?.product_code || '';
+const formatProductLabel = (p) =>
+  p ? `${p.part_number || p.product_code || p.barcode} — ${p.name}` : '';
+
+/* ─── Komponen Pencarian Barang (Nama / Part Number / Barcode) ─── */
+function ProductSearchSelect({ products, value, onChange }) {
+  const containerRef = useRef(null);
+  const selectedProduct = useMemo(
+    () => products.find((p) => getProductCode(p) === value),
+    [products, value]
+  );
+
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setQuery(selectedProduct ? formatProductLabel(selectedProduct) : '');
+  }, [selectedProduct]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery(selectedProduct ? formatProductLabel(selectedProduct) : '');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedProduct]);
+
+  const filteredProducts = useMemo(() => {
+    const trimmed = query.trim().toLowerCase();
+    const isExactSelected =
+      selectedProduct && query === formatProductLabel(selectedProduct);
+
+    if (!trimmed || isExactSelected) return products;
+
+    const tokens = trimmed.split(/\s+/);
+    return products.filter((p) => {
+      const haystack = `${p.part_number || ''} ${p.product_code || ''} ${p.barcode || ''} ${p.name || ''}`.toLowerCase();
+      return tokens.every((t) => haystack.includes(t));
+    });
+  }, [products, query, selectedProduct]);
+
+  const handleSelect = (product) => {
+    const code = getProductCode(product);
+    onChange(code);
+    setQuery(formatProductLabel(product));
+    setOpen(false);
+  };
+
+  const handleClear = () => {
+    onChange('');
+    setQuery('');
+    setOpen(true);
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (value) onChange('');
+            setOpen(true);
+          }}
+          placeholder="Ketik nama barang, part number, atau barcode..."
+          className="w-full border border-slate-300 rounded-xl pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+        />
+        {(query || value) && (
+          <button
+            type="button"
+            onClick={handleClear}
+            title="Hapus pilihan"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div className="absolute z-30 mt-1 w-full bg-white border border-slate-300 rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
+          {filteredProducts.length === 0 ? (
+            <div className="px-3 py-4 text-xs text-slate-400 text-center">
+              Barang tidak ditemukan untuk kata kunci "{query}".
+            </div>
+          ) : (
+            filteredProducts.map((p) => {
+              const code = getProductCode(p);
+              const isSelected = code === value;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelect(p);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 transition hover:bg-slate-50 ${
+                    isSelected ? 'bg-blue-50/70 font-semibold' : ''
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="font-mono font-semibold text-blue-600 truncate">
+                      {p.part_number || p.product_code || p.barcode}
+                    </p>
+                    <p className="text-slate-700 truncate">{p.name}</p>
+                  </div>
+                  <span
+                    className={`shrink-0 px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                      Number(p.stock || 0) > 0
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-rose-50 text-rose-600'
+                    }`}
+                  >
+                    Stok {p.stock ?? 0} {p.unit || ''}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ─── Modal ─── */
 function Modal({ title, subtitle, icon: Icon, iconColor, onClose, children }) {
@@ -75,6 +217,7 @@ export default function GoodIssue() {
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [editingKey, setEditingKey] = useState(null);
+  const [editingOriginalQty, setEditingOriginalQty] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -131,14 +274,17 @@ export default function GoodIssue() {
 
   const openAdd = () => {
     setEditingKey(null);
+    setEditingOriginalQty(0);
     setForm(EMPTY);
     setFormError('');
     setShowModal(true);
   };
 
   const openEdit = (row) => {
+    if (isFromDeliveryOrder(row)) return;
     const p = row.product || {};
     setEditingKey(row.group_key);
+    setEditingOriginalQty(Number(row.quantity || 0));
     setForm({
       ...EMPTY,
       barcode: p.barcode || p.part_number || '',
@@ -155,9 +301,21 @@ export default function GoodIssue() {
   const closeModal = () => {
     setShowModal(false);
     setEditingKey(null);
+    setEditingOriginalQty(0);
     setForm(EMPTY);
     setFormError('');
   };
+
+  const selectedProduct = useMemo(
+    () => products.find(p => getProductCode(p) === form.barcode),
+    [products, form.barcode]
+  );
+
+  const maxAvailableStock = useMemo(() => {
+    if (!selectedProduct) return null;
+    const currentStock = Number(selectedProduct.stock || 0);
+    return editingKey ? currentStock + editingOriginalQty : currentStock;
+  }, [selectedProduct, editingKey, editingOriginalQty]);
 
   const buildPayload = () => ({
     quantity: Number(form.quantity),
@@ -171,9 +329,21 @@ export default function GoodIssue() {
 
   const submit = async (event) => {
     event.preventDefault();
-    setSaving(true);
     setFormError('');
     setMessage('');
+
+    if (!form.barcode) {
+      setFormError('Pilih barang terlebih dahulu dari daftar pencarian.');
+      return;
+    }
+
+    const qty = Number(form.quantity);
+    if (maxAvailableStock !== null && qty > maxAvailableStock) {
+      setFormError(`Stok tidak mencukupi. Maksimal yang dapat dikeluarkan: ${maxAvailableStock} ${selectedProduct?.unit || ''}.`);
+      return;
+    }
+
+    setSaving(true);
     try {
       const payload = buildPayload();
       const response = editingKey
@@ -195,6 +365,7 @@ export default function GoodIssue() {
   };
 
   const remove = async (row) => {
+    if (isFromDeliveryOrder(row)) return;
     const doc = row.reference_number || 'tanpa nomor dokumen';
     if (!window.confirm(`Hapus ${CONFIG.label} ${doc}? Stok akan dikembalikan ke saldo sebelum transaksi.`)) return;
     setLoading(true);
@@ -231,21 +402,26 @@ export default function GoodIssue() {
     </div>
   );
 
-  const selectedProduct = useMemo(
-    () => products.find(p => (p.barcode || p.part_number || p.product_code) === form.barcode),
-    [products, form.barcode]
-  );
-
   const columns = useMemo(() => ([
     {
-      header: 'Dokumen', render: r => (
-        <div>
-          <p className="font-mono font-semibold text-slate-800">{r.reference_number || '-'}</p>
-          <p className="text-xs text-slate-400">
-            {r.transaction_time ? new Date(r.transaction_time).toLocaleString('id-ID') : '-'}
-          </p>
-        </div>
-      )
+      header: 'Dokumen', render: r => {
+        const autoDO = isFromDeliveryOrder(r);
+        return (
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="font-mono font-semibold text-slate-800">{r.reference_number || '-'}</p>
+              {autoDO && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                  Otomatis dari DO
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400">
+              {r.transaction_time ? new Date(r.transaction_time).toLocaleString('id-ID') : '-'}
+            </p>
+          </div>
+        );
+      }
     },
     {
       header: 'Part Number', render: r => (
@@ -329,7 +505,7 @@ export default function GoodIssue() {
       ],
       infoBox: [
         { label: 'Periode', value: periodRange.label },
-        { label: 'Sumber Data', value: 'Transaksi inventory yang tercatat sistem (bukan data sementara).' },
+        { label: 'Sumber Data', value: 'Transaksi inventory yang tercatat sistem (DO & pengeluaran manual).' },
       ],
       sections: [
         {
@@ -360,7 +536,9 @@ export default function GoodIssue() {
           <Icon className={`w-8 h-8 ${CONFIG.color}`} />
           <div>
             <h2 className="text-2xl font-bold text-slate-800">{CONFIG.label}</h2>
-            <p className="text-sm text-slate-500">Kelola mutasi stok, edit, dan hapus dengan pembalikan saldo otomatis.</p>
+            <p className="text-sm text-slate-500">
+              Riwayat pengeluaran dari Delivery Order tercatat otomatis, serta input pengeluaran manual non-DO.
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -425,23 +603,36 @@ export default function GoodIssue() {
                 </tr>
               </thead>
               <tbody>
-                {pagination.paginatedItems.map(row => (
-                  <tr key={row.group_key} className="border-t border-slate-100 hover:bg-slate-50/50 transition">
-                    {columns.map((c, i) => (
-                      <td key={i} className="p-4">{c.render(row)}</td>
-                    ))}
-                    <td className="p-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => openEdit(row)} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition" title="Edit">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => remove(row)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition" title="Hapus">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {pagination.paginatedItems.map(row => {
+                  const lockedByDO = isFromDeliveryOrder(row);
+                  return (
+                    <tr key={row.group_key} className="border-t border-slate-100 hover:bg-slate-50/50 transition">
+                      {columns.map((c, i) => (
+                        <td key={i} className="p-4">{c.render(row)}</td>
+                      ))}
+                      <td className="p-4">
+                        {lockedByDO ? (
+                          <div
+                            className="flex items-center justify-center gap-1 text-xs text-slate-400"
+                            title="Transaksi ini dikelola otomatis melalui Delivery Order"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>Via DO</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => openEdit(row)} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition" title="Edit">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => remove(row)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition" title="Hapus">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {!periodRows.length && (
                   <tr>
                     <td colSpan={columns.length + 1} className="p-12 text-center text-slate-400">
@@ -463,28 +654,30 @@ export default function GoodIssue() {
         />
       </div>
 
-      {/* Modal Tambah / Edit */}
+      {/* Modal Tambah / Edit Manual */}
       {showModal && (
         <Modal
-          title={editingKey ? `Edit ${CONFIG.label}` : `Tambah ${CONFIG.label}`}
-          subtitle={editingKey ? 'Perubahan membatalkan mutasi lama lalu menerapkan data baru.' : 'Isi detail mutasi stok di bawah ini.'}
+          title={editingKey ? `Edit ${CONFIG.label}` : `Tambah ${CONFIG.label} Manual`}
+          subtitle={
+            editingKey
+              ? 'Perubahan membatalkan mutasi lama lalu menerapkan data baru.'
+              : 'Untuk pengeluaran non-DO (pemakaian internal, sampel, atau barang rusak). Pengiriman pelanggan otomatis tercatat dari Delivery Order.'
+          }
           icon={Icon}
           iconColor={CONFIG.color}
           onClose={closeModal}
         >
           <form onSubmit={submit} className="space-y-3">
             <div className="space-y-1">
-              <label className={labelClass}>Part Number / Barcode <span className="text-red-500">*</span></label>
-              <select required value={form.barcode} onChange={e => set('barcode', e.target.value)} className={inputClass}>
-                <option value="">Pilih Part Number / Barcode</option>
-                {products.map(p => {
-                  const code = p.barcode || p.part_number || p.product_code;
-                  return <option key={p.id} value={code}>{p.part_number || p.product_code} — {p.name} (stok {p.stock})</option>;
-                })}
-              </select>
+              <label className={labelClass}>Cari Nama Barang / Part Number <span className="text-red-500">*</span></label>
+              <ProductSearchSelect
+                products={products}
+                value={form.barcode}
+                onChange={(code) => set('barcode', code)}
+              />
               {selectedProduct && (
                 <p className="text-xs text-slate-500">
-                  Stok saat ini: <span className="font-semibold text-slate-700">{selectedProduct.stock}</span> {selectedProduct.unit || ''}
+                  Stok tersedia: <span className="font-semibold text-slate-700">{maxAvailableStock}</span> {selectedProduct.unit || ''}
                 </p>
               )}
             </div>
@@ -492,19 +685,38 @@ export default function GoodIssue() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className={labelClass}>Quantity <span className="text-red-500">*</span></label>
-                <input required type="number" min="1" value={form.quantity} onChange={e => set('quantity', e.target.value)} className={inputClass} />
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max={maxAvailableStock ?? undefined}
+                  value={form.quantity}
+                  onChange={e => set('quantity', e.target.value)}
+                  className={inputClass}
+                />
               </div>
               <div className="space-y-1">
                 <label className={labelClass}>Nomor Dokumen</label>
-                <input value={form.reference_number} onChange={e => set('reference_number', e.target.value)} placeholder="Contoh: PO-2026-001" className={inputClass} />
+                <input
+                  value={form.reference_number}
+                  onChange={e => set('reference_number', e.target.value)}
+                  placeholder="Contoh: ISS-2026-001 / Internal"
+                  className={inputClass}
+                />
               </div>
             </div>
 
-            {warehouseFields('warehouse_id', 'warehouse_location_id', 'Warehouse')}
+            {warehouseFields('warehouse_id', 'warehouse_location_id', 'Warehouse Asal')}
 
             <div className="space-y-1">
               <label className={labelClass}>Keterangan</label>
-              <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Catatan transaksi" className={inputClass} />
+              <textarea
+                rows={2}
+                value={form.notes}
+                onChange={e => set('notes', e.target.value)}
+                placeholder="Catatan pengeluaran (misal: pemakaian teknisi lapangan, sampel, dll.)"
+                className={inputClass}
+              />
             </div>
 
             {formError && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{formError}</p>}
@@ -525,5 +737,5 @@ export default function GoodIssue() {
         </Modal>
       )}
     </div>
-    );
+  );
 }

@@ -1,11 +1,14 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../services/api';
-import { Wallet, ArrowDownRight, ArrowUpRight, RefreshCw, PlusCircle, X } from 'lucide-react';
+import {
+  Wallet, ArrowDownRight, ArrowUpRight, RefreshCw, PlusCircle, X,
+  Car, Bike, Package, FileText, AlertTriangle, Wrench, ShieldAlert,
+  Navigation, CheckCircle2, Plus, Trash2, TrendingUp, ShoppingCart,
+} from 'lucide-react';
 import { swalSuccess, swalError } from '../utils/swal';
 
 const FLEET_STORAGE_KEY = 'aldigens_fleet_assets';
 const PR_QUEUE_KEY = 'aldigens_pr_draft_queue';
-const PR_ROUTE_PATH = '/purchases/purchase-requisition';
 
 const DEFAULT_FLEET = [
   {
@@ -76,56 +79,212 @@ const daysUntil = (dateStr) => {
 };
 
 export default function Dashboard() {
-    const [summary, setSummary] = useState({
-        total_cash_modal: 145500000,
-        total_cash_in: 35200000,
-        total_cash_out: 12800000,
-    });
-    const [mutations, setMutations] = useState([
-        { id: 1, ref: 'BKM-2609001', date: '2026-09-28', description: 'Pelunasan Invoice PT United Tractors', account: 'Bank Permata (070.224.339-4)', type: 'IN', amount: 25500000 },
-        { id: 2, ref: 'BKK-2609002', date: '2026-09-27', description: 'Pembayaran Pembelian Material Toko Garda', account: 'Bank Permata (070.224.339-4)', type: 'OUT', amount: 8400000 }
-    ]);
-    const [loading, setLoading] = useState(false);
-    const [isInputModalOpen, setIsInputModalOpen] = useState(false);
+  const [summary, setSummary] = useState({
+    total_cash_modal: 145500000,
+    total_cash_in: 35200000,
+    total_cash_out: 12800000,
+  });
+  const [mutations, setMutations] = useState([
+    { id: 1, ref: 'BKM-2609001', date: '2026-09-28', description: 'Pelunasan Invoice PT United Tractors', account: 'Bank Permata (070.224.339-4)', type: 'IN', amount: 25500000 },
+    { id: 2, ref: 'BKK-2609002', date: '2026-09-27', description: 'Pembayaran Pembelian Material Toko Garda', account: 'Bank Permata (070.224.339-4)', type: 'OUT', amount: 8400000 },
+  ]);
 
-    // State untuk form modal
-    const [formData, setFormData] = useState({
-        type: 'IN',
-        ref_number: 'BKM-' + Math.floor(100000 + Math.random() * 900000),
-        date: new Date().toISOString().split('T')[0],
-        account: 'Bank Permata (070.224.339-4)',
-        contact_name: '',
-        amount: '',
-        description: ''
-    });
+  const [products, setProducts] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [deliveryOrders, setDeliveryOrders] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
+  const [fleet, setFleet] = useState(() => {
+    try {
+      const saved = localStorage.getItem(FLEET_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // abaikan error parse
+    }
+    return DEFAULT_FLEET;
+  });
+  const [fleetFilter, setFleetFilter] = useState('ALL');
 
-    const fetchDashboardData = async () => {
-        setLoading(true);
-        try {
-            const response = await api.get('/dashboard-financials');
-            if (response.data) {
-                if (response.data.summary) setSummary(response.data.summary);
-                if (response.data.mutations) setMutations(response.data.mutations);
-            }
-        } catch (error) {
-            console.warn("Menggunakan data fallback lokal:", error);
-        } finally {
-            setLoading(false);
+  const [loading, setLoading] = useState(false);
+  const [isInputModalOpen, setIsInputModalOpen] = useState(false);
+  const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
+
+  const [formData, setFormData] = useState({
+    type: 'IN',
+    ref_number: 'BKM-' + Math.floor(100000 + Math.random() * 900000),
+    date: new Date().toISOString().split('T')[0],
+    account: 'Bank Permata (070.224.339-4)',
+    contact_name: '',
+    amount: '',
+    description: '',
+  });
+
+  const [fleetForm, setFleetForm] = useState(EMPTY_FLEET_FORM);
+
+  const saveFleet = useCallback((nextFleet) => {
+    setFleet(nextFleet);
+    try {
+      localStorage.setItem(FLEET_STORAGE_KEY, JSON.stringify(nextFleet));
+    } catch {
+      // abaikan error storage
+    }
+  }, []);
+
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [finRes, prodRes, invRes, doRes, poRes, fleetRes] = await Promise.allSettled([
+        api.get('/dashboard-financials'),
+        api.get('/products'),
+        api.get('/invoices'),
+        api.get('/delivery-orders'),
+        api.get('/purchase-orders'),
+        api.get('/fleet-assets'),
+      ]);
+
+      if (finRes.status === 'fulfilled' && finRes.value.data) {
+        if (finRes.value.data.summary) setSummary(finRes.value.data.summary);
+        if (finRes.value.data.mutations) setMutations(finRes.value.data.mutations);
+      }
+
+      if (prodRes.status === 'fulfilled') {
+        const list = prodRes.value.data?.data || prodRes.value.data || [];
+        setProducts(Array.isArray(list) ? list : []);
+      }
+
+      if (invRes.status === 'fulfilled') {
+        const list = invRes.value.data?.data || invRes.value.data || [];
+        setInvoices(Array.isArray(list) ? list : []);
+      }
+
+      if (doRes.status === 'fulfilled') {
+        const apiDOs = doRes.value.data?.data || doRes.value.data || [];
+        const localDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
+        setDeliveryOrders([...(Array.isArray(apiDOs) ? apiDOs : []), ...localDOs]);
+      } else {
+        setDeliveryOrders(JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]'));
+      }
+
+      if (poRes.status === 'fulfilled') {
+        const apiPOs = poRes.value.data?.data || poRes.value.data || [];
+        const localPOs = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
+        setPurchaseOrders([...(Array.isArray(apiPOs) ? apiPOs : []), ...localPOs]);
+      } else {
+        setPurchaseOrders(JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]'));
+      }
+
+      if (fleetRes.status === 'fulfilled') {
+        const apiFleet = fleetRes.value.data?.data || fleetRes.value.data || [];
+        if (Array.isArray(apiFleet) && apiFleet.length > 0) {
+          saveFleet(apiFleet);
         }
-    };
+      }
+    } catch (error) {
+      console.warn('Sebagian data dashboard memakai fallback:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [saveFleet]);
 
-    const handleTypeChange = (newType) => {
-        const prefix = newType === 'IN' ? 'BKM-' : 'BKK-';
-        setFormData({
-            ...formData,
-            type: newType,
-            ref_number: prefix + Math.floor(100000 + Math.random() * 900000)
-        });
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Kirim 1 atau beberapa item kritis ke antrean Purchase Requisition tanpa reload
+  const handleRequestPR = (itemsToOrder, remarksText = '') => {
+    const queuePayload = {
+      source: 'Dashboard Gudang / Inventory',
+      department: 'Inventory & Gudang',
+      remarks: remarksText || 'Pengajuan restock barang menipis/habis dari Dashboard',
+      items: itemsToOrder.map((p) => {
+        const minStk = Number(p.minimum_stock ?? p.min_stock ?? 5);
+        const curStk = Number(p.stock || 0);
+        const suggestedQty = Math.max(minStk > 0 ? minStk * 2 - curStk : 10, 1);
+        return {
+          productId: p.id,
+          part_number: p.part_number || p.product_code || '',
+          name: p.name || p.description || '',
+          unit: p.unit || 'PCS',
+          quantity: suggestedQty,
+        };
+      }),
     };
+    localStorage.setItem(PR_QUEUE_KEY, JSON.stringify(queuePayload));
+    localStorage.setItem('aldigens_active_tab', 'purchase-requisition');
+    window.dispatchEvent(new CustomEvent('aldigens:goto', { detail: 'purchase-requisition' }));
+  };
+
+  const fleetStats = useMemo(() => {
+    const mobilCount = fleet.filter((f) => f.type === 'Mobil').length;
+    const motorCount = fleet.filter((f) => f.type === 'Motor').length;
+    const standbyCount = fleet.filter((f) => f.status === 'Standby').length;
+    const onDutyCount = fleet.filter((f) => f.status === 'Sedang Jalan').length;
+    const serviceCount = fleet.filter((f) => f.status === 'Servis').length;
+
+    const alerts = fleet
+      .map((item) => {
+        const taxDays = daysUntil(item.tax_due_date);
+        const srvDays = daysUntil(item.service_due_date);
+        return { ...item, taxDays, srvDays };
+      })
+      .filter((item) => (item.taxDays !== null && item.taxDays <= 30) || (item.srvDays !== null && item.srvDays <= 14));
+
+    return {
+      total: fleet.length,
+      mobilCount,
+      motorCount,
+      standbyCount,
+      onDutyCount,
+      serviceCount,
+      alerts,
+    };
+  }, [fleet]);
+
+  const filteredFleet = useMemo(() => {
+    if (fleetFilter === 'ALL') return fleet;
+    return fleet.filter((f) => f.type === fleetFilter);
+  }, [fleet, fleetFilter]);
+
+  const inventoryStats = useMemo(() => {
+    const totalSku = products.length;
+    const totalQty = products.reduce((sum, p) => sum + Number(p.stock || 0), 0);
+    const lowStockItems = products
+      .filter((p) => Number(p.stock || 0) <= Number(p.minimum_stock ?? p.min_stock ?? 5))
+      .sort((a, b) => Number(a.stock || 0) - Number(b.stock || 0));
+
+    return { totalSku, totalQty, lowStockItems };
+  }, [products]);
+
+  const salesStats = useMemo(() => {
+    const totalInvoiceValue = invoices.reduce((sum, inv) => {
+      const grand = Number(inv.grand_total ?? inv.total_amount ?? 0);
+      if (grand > 0) return sum + grand;
+      const itemsSum = (inv.items || []).reduce(
+        (s, it) => s + Number(it.qty || 0) * Number(it.unit_price || it.price || 0) * 1.11,
+        0
+      );
+      return sum + itemsSum;
+    }, 0);
+    const unpaidCount = invoices.filter((inv) => (inv.status || 'Unpaid') !== 'Paid').length;
+    return {
+      totalInvoiceValue,
+      unpaidCount,
+      doCount: deliveryOrders.length,
+      poCount: purchaseOrders.length,
+    };
+  }, [invoices, deliveryOrders, purchaseOrders]);
+
+  const handleTypeChange = (newType) => {
+    const prefix = newType === 'IN' ? 'BKM-' : 'BKK-';
+    setFormData({
+      ...formData,
+      type: newType,
+      ref_number: prefix + Math.floor(100000 + Math.random() * 900000),
+    });
+  };
 
   const handleSubmitModal = async (e) => {
     e.preventDefault();
@@ -247,27 +406,195 @@ export default function Dashboard() {
         </div>
       </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Kas & Modal</p>
-                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">Rp {Number(summary.total_cash_modal).toLocaleString()}</h3>
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-2 inline-block">Akun: Bank Permata / Cash</span>
+      {/* 4 Kartu KPI Utama */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Kas &amp; Bank</p>
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+              Rp {Number(summary.total_cash_modal).toLocaleString('id-ID')}
+            </h3>
+            <span className="text-xs text-emerald-500 font-medium mt-1.5 inline-block">
+              +Rp {Number(summary.total_cash_in).toLocaleString('id-ID')} masuk
+            </span>
+          </div>
+          <div className="p-3.5 bg-blue-500/15 text-blue-400 rounded-xl">
+            <Wallet className="h-6 w-6" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Aset Berjalan</p>
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+              {fleetStats.mobilCount} Mobil &bull; {fleetStats.motorCount} Motor
+            </h3>
+            <span className="text-xs text-sky-400 font-medium mt-1.5 inline-block">
+              {fleetStats.standbyCount} Standby &bull; {fleetStats.onDutyCount} Jalan
+            </span>
+          </div>
+          <div className="p-3.5 bg-sky-500/15 text-sky-400 rounded-xl">
+            <Car className="h-6 w-6" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Persediaan Stok</p>
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+              {inventoryStats.totalSku} Item ({inventoryStats.totalQty.toLocaleString('id-ID')})
+            </h3>
+            <span className={`text-xs font-medium mt-1.5 inline-block ${inventoryStats.lowStockItems.length > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+              {inventoryStats.lowStockItems.length} item stok menipis / habis
+            </span>
+          </div>
+          <div className="p-3.5 bg-amber-500/15 text-amber-400 rounded-xl">
+            <Package className="h-6 w-6" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Penjualan &amp; Tagihan</p>
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white mt-1">
+              Rp {Number(salesStats.totalInvoiceValue).toLocaleString('id-ID')}
+            </h3>
+            <span className="text-xs text-indigo-400 font-medium mt-1.5 inline-block">
+              {salesStats.unpaidCount} Inv Unpaid &bull; {salesStats.doCount} DO
+            </span>
+          </div>
+          <div className="p-3.5 bg-indigo-500/15 text-indigo-400 rounded-xl">
+            <FileText className="h-6 w-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Monitoring Aset Berjalan (Mobil & Motor) + Peringatan Pajak/Servis */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex flex-wrap justify-between items-center gap-3">
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
+                <Navigation className="w-4 h-4 text-sky-400" />
+                Status Aset Berjalan (Mobil &amp; Motor)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Klik badge status untuk mengganti kondisi operasional (Standby / Sedang Jalan / Servis).
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+              {['ALL', 'Mobil', 'Motor'].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setFleetFilter(tab)}
+                  className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    fleetFilter === tab
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {tab === 'ALL' ? `Semua (${fleet.length})` : tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Unit / Plat Nomor</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Pemegang / Driver</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-400 uppercase">Penugasan / Lokasi</th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">Status</th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold text-slate-400 uppercase">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {filteredFleet.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${item.type === 'Mobil' ? 'bg-sky-500/15 text-sky-400' : 'bg-indigo-500/15 text-indigo-400'}`}>
+                          {item.type === 'Mobil' ? <Car className="w-4 h-4" /> : <Bike className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <p className="font-mono font-bold text-slate-900 dark:text-white">{item.plate_number}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{item.name}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-700 dark:text-slate-200 font-medium">{item.driver || '-'}</td>
+                    <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-300">{item.assignment || '-'}</td>
+                    <td className="px-5 py-3.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleCycleFleetStatus(item)}
+                        title="Klik untuk ubah status"
+                        className={`px-3 py-1 rounded-full text-xs font-bold border transition cursor-pointer ${fleetStatusStyle(item.status)}`}
+                      >
+                        {item.status}
+                      </button>
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFleet(item)}
+                        title="Hapus unit"
+                        className="p-1.5 text-rose-400 hover:bg-rose-500/15 rounded-lg transition cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Radar Pajak STNK & Servis Berkala */}
+        <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-400" />
+                Radar Pajak STNK &amp; Servis
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Pengingat jatuh tempo STNK (H-30) &amp; jadwal servis berkala (H-14).
+              </p>
+            </div>
+
+            {fleetStats.alerts.length === 0 ? (
+              <div className="p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-1">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" />
+                <p className="text-xs font-semibold text-emerald-300">Seluruh Pajak &amp; Servis Armada Aman</p>
+                <p className="text-[11px] text-slate-400">Tidak ada jatuh tempo dalam 30 hari ke depan.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                {fleetStats.alerts.map((a) => (
+                  <div key={a.id} className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">{a.plate_number}</span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">{a.name}</span>
                     </div>
                     {a.taxDays !== null && a.taxDays <= 30 && (
                       <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-400">Pajak STNK ({a.tax_due_date})</span>
-                        <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${a.taxDays < 0 ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                        <span className="text-slate-500 dark:text-slate-400">Pajak STNK ({a.tax_due_date})</span>
+                        <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${a.taxDays < 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/20 text-amber-400'}`}>
                           {a.taxDays < 0 ? `Lewat ${Math.abs(a.taxDays)} hari` : `H-${a.taxDays}`}
                         </span>
                       </div>
                     )}
                     {a.srvDays !== null && a.srvDays <= 14 && (
                       <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-400 flex items-center gap-1">
+                        <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
                           <Wrench className="w-3 h-3 text-sky-400" /> Servis ({a.service_due_date})
                         </span>
-                        <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${a.srvDays < 0 ? 'bg-rose-500/20 text-rose-300' : 'bg-sky-500/20 text-sky-300'}`}>
+                        <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${a.srvDays < 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-sky-500/20 text-sky-400'}`}>
                           {a.srvDays < 0 ? `Lewat ${Math.abs(a.srvDays)} hari` : `H-${a.srvDays}`}
                         </span>
                       </div>
@@ -278,18 +605,18 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="pt-3 border-t border-slate-700/70 grid grid-cols-3 gap-2 text-center">
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-700/70 grid grid-cols-3 gap-2 text-center">
             <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <p className="text-lg font-extrabold text-emerald-400">{fleetStats.standbyCount}</p>
-              <p className="text-[11px] text-slate-400">Standby</p>
+              <p className="text-lg font-extrabold text-emerald-500 dark:text-emerald-400">{fleetStats.standbyCount}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Standby</p>
             </div>
             <div className="p-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
-              <p className="text-lg font-extrabold text-blue-400">{fleetStats.onDutyCount}</p>
-              <p className="text-[11px] text-slate-400">Jalan</p>
+              <p className="text-lg font-extrabold text-blue-500 dark:text-blue-400">{fleetStats.onDutyCount}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Jalan</p>
             </div>
             <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-              <p className="text-lg font-extrabold text-amber-400">{fleetStats.serviceCount}</p>
-              <p className="text-[11px] text-slate-400">Servis</p>
+              <p className="text-lg font-extrabold text-amber-500 dark:text-amber-400">{fleetStats.serviceCount}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Servis</p>
             </div>
           </div>
         </div>
@@ -309,10 +636,10 @@ export default function Dashboard() {
           <div className="space-y-4">
             <div>
               <div className="flex justify-between text-xs font-semibold mb-1.5">
-                <span className="text-slate-400">Total Penjualan (Invoice)</span>
-                <span className="text-indigo-400 font-bold">Rp {Number(salesStats.totalInvoiceValue).toLocaleString('id-ID')}</span>
+                <span className="text-slate-500 dark:text-slate-400">Total Penjualan (Invoice)</span>
+                <span className="text-indigo-500 dark:text-indigo-400 font-bold">Rp {Number(salesStats.totalInvoiceValue).toLocaleString('id-ID')}</span>
               </div>
-              <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden">
+              <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-indigo-500 rounded-full transition-all"
                   style={{ width: `${Math.min(100, Math.round((salesStats.totalInvoiceValue / maxChartVal) * 100))}%` }}
@@ -322,10 +649,10 @@ export default function Dashboard() {
 
             <div>
               <div className="flex justify-between text-xs font-semibold mb-1.5">
-                <span className="text-slate-400">Total Uang Masuk (Kas &amp; Bank)</span>
-                <span className="text-emerald-400 font-bold">+ Rp {Number(summary.total_cash_in).toLocaleString('id-ID')}</span>
+                <span className="text-slate-500 dark:text-slate-400">Total Uang Masuk (Kas &amp; Bank)</span>
+                <span className="text-emerald-500 dark:text-emerald-400 font-bold">+ Rp {Number(summary.total_cash_in).toLocaleString('id-ID')}</span>
               </div>
-              <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden">
+              <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all"
                   style={{ width: `${Math.min(100, Math.round((Number(summary.total_cash_in || 0) / maxChartVal) * 100))}%` }}
@@ -333,28 +660,112 @@ export default function Dashboard() {
               </div>
             </div>
 
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Uang Masuk</p>
-                        <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">+ Rp {Number(summary.total_cash_in).toLocaleString()}</h3>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-2 inline-block">Otomatis dari Modul Penjualan</span>
-                    </div>
-                    <div className="p-4 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                        <ArrowDownRight className="h-7 w-7" />
-                    </div>
-                </div>
-
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Uang Keluar</p>
-                        <h3 className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">- Rp {Number(summary.total_cash_out).toLocaleString()}</h3>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-2 inline-block">Otomatis dari Modul Pembelian</span>
-                    </div>
-                    <div className="p-4 bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 rounded-xl">
-                        <ArrowUpRight className="h-7 w-7" />
-                    </div>
-                </div>
+            <div>
+              <div className="flex justify-between text-xs font-semibold mb-1.5">
+                <span className="text-slate-500 dark:text-slate-400">Total Uang Keluar (Operasional &amp; PO)</span>
+                <span className="text-rose-500 dark:text-rose-400 font-bold">- Rp {Number(summary.total_cash_out).toLocaleString('id-ID')}</span>
+              </div>
+              <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-rose-500 rounded-full transition-all"
+                  style={{ width: `${Math.min(100, Math.round((Number(summary.total_cash_out || 0) / maxChartVal) * 100))}%` }}
+                />
+              </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700/60 text-xs">
+            <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
+              <p className="text-slate-500 dark:text-slate-400">Purchase Order</p>
+              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{salesStats.poCount} Dokumen</p>
+            </div>
+            <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
+              <p className="text-slate-500 dark:text-slate-400">Delivery Order</p>
+              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{salesStats.doCount} Dokumen</p>
+            </div>
+            <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
+              <p className="text-slate-500 dark:text-slate-400">Sales Invoice</p>
+              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{invoices.length} Dokumen</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Radar Stok Menipis / Habis + Tombol Ajukan PR */}
+        <div className="lg:col-span-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+          <div className="flex flex-wrap justify-between items-start gap-2">
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                Peringatan Stok Menipis &amp; Habis
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Ajukan Purchase Requisition (PR) ke bagian Purchasing untuk pengadaan stok.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {inventoryStats.lowStockItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleRequestPR(
+                      inventoryStats.lowStockItems.slice(0, 10),
+                      'Pengajuan restock prioritas (10 item terendah dari Dashboard)'
+                    )
+                  }
+                  className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <ShoppingCart className="w-3.5 h-3.5" /> Ajukan PR (Top 10)
+                </button>
+              )}
+              <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-500 dark:text-amber-300 text-xs font-bold border border-amber-500/30">
+                {inventoryStats.lowStockItems.length} Item
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            {inventoryStats.lowStockItems.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-10">
+                Semua stok barang di gudang berada di atas batas minimum.
+              </p>
+            ) : (
+              inventoryStats.lowStockItems.slice(0, 12).map((p) => {
+                const stock = Number(p.stock || 0);
+                return (
+                  <div
+                    key={p.id || p.part_number}
+                    className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700/80 text-xs"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono font-semibold text-blue-500 dark:text-blue-400 truncate">{p.part_number || p.product_code || '-'}</p>
+                      <p className="text-slate-800 dark:text-slate-200 truncate">{p.name}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span
+                        className={`px-2.5 py-1 rounded-lg font-bold ${
+                          stock === 0
+                            ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-500 dark:text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
+                        {stock === 0 ? 'Habis (0)' : `Sisa ${stock} ${p.unit || ''}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRequestPR([p], `Pengajuan PR untuk ${p.part_number || p.name}`)}
+                        title="Ajukan Purchase Requisition"
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600/90 hover:bg-indigo-600 text-white font-semibold flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> PR
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Tabel Mutasi & Arus Kas Terakhir */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">

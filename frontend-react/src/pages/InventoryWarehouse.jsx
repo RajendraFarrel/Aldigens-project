@@ -2,6 +2,7 @@
 import {
   ArrowRightLeft, Pencil, Plus, Printer, RefreshCw, Save, Search, Trash2, X,
 } from 'lucide-react';
+import Select from 'react-select';
 import {
   getInventoryMutations, getProducts, getWarehouses,
   transferInventory, updateInventoryMutation, deleteInventoryMutation,
@@ -32,6 +33,7 @@ const CONFIG = {
 };
 
 const EMPTY = {
+  product_id: '',
   barcode: '',
   quantity: 1,
   source_warehouse_id: '',
@@ -146,7 +148,8 @@ export default function InventoryWarehouse() {
     setEditingKey(row.group_key);
     setForm({
       ...EMPTY,
-      barcode: p.barcode || p.part_number || '',
+      product_id: p.id || '',
+      barcode: p.barcode || p.part_number || p.product_code || '',
       quantity: row.quantity,
       reference_number: row.reference_number || '',
       notes: row.notes || '',
@@ -166,6 +169,37 @@ export default function InventoryWarehouse() {
     setFormError('');
   };
 
+<<<<<<< HEAD
+  const buildPayload = () => {
+    const quantity = Number(form.quantity);
+    const selected = products.find((product) => String(product.id) === String(form.product_id));
+    const barcode = selected?.barcode || selected?.part_number || selected?.product_code || form.barcode;
+    const base = {
+      quantity,
+      reference_type: config.referenceType,
+      reference_number: form.reference_number || null,
+      notes: form.notes || null,
+    };
+    if (isTransfer) {
+      return {
+        ...base,
+        product_id: form.product_id,
+        barcode,
+        source_warehouse_id: form.source_warehouse_id,
+        source_location_id: form.source_location_id || null,
+        destination_warehouse_id: form.destination_warehouse_id,
+        destination_location_id: form.destination_location_id || null,
+      };
+    }
+    return {
+      ...base,
+      product_id: form.product_id,
+      barcode,
+      warehouse_id: form.warehouse_id || null,
+      warehouse_location_id: form.warehouse_location_id || null,
+    };
+  };
+=======
   const buildPayload = () => ({
     quantity: Number(form.quantity),
     reference_type: CONFIG.referenceType,
@@ -177,6 +211,7 @@ export default function InventoryWarehouse() {
     destination_warehouse_id: form.destination_warehouse_id,
     destination_location_id: form.destination_location_id || null,
   });
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
 
   const submit = async (event) => {
     event.preventDefault();
@@ -241,8 +276,9 @@ export default function InventoryWarehouse() {
   );
 
   const selectedProduct = useMemo(
-    () => products.find(p => (p.barcode || p.part_number || p.product_code) === form.barcode),
-    [products, form.barcode]
+    () => products.find((product) => String(product.id) === String(form.product_id))
+      || products.find((product) => (product.barcode || product.part_number || product.product_code) === form.barcode),
+    [products, form.product_id, form.barcode]
   );
 
   const columns = useMemo(() => ([
@@ -495,14 +531,32 @@ export default function InventoryWarehouse() {
         >
           <form onSubmit={submit} className="space-y-3">
             <div className="space-y-1">
-              <label className={labelClass}>Part Number / Barcode <span className="text-red-500">*</span></label>
-              <select required value={form.barcode} onChange={e => set('barcode', e.target.value)} className={inputClass}>
-                <option value="">Pilih Part Number / Barcode</option>
-                {products.map(p => {
-                  const code = p.barcode || p.part_number || p.product_code;
-                  return <option key={p.id} value={code}>{p.part_number || p.product_code} — {p.name} (stok {p.stock})</option>;
-                })}
-              </select>
+              <label className={labelClass}>Cari Produk <span className="text-red-500">*</span></label>
+              <Select
+                inputId="inventory-transaction-product"
+                required
+                isDisabled={saving}
+                styles={{ control: (base) => ({ ...base, minHeight: 42, borderColor: '#cbd5e1', borderRadius: 12 }), menu: (base) => ({ ...base, zIndex: 60 }) }}
+                value={selectedProduct ? {
+                  value: selectedProduct.id,
+                  label: `${selectedProduct.part_number || selectedProduct.product_code || selectedProduct.barcode} — ${selectedProduct.name} (stok ${selectedProduct.stock})`,
+                } : null}
+                options={products.map((product) => ({
+                  value: product.id,
+                  label: `${product.part_number || product.product_code || product.barcode} — ${product.name} (stok ${product.stock})`,
+                }))}
+                onChange={(option) => {
+                  const product = products.find((item) => Number(item.id) === Number(option?.value));
+                  set('product_id', product?.id || '');
+                  set('barcode', product?.barcode || product?.part_number || product?.product_code || '');
+                }}
+                isClearable
+                isSearchable
+                placeholder="Cari part number, barcode, atau nama produk..."
+                noOptionsMessage={() => 'Produk tidak ditemukan'}
+                className="text-sm"
+                classNamePrefix="product-select"
+              />
               {selectedProduct && (
                 <p className="text-xs text-slate-500">
                   Stok saat ini: <span className="font-semibold text-slate-700">{selectedProduct.stock}</span> {selectedProduct.unit || ''}

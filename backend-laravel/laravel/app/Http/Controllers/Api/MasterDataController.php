@@ -32,7 +32,7 @@ class MasterDataController extends Controller
     public function storeCustomer(Request $request)
     {
         $validated = $request->validate([
-            'customer_code' => 'required|unique:customers,customer_code',
+            'customer_code' => 'prohibited',
             'customer_name' => 'required|string',
             'phone' => 'nullable|string',
             'email' => 'nullable|email',
@@ -57,7 +57,7 @@ class MasterDataController extends Controller
         $customer = Customer::findOrFail($id);
 
         $validated = $request->validate([
-            'customer_code' => 'required|unique:customers,customer_code,' . $id,
+            'customer_code' => 'prohibited',
             'customer_name' => 'required|string',
             'phone' => 'nullable|string',
             'email' => 'nullable|email',

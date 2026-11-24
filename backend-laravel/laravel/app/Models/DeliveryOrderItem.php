@@ -16,4 +16,14 @@ class DeliveryOrderItem extends Model
     {
         return $this->belongsTo(DeliveryOrder::class, 'delivery_order_id');
     }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function salesOrderItem()
+    {
+        return $this->belongsTo(SalesOrderItem::class, 'sales_order_item_id');
+    }
 }

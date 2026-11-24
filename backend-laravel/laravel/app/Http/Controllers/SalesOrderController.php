@@ -12,7 +12,20 @@ class SalesOrderController extends Controller
     // 1. Menampilkan daftar semua Sales Order beserta item dan relasi quotation-nya
     public function index()
     {
-        $salesOrders = SalesOrder::with(['quotation', 'items'])->latest()->get();
+        $salesOrders = SalesOrder::with(['quotation', 'items.product', 'deliveryOrders.items'])
+            ->latest()
+            ->get();
+        $salesOrders->each(function ($salesOrder) {
+            $salesOrder->setRelation('items', $salesOrder->items->map(function ($item) use ($salesOrder) {
+                $item->qty_sent = (int) $salesOrder->deliveryOrders
+                    ->where('status', '!=', 'Cancelled')
+                    ->flatMap->items
+                    ->where('sales_order_item_id', $item->id)
+                    ->sum('qty_sent');
+                $item->qty_remaining = max(0, (int) $item->qty - $item->qty_sent);
+                return $item;
+            }));
+        });
 
         return response()->json([
             'status' => 'success',
@@ -44,9 +57,18 @@ class SalesOrderController extends Controller
             // Simpan item-item barang/jasa ke Sales Order Items
             if ($request->has('items') && is_array($request->items)) {
                 foreach ($request->items as $item) {
+                    $product = !empty($item['product_id'])
+                        ? \App\Models\Product::find($item['product_id'])
+                        : (!empty($item['part_number'])
+                            ? \App\Models\Product::where('part_number', $item['part_number'])
+                                ->orWhere('barcode', $item['part_number'])
+                                ->orWhere('product_code', $item['part_number'])
+                                ->first()
+                            : null);
                     SalesOrderItem::create([
                         'sales_order_id' => $salesOrder->id,
-                        'part_number'    => $item['part_number'] ?? $item['product_id'] ?? null,
+                        'product_id'     => $product?->id,
+                        'part_number'    => $item['part_number'] ?? $product?->part_number ?? null,
                         'description'    => $item['description'] ?? '-',
                         'qty'            => $item['qty'] ?? 1,
                         'unit'           => $item['unit'] ?? 'SET',
@@ -117,9 +139,18 @@ class SalesOrderController extends Controller
                 $price = $item->unit_price ?? 0;
                 $amount = $item->total_price ?? $item->amount ?? ($qty * $price);
 
+                $product = !empty($item->product_id)
+                    ? \App\Models\Product::find($item->product_id)
+                    : (!empty($item->part_number)
+                        ? \App\Models\Product::where('part_number', $item->part_number)
+                            ->orWhere('barcode', $item->part_number)
+                            ->orWhere('product_code', $item->part_number)
+                            ->first()
+                        : null);
                 SalesOrderItem::create([
                     'sales_order_id' => $salesOrder->id,
-                    'part_number'    => $item->part_number ?? $item->product_id ?? '-',
+                    'product_id'     => $product?->id,
+                    'part_number'    => $item->part_number ?? $product?->part_number ?? $item->product_id ?? '-',
                     'description'    => $item->description ?? $item->item_name ?? '-',
                     'qty'            => $qty,
                     'unit'           => $item->unit ?? 'SET',

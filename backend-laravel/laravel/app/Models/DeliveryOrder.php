@@ -24,6 +24,18 @@ class DeliveryOrder extends Model
         return $this->hasMany(DeliveryOrderItem::class, 'delivery_order_id');
     }
 
+    public function salesOrderItems()
+    {
+        return $this->hasManyThrough(
+            SalesOrderItem::class,
+            DeliveryOrderItem::class,
+            'delivery_order_id',
+            'id',
+            'id',
+            'sales_order_item_id'
+        );
+    }
+
     // Relasi ke Invoice yang menerbitkan tagihan dari DO ini
     public function invoices()
     {

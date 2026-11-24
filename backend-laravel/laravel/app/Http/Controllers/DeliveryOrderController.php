@@ -44,21 +44,44 @@ class DeliveryOrderController extends Controller
     /**
      * Simpan Delivery Order (Surat Jalan) baru dengan pengecekan stok otomatis.
      */
-    public function store(Request $request)
+    public function store(Request $request, \App\Services\DocumentNumberService $numberService)
     {
-        $request->validate([
-            'sales_order_id' => 'nullable', 
-            'do_number' => 'required|string|max:100|unique:delivery_orders,do_number',
-            'do_date' => 'required|date',
+        $validated = $request->validate([
+            'sales_order_id' => 'required|integer|exists:sales_orders,id',
+            'do_number' => 'nullable|string|max:100',
+            'do_date' => 'nullable|date',
+            'warehouse_id' => 'nullable|integer|exists:warehouses,id',
+            'warehouse_location_id' => 'nullable|integer|exists:warehouse_locations,id',
             'items' => 'required|array|min:1',
-            'items.*.part_number' => 'required|string',
+            'items.*.sales_order_item_id' => 'nullable|integer|exists:sales_order_items,id',
+            'items.*.product_id' => 'nullable|integer|exists:products,id',
+            'items.*.part_number' => 'nullable|string',
             'items.*.description' => 'required|string',
             'items.*.qty_sent' => 'required|integer|min:1',
             'items.*.unit' => 'nullable|string|max:50',
         ]);
-        
-        DB::beginTransaction();
 
+<<<<<<< HEAD
+        return DB::transaction(function () use ($request, $validated, $numberService) {
+            $salesOrder = !empty($validated['sales_order_id'])
+                ? \App\Models\SalesOrder::with('items')->lockForUpdate()->findOrFail($validated['sales_order_id'])
+                : null;
+            $now = now();
+            $doNumber = $numberService->nextDeliveryOrderNumber($now);
+
+            $deliveryOrder = DeliveryOrder::create([
+                'sales_order_id' => $salesOrder?->id,
+                'do_number' => $doNumber,
+                'so_number' => $salesOrder?->so_number ?? $request->input('so_number'),
+                'ref_po' => $request->input('ref_po', $request->input('customer_po')),
+                'do_date' => $request->input('do_date', $now->toDateString()),
+                'customer_name' => $request->input('customer_name', $salesOrder?->customer_name),
+                'delivery_address' => $request->input('delivery_address', $salesOrder?->customer_address),
+                'vehicle_number' => $request->input('vehicle_number'),
+                'driver_name' => $request->input('driver_name'),
+                'status' => 'Shipped',
+                'notes' => $request->input('notes'),
+=======
         try {
             // --- CEK APAKAH SEMUA STOK ITEM TERSEDIA ---
             $isStockAvailable = true;
@@ -103,22 +126,76 @@ class DeliveryOrderController extends Controller
                 'driver_name'      => $request->driver_name,
                 'status'           => $initialStatus,
                 'notes'            => $request->notes,
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
             ]);
 
-            // Simpan item-item barang yang dikirim
-            if ($request->has('items') && is_array($request->items)) {
-                foreach ($request->items as $item) {
-                    DeliveryOrderItem::create([
-                        'delivery_order_id' => $deliveryOrder->id,
-                        'part_number'       => $item['part_number'] ?? null,
-                        'description'       => $item['description'],
-                        'qty_sent'          => $item['qty_sent'],
-                        'unit'              => $item['unit'] ?? 'SET',
-                    ]);
+            $pendingQuantities = [];
+            foreach ($validated['items'] as $item) {
+                $soItem = null;
+                if (!empty($item['sales_order_item_id'])) {
+                    $soItem = \App\Models\SalesOrderItem::query()
+                        ->whereKey($item['sales_order_item_id'])
+                        ->when($salesOrder, fn ($query) => $query->where('sales_order_id', $salesOrder->id))
+                        ->firstOrFail();
                 }
-            }
+                $productId = $item['product_id'] ?? $soItem?->product_id;
+                if ($soItem?->product_id && $productId && (int) $soItem->product_id !== (int) $productId) {
+                    abort(422, 'Produk yang dipilih tidak sesuai dengan item Sales Order.');
+                }
+                if (!$productId && !empty($item['part_number'])) {
+                    $customerPart = CustomerPartNumber::where('part_number', $item['part_number'])->first();
+                    $product = Product::find($customerPart?->inventory_product_id)
+                        ?? Product::where('part_number', $item['part_number'])
+                            ->orWhere('barcode', $item['part_number'])
+                            ->orWhere('product_code', $item['part_number'])
+                            ->first();
+                    $productId = $product?->id;
+                }
+                if ($salesOrder && !$soItem) {
+                    $matches = $salesOrder->items->filter(function ($candidate) use ($productId, $item) {
+                        return ($productId && (int) $candidate->product_id === (int) $productId)
+                            || ($item['part_number'] ?? null) === $candidate->part_number;
+                    });
+                    if ($matches->count() === 1) {
+                        $soItem = $matches->first();
+                    }
+                }
+                if ($salesOrder && !$soItem) {
+                    abort(422, 'Setiap item DO harus terkait dengan item pada Sales Order yang dipilih.');
+                }
+                if (!$productId) {
+                    abort(422, 'Setiap item DO harus memiliki product_id yang valid atau part number yang terhubung ke produk Inventory.');
+                }
+                if ($soItem && $productId && $soItem->product_id && (int) $soItem->product_id !== (int) $productId) {
+                    abort(422, 'Produk pada item DO tidak sesuai dengan item Sales Order.');
+                }
+                if (!$soItem) {
+                    abort(422, 'Item DO tidak memiliki item Sales Order yang valid.');
+                }
+                if (!$soItem->product_id) {
+                    $soItem->update(['product_id' => $productId]);
+                }
+                $orderedQuantity = (int) $soItem->qty;
+                $alreadySent = DeliveryOrderItem::query()
+                    ->where('sales_order_item_id', $soItem->id)
+                    ->where('delivery_order_id', '<>', $deliveryOrder->id)
+                    ->whereHas('deliveryOrder', fn ($query) => $query->where('status', '!=', 'Cancelled'))
+                    ->sum('qty_sent');
+                $pendingQuantities[$soItem->id] = ($pendingQuantities[$soItem->id] ?? 0) + (int) $item['qty_sent'];
+                if ($alreadySent + $pendingQuantities[$soItem->id] > $orderedQuantity) {
+                    abort(422, 'Jumlah barang DO melebihi kuantitas tersisa pada Sales Order.');
+                }
 
-            DB::commit();
+                DeliveryOrderItem::create([
+                    'delivery_order_id' => $deliveryOrder->id,
+                    'sales_order_item_id' => $soItem?->id,
+                    'product_id' => $productId,
+                    'part_number' => $item['part_number'] ?? $soItem?->part_number,
+                    'description' => $item['description'],
+                    'qty_sent' => $item['qty_sent'],
+                    'unit' => $item['unit'] ?? 'SET',
+                ]);
+            }
 
             $message = $isStockAvailable 
                 ? 'Delivery Order berhasil dibuat. Stok tersedia dan siap di-Approve!' 
@@ -126,18 +203,15 @@ class DeliveryOrderController extends Controller
 
             return response()->json([
                 'status' => 'success',
+<<<<<<< HEAD
+                'message' => 'Delivery Order berhasil dibuat. Stok hanya berkurang setelah DO di-approve.',
+                'data' => $deliveryOrder->load(['salesOrder.items', 'items.product', 'items.salesOrderItem']),
+=======
                 'message' => $message,
                 'data' => $deliveryOrder->load('items')
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
             ], 201);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal membuat Delivery Order: ' . $e->getMessage()
-            ], 500);
-        }
+        });
     }
 
     /**
@@ -145,12 +219,43 @@ class DeliveryOrderController extends Controller
      */
     public function approve(Request $request, $id, InventoryStockService $stockService)
     {
-        $deliveryOrder = DeliveryOrder::with('items')->find($id);
+        return DB::transaction(function () use ($request, $id, $stockService) {
+            $deliveryOrder = DeliveryOrder::with('items')->lockForUpdate()->find($id);
+            if (!$deliveryOrder) {
+                return response()->json(['status' => 'error', 'message' => 'Delivery Order tidak ditemukan.'], 404);
+            }
 
-        if (!$deliveryOrder) {
-            return response()->json(['status' => 'error', 'message' => 'Delivery Order tidak ditemukan.'], 404);
-        }
+            if (in_array($deliveryOrder->status, ['Approved', 'Delivered'], true)) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Delivery Order ini sudah di-approve sebelumnya.',
+                    'data' => $deliveryOrder,
+                ], 200);
+            }
 
+<<<<<<< HEAD
+            $existingStockMovement = \App\Models\InventoryTransaction::where('reference_type', 'DO')
+                ->where('reference_id', $deliveryOrder->id)
+                ->exists();
+            if ($existingStockMovement) {
+                throw new \RuntimeException('Mutasi stok untuk DO ini sudah tercatat; approval dihentikan untuk mencegah pengurangan ganda.');
+            }
+
+            foreach ($deliveryOrder->items as $item) {
+                $product = $item->product;
+                if (!$product && $item->part_number) {
+                    $customerPart = CustomerPartNumber::where('part_number', $item->part_number)->first();
+                    $product = Product::find($customerPart?->inventory_product_id)
+                        ?? Product::where('part_number', $item->part_number)
+                            ->orWhere('barcode', $item->part_number)
+                            ->orWhere('product_code', $item->part_number)
+                            ->first();
+                }
+                if (!$product) {
+                    throw new \RuntimeException("Produk [{$item->part_number}] tidak ditemukan di Inventory.");
+                }
+
+=======
         if (in_array($deliveryOrder->status, ['Approved', 'Delivered', 'BAST Signed'], true)) {
             return response()->json([
                 'status' => 'success',
@@ -218,11 +323,12 @@ class DeliveryOrderController extends Controller
                 }
 
                 // Kurangi stok menggunakan InventoryStockService
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
                 $stockService->adjust($product, (int) $item->qty_sent, 'KELUAR', [
                     'user_id' => $request->user()?->id,
                     'user_name' => $request->user()?->name,
-                    'warehouse_id' => $request->input('warehouse_id'),
-                    'warehouse_location_id' => $request->input('warehouse_location_id'),
+                    'warehouse_id' => $request->input('warehouse_id', $deliveryOrder->warehouse_id),
+                    'warehouse_location_id' => $request->input('warehouse_location_id', $deliveryOrder->warehouse_location_id),
                     'reference_type' => 'DO',
                     'reference_id' => $deliveryOrder->id,
                     'reference_number' => $deliveryOrder->do_number,
@@ -234,7 +340,7 @@ class DeliveryOrderController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Delivery Order berhasil di-approve dan stok Inventory otomatis berkurang!',
+                'message' => 'Delivery Order berhasil di-approve dan stok Inventory otomatis berkurang sekali.',
                 'data' => $deliveryOrder->load('items'),
             ], 200);
         });

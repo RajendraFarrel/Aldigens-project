@@ -214,7 +214,12 @@ export default function DeliveryOrder() {
 
   const [formData, setFormData] = useState({
     sales_order_id: '',
+<<<<<<< HEAD
+    ref_po: '',
+    do_number: '',
+=======
     do_number: `DO-${Math.floor(10000000 + Math.random() * 90000000)}`,
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
     do_date: new Date().toISOString().split('T')[0],
     ref_po: '',
     vehicle_number: '',
@@ -310,12 +315,16 @@ export default function DeliveryOrder() {
     setFormData((prev) => ({ ...prev, sales_order_id: soId, ref_po: '', items: [] }));
     if (!soId) return;
 
+<<<<<<< HEAD
+    const so = salesOrders.find((s) => String(s.id) === String(soId));
+=======
     const so = salesOrders.find(
       (s) =>
         String(s.id) === String(soId) ||
         String(s.soNo) === String(soId) ||
         String(s.so_number) === String(soId)
     );
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
     if (!so) return;
 
     const custName = so.customer || so.customer_name || '';
@@ -324,6 +333,8 @@ export default function DeliveryOrder() {
 
     // Hanya tarik data barang, qty, satuan, dan keterangan (tanpa harga)
     const items = (so.items || []).map((it) => ({
+      sales_order_item_id: it.id,
+      product_id: it.product_id || '',
       part_number: it.code || it.part_number || it.inventory_part_number || '',
       description: it.name || it.description || '-',
       qty_sent: Number(it.qty || it.qty_sent || 1),
@@ -367,7 +378,12 @@ export default function DeliveryOrder() {
   const resetForm = () => {
     setFormData({
       sales_order_id: '',
+<<<<<<< HEAD
+      ref_po: '',
+      do_number: '',
+=======
       do_number: `DO-${Math.floor(10000000 + Math.random() * 90000000)}`,
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
       do_date: new Date().toISOString().split('T')[0],
       ref_po: '',
       vehicle_number: '',
@@ -394,6 +410,22 @@ export default function DeliveryOrder() {
     setSaving(true);
     setError('');
     try {
+<<<<<<< HEAD
+      const response = await api.post('/delivery-orders', {
+        sales_order_id: Number(formData.sales_order_id),
+        do_date: formData.do_date,
+        customer_name: formData.customer_name,
+        delivery_address: formData.delivery_address,
+        vehicle_number: formData.vehicle_number,
+        driver_name: formData.driver_name,
+        notes: formData.notes,
+        ref_po: formData.ref_po,
+        items: formData.items,
+      });
+      const newDO = response.data?.data;
+      if (!newDO) throw new Error('Backend tidak mengembalikan data Delivery Order.');
+      setDeliveryOrders((prev) => [newDO, ...prev.filter((item) => item.do_number !== newDO.do_number)]);
+=======
       const sanitizedItems = formData.items.map((it) => ({
         part_number: it.part_number || '',
         description: it.description || '-',
@@ -428,6 +460,7 @@ export default function DeliveryOrder() {
         warehouse: formData.warehouse,
         items: sanitizedItems,
       };
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
 
       const existing = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]').filter(
         (d) => d.do_number !== createdDO.do_number
@@ -533,6 +566,11 @@ export default function DeliveryOrder() {
     if (!ok) return;
 
     try {
+<<<<<<< HEAD
+      const targetId = doData.id;
+      if (!targetId || String(targetId).length > 10) {
+        throw new Error('DO ini belum tersimpan di server sehingga tidak dapat di-approve.');
+=======
       let targetId = doData.id;
 
       if (String(targetId).length > 10 || String(targetId).startsWith('17')) {
@@ -574,6 +612,7 @@ export default function DeliveryOrder() {
         updateDoStatusLocally(doData.do_number, 'Approved');
         swalToast('Mode Offline: DO di-approve secara lokal.', 'success');
         return;
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
       }
 
       await approveDeliveryOrder(targetId);
@@ -664,14 +703,23 @@ export default function DeliveryOrder() {
                   const soNum = so.soNo || so.so_number || so.id;
                   const custName = so.customer || so.customer_name || '';
                   return (
+<<<<<<< HEAD
+                    <option key={so.id || soNum} value={so.id}>
+                      {soNum} - {custName}
+=======
                     <option key={so.id || soNum} value={soNum}>
                       {soNum} {custName ? `- ${custName}` : ''}
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
                     </option>
                   );
                 })}
               </select>
             </div>
             <div className="space-y-1.5">
+<<<<<<< HEAD
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">No. Surat Jalan</label>
+              <input type="text" readOnly placeholder="Dibuat otomatis saat DO disimpan" className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-500 outline-none" value={formData.do_number} />
+=======
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">No. Delivery Order <span className="text-red-500">*</span></label>
               <input
                 type="text"
@@ -681,6 +729,7 @@ export default function DeliveryOrder() {
                 value={formData.do_number}
                 onChange={(e) => setFormData({ ...formData, do_number: e.target.value })}
               />
+>>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
             </div>
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tanggal <span className="text-red-500">*</span></label>

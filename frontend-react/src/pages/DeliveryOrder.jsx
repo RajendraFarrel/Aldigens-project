@@ -23,7 +23,7 @@ export default function DeliveryOrder() {
   const [formData, setFormData] = useState({
     sales_order_id: '',
     ref_po: '',
-    do_number: `DO-${Math.floor(1000 + Math.random() * 9000)}`,
+    do_number: '',
     do_date: new Date().toISOString().split('T')[0],
     customer_name: '',
     delivery_address: '',
@@ -82,10 +82,12 @@ export default function DeliveryOrder() {
     setFormData((prev) => ({ ...prev, sales_order_id: soId, ref_po: '', items: [] }));
     if (!soId) return;
 
-    const so = salesOrders.find((s) => String(s.id) === String(soId) || String(s.soNo) === String(soId) || String(s.so_number) === String(soId));
+    const so = salesOrders.find((s) => String(s.id) === String(soId));
     if (!so) return;
 
     const items = (so.items || []).map((it) => ({
+      sales_order_item_id: it.id,
+      product_id: it.product_id || '',
       part_number: it.code || it.part_number || it.inventory_part_number || '',
       description: it.name || it.description || '-',
       qty_sent: it.qty || it.qty_sent || 1,
@@ -124,7 +126,7 @@ export default function DeliveryOrder() {
     setFormData({
       sales_order_id: '',
       ref_po: '',
-      do_number: `DO-${Math.floor(1000 + Math.random() * 9000)}`,
+      do_number: '',
       do_date: new Date().toISOString().split('T')[0],
       customer_name: '',
       delivery_address: '',
@@ -149,32 +151,20 @@ export default function DeliveryOrder() {
     setSaving(true);
     setError('');
     try {
-      const newDO = {
-        id: Date.now(),
-        ...formData,
-        status: 'Shipped',
-        so_number: formData.sales_order_id
-      };
-
-      const existing = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
-      localStorage.setItem('aldigens_delivery_orders', JSON.stringify([newDO, ...existing]));
-
-      try {
-        await api.post('/delivery-orders', {
-          sales_order_id: null,
-          do_number: formData.do_number,
-          do_date: formData.do_date,
-          customer_name: formData.customer_name,
-          delivery_address: formData.delivery_address,
-          vehicle_number: formData.vehicle_number,
-          driver_name: formData.driver_name,
-          notes: formData.notes,
-          ref_po: formData.ref_po,
-          items: formData.items
-        });
-      } catch (apiErr) {
-        console.error("DETAIL ERROR API STORE DO:", apiErr.response?.data);
-      }
+      const response = await api.post('/delivery-orders', {
+        sales_order_id: Number(formData.sales_order_id),
+        do_date: formData.do_date,
+        customer_name: formData.customer_name,
+        delivery_address: formData.delivery_address,
+        vehicle_number: formData.vehicle_number,
+        driver_name: formData.driver_name,
+        notes: formData.notes,
+        ref_po: formData.ref_po,
+        items: formData.items,
+      });
+      const newDO = response.data?.data;
+      if (!newDO) throw new Error('Backend tidak mengembalikan data Delivery Order.');
+      setDeliveryOrders((prev) => [newDO, ...prev.filter((item) => item.do_number !== newDO.do_number)]);
 
       setSuccessMsg('Surat Jalan (Delivery Order) berhasil dibuat!');
       setIsCreating(false);
@@ -210,42 +200,9 @@ export default function DeliveryOrder() {
     if (!ok) return;
 
     try {
-      let targetId = doData.id;
-
-      if (String(targetId).length > 10 || String(targetId).startsWith('17')) {
-        try {
-          const response = await api.post('/delivery-orders', {
-            sales_order_id: null,
-            do_number: doData.do_number,
-            do_date: doData.do_date,
-            customer_name: doData.customer_name,
-            delivery_address: doData.delivery_address,
-            vehicle_number: doData.vehicle_number,
-            driver_name: doData.driver_name,
-            notes: doData.notes,
-            ref_po: doData.ref_po,
-            items: doData.items
-          });
-          targetId = response.data.data?.id;
-        } catch (syncErr) {
-          console.warn("DO sudah ada di database, mencari ID berdasarkan nomor DO...");
-        }
-
-        try {
-          const listRes = await api.get('/delivery-orders');
-          const foundInApi = (listRes.data.data || listRes.data || []).find(
-            (item) => item.do_number === doData.do_number
-          );
-          if (foundInApi) {
-            targetId = foundInApi.id;
-          }
-        } catch (listErr) {
-          console.error("Gagal mengambil list DO dari API:", listErr);
-        }
-      }
-
-      if (!targetId) {
-        throw new Error("ID Delivery Order tidak valid di database.");
+      const targetId = doData.id;
+      if (!targetId || String(targetId).length > 10) {
+        throw new Error('DO ini belum tersimpan di server sehingga tidak dapat di-approve.');
       }
 
       await approveDeliveryOrder(targetId);
@@ -456,7 +413,7 @@ export default function DeliveryOrder() {
                   const soNum = so.soNo || so.so_number || so.id;
                   const custName = so.customer || so.customer_name || '';
                   return (
-                    <option key={so.id || soNum} value={soNum}>
+                    <option key={so.id || soNum} value={so.id}>
                       {soNum} - {custName}
                     </option>
                   );
@@ -465,7 +422,7 @@ export default function DeliveryOrder() {
             </div>
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">No. Surat Jalan</label>
-              <input type="text" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500 transition" value={formData.do_number} onChange={(e) => setFormData({ ...formData, do_number: e.target.value })} />
+              <input type="text" readOnly placeholder="Dibuat otomatis saat DO disimpan" className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-500 outline-none" value={formData.do_number} />
             </div>
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tanggal Kirim</label>

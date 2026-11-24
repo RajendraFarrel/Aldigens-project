@@ -5,7 +5,7 @@ import {
   SwitchCamera, Printer
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { searchProductByCode, createBatchTransaction } from '../services/api';
+import api, { searchProductByCode, createBatchTransaction, getSalesOrders } from '../services/api';
 import {
   printAldigensDocument, makeReportNumber, getCurrentUserName, fmtDateLong,
   fmtQty, sumQtyByUnit, todayInput,
@@ -16,6 +16,9 @@ const CAMERA_ELEMENT_ID = 'barcode-camera-reader';
 export default function InventoryScan() {
   const [mode, setMode] = useState('MASUK'); // MASUK | KELUAR
   const [scanInput, setScanInput] = useState('');
+  const [salesOrders, setSalesOrders] = useState([]);
+  const [deliveryOrders, setDeliveryOrders] = useState([]);
+  const [salesOrderId, setSalesOrderId] = useState('');
   const [items, setItems] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -34,6 +37,44 @@ export default function InventoryScan() {
   const html5QrRef = useRef(null);
   const lastDecodedRef = useRef({ code: '', time: 0 });
   const itemsRef = useRef(items);
+  const selectedSalesOrder = salesOrders.find((order) => String(order.id) === String(salesOrderId));
+
+  useEffect(() => {
+    if (mode !== 'KELUAR') return;
+    let cancelled = false;
+    Promise.all([getSalesOrders(), api.get('/delivery-orders')])
+      .then(([soResponse, doResponse]) => {
+        if (cancelled) return;
+        const orders = soResponse.data?.data || [];
+        const deliveryOrders = doResponse.data?.data || [];
+        setDeliveryOrders(deliveryOrders);
+        setSalesOrders(orders.map((order) => ({
+          ...order,
+          items: (order.items || []).map((line) => {
+            const shipped = deliveryOrders
+              .filter((deliveryOrder) => Number(deliveryOrder.sales_order_id) === Number(order.id) && deliveryOrder.status !== 'Cancelled')
+              .flatMap((deliveryOrder) => deliveryOrder.items || [])
+              .filter((deliveryItem) => Number(deliveryItem.sales_order_item_id) === Number(line.id))
+              .reduce((sum, deliveryItem) => sum + Number(deliveryItem.qty_sent || 0), 0);
+            return { ...line, qty_remaining: Math.max(0, Number(line.qty || 0) - shipped) };
+          }),
+        })));
+      })
+      .catch((error) => {
+        if (!cancelled) setErrorMsg(error.response?.data?.message || 'Gagal memuat Sales Order dan Delivery Order.');
+      });
+    return () => { cancelled = true; };
+  }, [mode]);
+
+  const getOutstandingQty = useCallback((soItem) => {
+    if (soItem.qty_remaining !== undefined) return Number(soItem.qty_remaining);
+    const alreadySent = deliveryOrders
+      .filter((order) => Number(order.sales_order_id) === Number(salesOrderId) && order.status !== 'Cancelled')
+      .flatMap((order) => order.items || [])
+      .filter((item) => Number(item.sales_order_item_id) === Number(soItem.id))
+      .reduce((sum, item) => sum + Number(item.qty_sent || 0), 0);
+    return Math.max(0, Number(soItem.qty || 0) - alreadySent);
+  }, [deliveryOrders, salesOrderId]);
 
   // Selalu simpan items terbaru agar callback kamera tidak basi
   useEffect(() => {
@@ -48,6 +89,10 @@ export default function InventoryScan() {
   const addScannedCode = useCallback(async (rawCode) => {
     const code = String(rawCode || '').trim();
     if (!code) return;
+    if (mode === 'KELUAR' && !selectedSalesOrder) {
+      setErrorMsg('Pilih Sales Order sebelum melakukan scan barang keluar.');
+      return;
+    }
 
     setScanning(true);
     setErrorMsg('');
@@ -56,6 +101,24 @@ export default function InventoryScan() {
     try {
       const res = await searchProductByCode(code);
       const product = res.data.data;
+      let salesOrderItem = null;
+      if (mode === 'KELUAR') {
+        const matches = (selectedSalesOrder.items || []).filter((line) =>
+          (line.product_id && Number(line.product_id) === Number(product.id))
+          || (line.part_number && [product.part_number, product.product_code, product.barcode].includes(line.part_number))
+        );
+        if (matches.length !== 1) {
+          throw new Error(matches.length ? 'Produk cocok dengan lebih dari satu baris SO. Periksa product_id pada item SO.' : 'Produk ini tidak terdaftar pada Sales Order yang dipilih.');
+        }
+        salesOrderItem = matches[0];
+        const currentQty = itemsRef.current
+          .filter((row) => Number(row.salesOrderItem?.id) === Number(salesOrderItem.id))
+          .reduce((sum, row) => sum + row.quantity, 0);
+        const outstandingQty = getOutstandingQty(salesOrderItem);
+        if (currentQty >= outstandingQty) {
+          throw new Error(`Jumlah scan untuk ${product.part_number || product.name} sudah mencapai sisa kuantitas SO.`);
+        }
+      }
 
       const current = itemsRef.current;
       const existingIdx = current.findIndex((i) => i.product.id === product.id);
@@ -64,20 +127,20 @@ export default function InventoryScan() {
         updated[existingIdx].quantity += 1;
         setItems(updated);
       } else {
-        setItems((prev) => [...prev, { product, quantity: 1 }]);
+        setItems((prev) => [...prev, { product, quantity: 1, salesOrderItem }]);
       }
 
       setLastScanned({ product, status: 'found' });
       setScanInput('');
     } catch (e) {
-      const msg = e.response?.data?.message || `Produk tidak ditemukan untuk kode: ${code}`;
+      const msg = e.response?.data?.message || e.message || `Produk tidak ditemukan untuk kode: ${code}`;
       setLastScanned({ code, status: 'not_found', message: msg });
       setScanInput('');
     } finally {
       setScanning(false);
       if (scanSource === 'manual') setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [scanSource]);
+  }, [scanSource, mode, selectedSalesOrder, getOutstandingQty]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -89,8 +152,24 @@ export default function InventoryScan() {
   const updateQty = (idx, qty) => {
     if (qty < 1) return;
     const updated = [...items];
+    const target = updated[idx];
+    const totalScannedQty = items
+      .filter((item) => target.salesOrderItem && Number(item.salesOrderItem?.id) === Number(target.salesOrderItem.id))
+      .reduce((sum, item) => sum + item.quantity, 0);
+    if (mode === 'KELUAR' && target.salesOrderItem && totalScannedQty - target.quantity + qty > getOutstandingQty(target.salesOrderItem)) {
+      setErrorMsg('Kuantitas tidak boleh melebihi sisa barang pada Sales Order.');
+      return;
+    }
     updated[idx].quantity = qty;
     setItems(updated);
+    setErrorMsg('');
+  };
+
+  const changeMode = (nextMode) => {
+    setMode(nextMode);
+    setItems([]);
+    setErrorMsg('');
+    setSuccessMsg('');
   };
 
   const removeItem = (idx) => {
@@ -102,21 +181,63 @@ export default function InventoryScan() {
       setErrorMsg('Belum ada barang dalam daftar transaksi.');
       return;
     }
+    if (mode === 'KELUAR' && !selectedSalesOrder) {
+      setErrorMsg('Pilih Sales Order sebelum mengonfirmasi pengeluaran.');
+      return;
+    }
 
     setSubmitting(true);
     setErrorMsg('');
 
     try {
-      await createBatchTransaction({
-        transaction_type: mode,
-        items: items.map((i) => ({
-          barcode: i.product.barcode || i.product.product_code,
-          quantity: i.quantity,
-        })),
-      });
-
-      setSuccessMsg(`Transaksi ${mode === 'MASUK' ? 'Barang Masuk' : 'Barang Keluar'} berhasil disimpan!`);
+      if (mode === 'KELUAR') {
+        const response = await api.post('/delivery-orders', {
+          sales_order_id: Number(salesOrderId),
+          warehouse_id: items[0]?.warehouse_id || undefined,
+          warehouse_location_id: items[0]?.warehouse_location_id || undefined,
+          items: items.map((item) => ({
+            warehouse_id: item.warehouse_id || undefined,
+            warehouse_location_id: item.warehouse_location_id || undefined,
+            sales_order_item_id: item.salesOrderItem.id,
+            product_id: item.product.id,
+            part_number: item.product.part_number || item.product.product_code,
+            description: item.product.name,
+            qty_sent: item.quantity,
+            unit: item.product.unit || 'PCS',
+          })),
+          notes: 'Dibuat otomatis dari Scan Pengeluaran Barang.',
+        });
+        const createdOrder = response.data?.data;
+        setSuccessMsg(`DO ${createdOrder.do_number} berhasil dibuat dari SO. Stok akan berkurang saat DO disetujui.`);
+        const refreshed = await Promise.all([getSalesOrders(), api.get('/delivery-orders')]);
+        const refreshedOrders = refreshed[0].data?.data || [];
+        const refreshedDeliveryOrders = refreshed[1].data?.data || [];
+        setDeliveryOrders(refreshedDeliveryOrders);
+        setSalesOrders(refreshedOrders.map((order) => ({
+          ...order,
+          items: (order.items || []).map((line) => {
+            const shipped = refreshedDeliveryOrders
+              .filter((deliveryOrder) => Number(deliveryOrder.sales_order_id) === Number(order.id) && deliveryOrder.status !== 'Cancelled')
+              .flatMap((deliveryOrder) => deliveryOrder.items || [])
+              .filter((deliveryItem) => Number(deliveryItem.sales_order_item_id) === Number(line.id))
+              .reduce((sum, deliveryItem) => sum + Number(deliveryItem.qty_sent || 0), 0);
+            return { ...line, qty_remaining: Math.max(0, Number(line.qty || 0) - shipped) };
+          }),
+        })));
+        setSalesOrderId('');
+        setMode('MASUK');
+      } else {
+        await createBatchTransaction({
+          transaction_type: mode,
+          items: items.map((i) => ({
+            barcode: i.product.barcode || i.product.product_code,
+            quantity: i.quantity,
+          })),
+        });
+        setSuccessMsg('Transaksi Barang Masuk berhasil disimpan!');
+      }
       setItems([]);
+
       setTimeout(() => {
         setSuccessMsg('');
         inputRef.current?.focus();
@@ -129,6 +250,13 @@ export default function InventoryScan() {
   };
 
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+  const outstandingItems = (selectedSalesOrder?.items || []).map((line) => ({
+    line,
+    remaining: getOutstandingQty(line),
+    scanned: items
+      .filter((item) => Number(item.salesOrderItem?.id) === Number(line.id))
+      .reduce((sum, item) => sum + item.quantity, 0),
+  }));
 
   /* Cetak Daftar Scan — hanya dokumen sementara. TIDAK memanggil handleSubmit,
      tidak menyimpan transaksi, dan tidak mengubah stok. */
@@ -218,10 +346,10 @@ export default function InventoryScan() {
   const startCamera = useCallback(async (cameraId) => {
     setCameraError('');
 
-    // Pastikan elemen target sudah ada di DOM
+    // Pastikan elemen target sudah ada di DOM sebelum memulai kamera.
     const el = document.getElementById(CAMERA_ELEMENT_ID);
     if (!el) {
-      setTimeout(() => startCamera(cameraId), 150);
+      setCameraError('Area scanner belum siap. Coba nyalakan kamera kembali.');
       return;
     }
 
@@ -329,7 +457,7 @@ export default function InventoryScan() {
       {/* Mode Toggle */}
       <div className="flex gap-3">
         <button
-          onClick={() => setMode('MASUK')}
+          onClick={() => changeMode('MASUK')}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition cursor-pointer border-2 ${
             mode === 'MASUK'
               ? 'bg-emerald-600 border-emerald-600 text-white shadow'
@@ -340,7 +468,7 @@ export default function InventoryScan() {
           Barang Masuk
         </button>
         <button
-          onClick={() => setMode('KELUAR')}
+          onClick={() => changeMode('KELUAR')}
           className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition cursor-pointer border-2 ${
             mode === 'KELUAR'
               ? 'bg-rose-600 border-rose-600 text-white shadow'
@@ -351,6 +479,41 @@ export default function InventoryScan() {
           Barang Keluar
         </button>
       </div>
+
+      {mode === 'KELUAR' && (
+        <section className="bg-white rounded-2xl border-slate-200 p-5 shadow-sm space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Pilih Sales Order <span className="text-rose-500">*</span></label>
+            <select
+              value={salesOrderId}
+              onChange={(event) => { setSalesOrderId(event.target.value); setItems([]); setErrorMsg(''); }}
+              className="w-full border-slate-300 rounded-xl px-3 py-3 text-sm bg-white"
+              required
+              disabled={!salesOrders.length}
+            >
+              <option value="">Pilih SO yang akan dikirim</option>
+              {salesOrders.map((order) => <option key={order.id} value={order.id}>{order.so_number} — {order.customer_name}</option>)}
+            </select>
+          </div>
+          {selectedSalesOrder && (
+            <>
+              {outstandingItems.every(({ remaining }) => remaining === 0) && <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3">Seluruh barang pada SO ini sudah memiliki DO.</p>}
+              <div className="overflow-x-auto">
+              <p className="text-xs font-semibold text-slate-500 mb-2">TARGET BARANG SO {selectedSalesOrder.so_number}</p>
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs text-slate-500"><th className="py-2">Part Number / Deskripsi</th><th className="py-2 text-right">SO</th><th className="py-2 text-right">Sisa</th><th className="py-2 text-right">Dipindai</th></tr></thead>
+                <tbody>{outstandingItems.map(({ line, remaining, scanned }) => (
+                  <tr key={line.id} className="border-t border-slate-100">
+                    <td className="py-2">{line.part_number || line.product?.part_number || '-'} · {line.description}</td>
+                    <td className="py-2 text-right">{line.qty}</td><td className="py-2 text-right">{remaining}</td><td className="py-2 text-right font-semibold">{scanned}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Sumber Scan Toggle */}
       <div className="flex gap-2 bg-slate-100 rounded-xl p-1">
@@ -415,8 +578,10 @@ export default function InventoryScan() {
 
             <div className="relative bg-slate-900 rounded-2xl overflow-hidden min-h-[240px] flex items-center justify-center">
               <div id={CAMERA_ELEMENT_ID} className="w-full [&_video]:w-full [&_video]:rounded-2xl" />
+              {mode === 'KELUAR' && !selectedSalesOrder && <div className="absolute inset-0 bg-slate-950/70 text-white flex items-center justify-center text-sm">Pilih Sales Order sebelum scan.</div>}
               {!cameraActive && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-sm gap-2 px-6 text-center">
+                  {mode === 'KELUAR' && !selectedSalesOrder && <span>Pilih Sales Order terlebih dahulu untuk mengaktifkan scan pengeluaran.</span>}
                   <Camera className="h-10 w-10 opacity-40" />
                   <span>Kamera belum aktif. Tekan <strong>Nyalakan Kamera</strong> untuk mulai memindai.</span>
                 </div>
@@ -448,6 +613,7 @@ export default function InventoryScan() {
               <input
                 ref={inputRef}
                 type="text"
+                disabled={mode === 'KELUAR' && !selectedSalesOrder}
                 value={scanInput}
                 onChange={(e) => setScanInput(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -457,7 +623,7 @@ export default function InventoryScan() {
               />
               <button
                 onClick={() => addScannedCode(scanInput)}
-                disabled={scanning || !scanInput.trim()}
+                disabled={scanning || !scanInput.trim() || (mode === 'KELUAR' && !selectedSalesOrder)}
                 className="px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium text-sm flex items-center gap-2 transition disabled:opacity-60 cursor-pointer"
               >
                 {scanning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
@@ -577,7 +743,7 @@ export default function InventoryScan() {
       {items.length > 0 && (
         <button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || (mode === 'KELUAR' && (!salesOrderId || items.some((item) => !item.salesOrderItem)))}
           className={`w-full py-4 rounded-xl font-bold text-white text-base flex items-center justify-center gap-3 transition shadow-lg cursor-pointer ${
             mode === 'MASUK'
               ? 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400'
@@ -590,7 +756,7 @@ export default function InventoryScan() {
           }
           {submitting
             ? 'Menyimpan...'
-            : `Simpan ${mode === 'MASUK' ? 'Barang Masuk' : 'Barang Keluar'} (${totalQty} unit)`
+            : mode === 'KELUAR' ? `Konfirmasi & Buat DO (${totalQty} unit)` : `Simpan Barang Masuk (${totalQty} unit)`
           }
         </button>
       )}

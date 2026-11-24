@@ -133,6 +133,7 @@ export default function MasterData({ type = 'customer' }) {
     try {
       const data = { ...form };
       if (isCustomer) {
+        delete data.customer_code;
         delete data.supplier_code;
         delete data.supplier_name;
       } else {
@@ -150,8 +151,9 @@ export default function MasterData({ type = 'customer' }) {
       } else {
         const newEntry = { id: Date.now(), ...data };
         if (isCustomer) {
-          setRows([newEntry, ...rows]);
-          try { await createCustomer(data); } catch { /* API offline — data lokal tetap ditambahkan. */ }
+          const response = await createCustomer(data);
+          const savedCustomer = response.data?.data;
+          setRows([savedCustomer || newEntry, ...rows]);
         } else {
           await createSupplier(data);
         }
@@ -328,11 +330,12 @@ export default function MasterData({ type = 'customer' }) {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-600">Kode {label} <span className="text-red-500">*</span></label>
                 <input
-                  required
-                  placeholder={`Kode ${label}`}
+                  required={!isCustomer}
+                  readOnly={isCustomer}
+                  placeholder={isCustomer ? 'Dibuat otomatis saat disimpan' : `Kode ${label}`}
                   value={form[codeKey]}
                   onChange={e => setForm({ ...form, [codeKey]: e.target.value.toUpperCase() })}
-                  className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${isCustomer ? 'bg-slate-100 text-slate-500' : ''}`}
                 />
               </div>
               <div className="space-y-1">

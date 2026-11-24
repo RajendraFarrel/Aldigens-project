@@ -130,6 +130,7 @@ class InventoryWarehouseController extends Controller
     private function changeStock(Request $request, InventoryStockService $stockService, string $type, string $referenceType)
     {
         $data = $request->validate([
+            'product_id' => 'nullable|integer|exists:products,id',
             'barcode' => 'required|string',
             'quantity' => 'required|integer|min:1',
             'warehouse_id' => 'nullable|exists:warehouses,id',
@@ -137,7 +138,7 @@ class InventoryWarehouseController extends Controller
             'reference_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
         ]);
-        $product = Product::findByCode($data['barcode']);
+        $product = !empty($data['product_id']) ? Product::find($data['product_id']) : Product::findByCode($data['barcode']);
         if (!$product) return response()->json(['message' => 'Part Number/barcode tidak ditemukan.'], 404);
         $updated = $stockService->adjust($product, $data['quantity'], $type, [
             ...$data,
@@ -152,6 +153,7 @@ class InventoryWarehouseController extends Controller
     public function transfer(Request $request, InventoryStockService $stockService)
     {
         $data = $request->validate([
+            'product_id' => 'nullable|integer|exists:products,id',
             'barcode' => 'required|string',
             'quantity' => 'required|integer|min:1',
             'source_warehouse_id' => 'required|exists:warehouses,id',
@@ -161,7 +163,7 @@ class InventoryWarehouseController extends Controller
             'reference_number' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
         ]);
-        $product = Product::findByCode($data['barcode']);
+        $product = !empty($data['product_id']) ? Product::find($data['product_id']) : Product::findByCode($data['barcode']);
         if (!$product) return response()->json(['message' => 'Part Number/barcode tidak ditemukan.'], 404);
         if ($data['source_warehouse_id'] == $data['destination_warehouse_id'] && ($data['source_location_id'] ?? null) == ($data['destination_location_id'] ?? null)) {
             throw ValidationException::withMessages(['destination_warehouse_id' => 'Lokasi tujuan harus berbeda dari lokasi sumber.']);

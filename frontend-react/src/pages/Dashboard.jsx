@@ -1,25 +1,23 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useCallback, useState, useEffect } from 'react';
 import api from '../services/api';
-import { Wallet, ArrowDownRight, ArrowUpRight, RefreshCw, PlusCircle, X } from 'lucide-react';
+import { getNeraca, getLabaRugi, rupiah, periodeDefault } from '../services/accountingApi';
+import { Wallet, ArrowDownRight, ArrowUpRight, RefreshCw, PlusCircle, X, Building2, Landmark } from 'lucide-react';
 import { swalSuccess, swalError } from '../utils/swal';
 
 export default function Dashboard() {
-    const [summary, setSummary] = useState({
-        total_cash_modal: 145500000,
-        total_cash_in: 35200000,
-        total_cash_out: 12800000,
-    });
-    const [mutations, setMutations] = useState([
-        { id: 1, ref: 'BKM-2609001', date: '2026-09-28', description: 'Pelunasan Invoice PT United Tractors', account: 'Bank Permata (070.224.339-4)', type: 'IN', amount: 25500000 },
-        { id: 2, ref: 'BKK-2609002', date: '2026-09-27', description: 'Pembayaran Pembelian Material Toko Garda', account: 'Bank Permata (070.224.339-4)', type: 'OUT', amount: 8400000 }
-    ]);
+    const [mutations, setMutations] = useState([]);
+    const [financials, setFinancials] = useState({ balanceSheet: null, incomeStatement: null });
+    const [financialError, setFinancialError] = useState('');
+    const companyHistory = [];
+    const openingCapital = null;
+    const [period] = useState(periodeDefault());
     const [loading, setLoading] = useState(false);
     const [isInputModalOpen, setIsInputModalOpen] = useState(false);
 
     // State untuk form modal
     const [formData, setFormData] = useState({
         type: 'IN',
-        ref_number: 'BKM-' + Math.floor(100000 + Math.random() * 900000),
+        ref_number: 'BKM-',
         date: new Date().toISOString().split('T')[0],
         account: 'Bank Permata (070.224.339-4)',
         contact_name: '',
@@ -27,31 +25,41 @@ export default function Dashboard() {
         description: ''
     });
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
-
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = useCallback(async () => {
         setLoading(true);
-        try {
-            const response = await api.get('/dashboard-financials');
-            if (response.data) {
-                if (response.data.summary) setSummary(response.data.summary);
-                if (response.data.mutations) setMutations(response.data.mutations);
-            }
-        } catch (error) {
-            console.warn("Menggunakan data fallback lokal:", error);
-        } finally {
-            setLoading(false);
+        setFinancialError('');
+        const params = { from: period.from, to: period.to };
+        const results = await Promise.allSettled([
+            api.get('/dashboard-financials'),
+            getNeraca(params),
+            getLabaRugi(params),
+        ]);
+        const [legacy, balanceSheet, incomeStatement] = results;
+        if (legacy.status === 'fulfilled') {
+            if (legacy.value.data.mutations) setMutations(legacy.value.data.mutations);
         }
-    };
+        if (balanceSheet.status === 'fulfilled' || incomeStatement.status === 'fulfilled') {
+            setFinancials({
+                balanceSheet: balanceSheet.status === 'fulfilled' ? balanceSheet.value.data : null,
+                incomeStatement: incomeStatement.status === 'fulfilled' ? incomeStatement.value.data : null,
+            });
+        } else {
+            setFinancialError('Data laporan akuntansi belum tersedia. Pastikan akses laporan dan konfigurasi COA sudah disiapkan.');
+        }
+        setLoading(false);
+    }, [period.from, period.to]);
+
+    useEffect(() => {
+        const timer = setTimeout(fetchDashboardData, 0);
+        return () => clearTimeout(timer);
+    }, [fetchDashboardData]);
 
     const handleTypeChange = (newType) => {
         const prefix = newType === 'IN' ? 'BKM-' : 'BKK-';
         setFormData({
             ...formData,
             type: newType,
-            ref_number: prefix + Math.floor(100000 + Math.random() * 900000)
+            ref_number: prefix
         });
     };
 
@@ -105,9 +113,9 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                     <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Kas & Modal</p>
-                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">Rp {Number(summary.total_cash_modal).toLocaleString()}</h3>
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-2 inline-block">Akun: Bank Permata / Cash</span>
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Aset</p>
+                        <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">{financials.balanceSheet ? rupiah(financials.balanceSheet.total_aset) : '—'}</h3>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-2 inline-block">Bersumber dari laporan neraca</span>
                     </div>
                     <div className="p-4 bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 rounded-xl">
                         <Wallet className="h-7 w-7" />
@@ -116,9 +124,9 @@ export default function Dashboard() {
 
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                     <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Uang Masuk</p>
-                        <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">+ Rp {Number(summary.total_cash_in).toLocaleString()}</h3>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-2 inline-block">Otomatis dari Modul Penjualan</span>
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Pendapatan</p>
+                        <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">{financials.incomeStatement ? rupiah(financials.incomeStatement.total_pendapatan) : '—'}</h3>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-2 inline-block">Dari laporan laba rugi</span>
                     </div>
                     <div className="p-4 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-xl">
                         <ArrowDownRight className="h-7 w-7" />
@@ -127,15 +135,47 @@ export default function Dashboard() {
 
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                     <div>
-                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Uang Keluar</p>
-                        <h3 className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">- Rp {Number(summary.total_cash_out).toLocaleString()}</h3>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-2 inline-block">Otomatis dari Modul Pembelian</span>
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Beban</p>
+                        <h3 className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">{financials.incomeStatement ? rupiah(financials.incomeStatement.total_beban) : '—'}</h3>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-2 inline-block">Dari laporan laba rugi</span>
                     </div>
                     <div className="p-4 bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 rounded-xl">
                         <ArrowUpRight className="h-7 w-7" />
                     </div>
                 </div>
             </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                    <div className="flex items-center gap-3 mb-4"><Building2 className="h-5 w-5 text-blue-600" /><h3 className="font-bold text-slate-800 dark:text-white">Histori Perusahaan</h3></div>
+                    {companyHistory.length ? <ul className="space-y-2">{companyHistory.map((entry, index) => <li key={index} className="text-sm text-slate-600 dark:text-slate-300">{entry}</li>)}</ul> : <p className="text-sm text-slate-500">Placeholder — konten histori perusahaan menunggu data resmi perusahaan.</p>}
+                </section>
+                <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                    <div className="flex items-center gap-3 mb-4"><Landmark className="h-5 w-5 text-amber-600" /><h3 className="font-bold text-slate-800 dark:text-white">Modal Awal</h3></div>
+                    {openingCapital === null ? <p className="text-sm text-slate-500">Belum diisi — nilai modal awal tidak diasumsikan. Sumber yang disarankan: saldo awal akun ekuitas.</p> : <p className="text-2xl font-bold">{rupiah(openingCapital)}</p>}
+                </section>
+            </div>
+
+            <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+                <div><h3 className="font-bold text-slate-800 dark:text-white text-lg">Ringkasan Data Keuangan & Akuntansi</h3><p className="text-xs text-slate-500">Data bersumber dari laporan akuntansi, bukan angka demo.</p></div>
+                {financialError && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">{financialError}</p>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <h4 className="text-sm font-semibold mb-3">Posisi Keuangan</h4>
+                        <div className="space-y-2 text-sm"><p className="flex justify-between"><span>Total Aset</span><strong>{financials.balanceSheet ? rupiah(financials.balanceSheet.total_aset) : '—'}</strong></p><p className="flex justify-between"><span>Kewajiban</span><strong>{financials.balanceSheet ? rupiah(financials.balanceSheet.total_kewajiban) : '—'}</strong></p><p className="flex justify-between"><span>Ekuitas</span><strong>{financials.balanceSheet ? rupiah(financials.balanceSheet.total_ekuitas) : '—'}</strong></p></div>
+                        <div className="mt-4 flex items-end gap-1 h-24" aria-label="Diagram posisi keuangan">
+                            {[['Aset', financials.balanceSheet?.total_aset, 'bg-blue-500'], ['Kewajiban', financials.balanceSheet?.total_kewajiban, 'bg-rose-500'], ['Ekuitas', financials.balanceSheet?.total_ekuitas, 'bg-emerald-500']].map(([label, value, color]) => {
+                                const maximum = Math.max(Number(financials.balanceSheet?.total_aset || 0), Number(financials.balanceSheet?.total_kewajiban || 0), Number(financials.balanceSheet?.total_ekuitas || 0), 1);
+                                return <div key={label} className="flex-1 flex flex-col items-center justify-end gap-1"><div className={`w-full ${color} rounded-t-md`} style={{ height: `${Math.max(4, (Number(value || 0) / maximum) * 72)}px` }} title={`${label}: ${rupiah(value)}`} /><span className="text-[10px] text-slate-500">{label}</span></div>;
+                            })}
+                        </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <h4 className="text-sm font-semibold mb-3">Laba Rugi Periode</h4>
+                        <div className="space-y-2 text-sm"><p className="flex justify-between"><span>Pendapatan</span><strong>{financials.incomeStatement ? rupiah(financials.incomeStatement.total_pendapatan) : '—'}</strong></p><p className="flex justify-between"><span>Harga Pokok</span><strong>{financials.incomeStatement ? rupiah(financials.incomeStatement.total_hpp) : '—'}</strong></p><p className="flex justify-between"><span>Beban</span><strong>{financials.incomeStatement ? rupiah(financials.incomeStatement.total_beban) : '—'}</strong></p><p className="flex justify-between border-t pt-2"><span>Laba Bersih</span><strong>{financials.incomeStatement ? rupiah(financials.incomeStatement.laba_bersih) : '—'}</strong></p></div>
+                    </div>
+                </div>
+            </section>
 
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">

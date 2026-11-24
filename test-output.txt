@@ -1,0 +1,1989 @@
+﻿
+  .﻿﻿.................................................................⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯.⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯
+BODY: {
+    "message": "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select exists(select * from `roles` where `name` = Administrator) as `exists`)",
+    "exception": "Illuminate\\Database\\QueryException",
+    "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Database\\Connection.php",
+    "line": 829,
+    "trace": [
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Database\\Connection.php",
+            "line": 783,
+            "function": "runQueryCallback",
+            "class": "Illuminate\\Database\\Connection",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Database\\Connection.php",
+            "line": 414,
+            "function": "run",
+            "class": "Illuminate\\Database\\Connection",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Database\\Query\\Builder.php",
+            "line": 3255,
+            "function": "select",
+            "class": "Illuminate\\Database\\Connection",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Database\\Eloquent\\Builder.php",
+            "line": 1982,
+            "function": "exists",
+            "class": "Illuminate\\Database\\Query\\Builder",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\app\\Http\\Middleware\\EnsurePermission.php",
+            "line": 41,
+            "function": "__call",
+            "class": "Illuminate\\Database\\Eloquent\\Builder",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "App\\Http\\Middleware\\EnsurePermission",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Middleware\\SubstituteBindings.php",
+            "line": 50,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Routing\\Middleware\\SubstituteBindings",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Middleware\\ThrottleRequests.php",
+            "line": 159,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Middleware\\ThrottleRequests.php",
+            "line": 125,
+            "function": "handleRequest",
+            "class": "Illuminate\\Routing\\Middleware\\ThrottleRequests",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Middleware\\ThrottleRequests.php",
+            "line": 87,
+            "function": "handleRequestUsingNamedLimiter",
+            "class": "Illuminate\\Routing\\Middleware\\ThrottleRequests",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Routing\\Middleware\\ThrottleRequests",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Auth\\Middleware\\Authenticate.php",
+            "line": 57,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Auth\\Middleware\\Authenticate",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 119,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php",
+            "line": 805,
+            "function": "then",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php",
+            "line": 784,
+            "function": "runRouteWithinStack",
+            "class": "Illuminate\\Routing\\Router",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php",
+            "line": 748,
+            "function": "runRoute",
+            "class": "Illuminate\\Routing\\Router",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Routing\\Router.php",
+            "line": 737,
+            "function": "dispatchToRoute",
+            "class": "Illuminate\\Routing\\Router",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Kernel.php",
+            "line": 200,
+            "function": "dispatch",
+            "class": "Illuminate\\Routing\\Router",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 144,
+            "function": "Illuminate\\Foundation\\Http\\{closure}",
+            "class": "Illuminate\\Foundation\\Http\\Kernel",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest.php",
+            "line": 21,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\ConvertEmptyStringsToNull.php",
+            "line": 31,
+            "function": "handle",
+            "class": "Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Foundation\\Http\\Middleware\\ConvertEmptyStringsToNull",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest.php",
+            "line": 21,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\TrimStrings.php",
+            "line": 40,
+            "function": "handle",
+            "class": "Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Foundation\\Http\\Middleware\\TrimStrings",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\ValidatePostSize.php",
+            "line": 27,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Foundation\\Http\\Middleware\\ValidatePostSize",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Middleware\\PreventRequestsDuringMaintenance.php",
+            "line": 99,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Foundation\\Http\\Middleware\\PreventRequestsDuringMaintenance",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Http\\Middleware\\HandleCors.php",
+            "line": 62,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Http\\Middleware\\HandleCors",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Http\\Middleware\\TrustProxies.php",
+            "line": 39,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 183,
+            "function": "handle",
+            "class": "Illuminate\\Http\\Middleware\\TrustProxies",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Pipeline\\Pipeline.php",
+            "line": 119,
+            "function": "Illuminate\\Pipeline\\{closure}",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Kernel.php",
+            "line": 175,
+            "function": "then",
+            "class": "Illuminate\\Pipeline\\Pipeline",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Http\\Kernel.php",
+            "line": 144,
+            "function": "sendRequestThroughRouter",
+            "class": "Illuminate\\Foundation\\Http\\Kernel",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Testing\\Concerns\\MakesHttpRequests.php",
+            "line": 585,
+            "function": "handle",
+            "class": "Illuminate\\Foundation\\Http\\Kernel",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Testing\\Concerns\\MakesHttpRequests.php",
+            "line": 551,
+            "function": "call",
+            "class": "Illuminate\\Foundation\\Testing\\TestCase",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Testing\\Concerns\\MakesHttpRequests.php",
+            "line": 389,
+            "function": "json",
+            "class": "Illuminate\\Foundation\\Testing\\TestCase",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\tests\\Feature\\SpkFoundationTest.php",
+            "line": 75,
+            "function": "postJson",
+            "class": "Illuminate\\Foundation\\Testing\\TestCase",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\Framework\\TestCase.php",
+            "line": 1548,
+            "function": "test_nomor_spk_dibuat_otomatis_dengan_format_benar",
+            "class": "Tests\\Feature\\SpkFoundationTest",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\Framework\\TestCase.php",
+            "line": 686,
+            "function": "runTest",
+            "class": "PHPUnit\\Framework\\TestCase",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\Framework\\TestRunner.php",
+            "line": 106,
+            "function": "runBare",
+            "class": "PHPUnit\\Framework\\TestCase",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\Framework\\TestCase.php",
+            "line": 516,
+            "function": "run",
+            "class": "PHPUnit\\Framework\\TestRunner",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\Framework\\TestSuite.php",
+            "line": 374,
+            "function": "run",
+            "class": "PHPUnit\\Framework\\TestCase",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\Framework\\TestSuite.php",
+            "line": 374,
+            "function": "run",
+            "class": "PHPUnit\\Framework\\TestSuite",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\Framework\\TestSuite.php",
+            "line": 374,
+            "function": "run",
+            "class": "PHPUnit\\Framework\\TestSuite",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\TextUI\\TestRunner.php",
+            "line": 64,
+            "function": "run",
+            "class": "PHPUnit\\Framework\\TestSuite",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\src\\TextUI\\Application.php",
+            "line": 204,
+            "function": "run",
+            "class": "PHPUnit\\TextUI\\TestRunner",
+            "type": "->"
+        },
+        {
+            "file": "C:\\Users\\Nakni\\Documents\\Aldigens-project\\backend-laravel\\laravel\\vendor\\phpunit\\phpunit\\phpunit",
+            "line": 104,
+            "function": "run",
+            "class": "PHPUnit\\TextUI\\Application",
+            "type": "->"
+        }
+    ]
+}
+⨯
+  ⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > connected product without balance returns…  QueryException   
+  SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$JGRyYUaRTZ6dOAsYX2ZTJOFgTqj2vnyHt7UEyeDYw1luuSf7l34iu, Administrator, 2026-11-10 07:12:14, 2026-11-10 07:12:14))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock; try restarting transaction")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > stock changes are reflected on refetch      QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.users' doesn't exist (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$CHTcVHDDBGSgRvZLm1aXJuZsMDKw/jYIc98TFqZgXbY9jAlM4PewC, Administrator, 2026-11-10 07:12:15, 2026-11-10 07:12:15))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.users' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > balanced transfer does not change total s…  QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$eyLJSo/rUHx6lFkjYozUFuc66s06B66X28sgG53cPvz9lq1.dNVRm, Administrator, 2026-11-10 07:12:15, 2026-11-10 07:12:15))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > import keeps status and leaves mapping nu…  QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$Zt3ly8zPc5yYp3WIlEbuF.iEoWj.K6gbjsXmn6q4jP59v4mvSXgiO, Administrator, 2026-11-10 07:12:16, 2026-11-10 07:12:16))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > import keeps status column when present     QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$ooFsoQxgEwxVHBDpDpDOq.BTxdfWn.eTKThIjItfL770MQnXnmo1O, Administrator, 2026-11-10 07:12:16, 2026-11-10 07:12:16))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > export and filter still work                QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$H1PLigxatoIhhnYrsNJMuuSDjfRPYWMW7y6lfw/JpGnqMZrcSzK5G, Administrator, 2026-11-10 07:12:16, 2026-11-10 07:12:16))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > master customer is not modified             QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$88cdEh1bfNE9HvUH9lclM.wflESSI56/kK5QXvk7Jtm.q7WLzCh1u, Administrator, 2026-11-10 07:12:16, 2026-11-10 07:12:16))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > mapping does not change stock or create t…  QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$v7i1LvEcTKdjnF/TsNzd8.2TMk/MOZIVlpqar8k5wAr6iFQKNt7c6, Administrator, 2026-11-10 07:12:16, 2026-11-10 07:12:16))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > inventory options only returns active pro…  QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$DHpVa7DojNDIwUt8osRGpe8QKDhL9WlJv1LIyOpJwnOH4MWwCeFr6, Administrator, 2026-11-10 07:12:16, 2026-11-10 07:12:16))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\CustomerPartNumberInventoryTest > unknown product id is rejected              QueryException   
+  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list' (Connection: mysql, SQL: insert into `users` (`name`, `email`, `password`, `role`, `updated_at`, `created_at`) values (Test User, cpn-test@example.com, $2y$04$NAunVjtT2d5bCJRy8HXZIOF7NFcSQI1qNrRxzFLtfwLFmO45Rffae, Administrator, 2026-11-10 07:12:16, 2026-11-10 07:12:16))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'role' in 'field list'")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > get index route is registered               QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > index path is not defined as post only      QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > index without auth returns 401              QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > index without permission returns 403        QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > administrator gets 200 with compatible pa…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > user with view permission gets 200          QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > search and filters still work               QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > post and sibling endpoints are not regres…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsIndexRouteTest > index does not mutate stock                 QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > get products without token returns 401           QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > get products without permission returns 403      QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > get products with administrator returns 200      QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > get products returns product and stock fields    QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > warehouse staff with view permission returns 2…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > post and other inventory endpoints still work    QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > show product still works                         QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\InventoryProductsRouteTest > get does not change stock or data                QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist (Connection: mysql, SQL: select * from `roles` where (`name` = Administrator) limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.roles' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > sales invoice posting membuat jurnal piutang dan pe…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist (Connection: mysql, SQL: insert into `customers` (`customer_code`, `customer_name`, `status`, `updated_at`, `created_at`) values (CUST-AR, PT Pelanggan AR, AKTIF, 2026-11-10 07:12:22, 2026-11-10 07:12:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > purchase invoice posting debit akun tagihan kredit…   QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist (Connection: mysql, SQL: insert into `customers` (`customer_code`, `customer_name`, `status`, `updated_at`, `created_at`) values (CUST-AR, PT Pelanggan AR, AKTIF, 2026-11-10 07:12:22, 2026-11-10 07:12:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > piutang awal unpaid dan daftar dari invoice asli      QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist (Connection: mysql, SQL: insert into `customers` (`customer_code`, `customer_name`, `status`, `updated_at`, `created_at`) values (CUST-AR, PT Pelanggan AR, AKTIF, 2026-11-10 07:12:22, 2026-11-10 07:12:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > penerimaan sebagian dan pelunasan mengubah sisa dan…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist (Connection: mysql, SQL: insert into `customers` (`customer_code`, `customer_name`, `status`, `updated_at`, `created_at`) values (CUST-AR, PT Pelanggan AR, AKTIF, 2026-11-10 07:12:22, 2026-11-10 07:12:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > overdue adalah status turunan dari jatuh tempo        QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist (Connection: mysql, SQL: insert into `customers` (`customer_code`, `customer_name`, `status`, `updated_at`, `created_at`) values (CUST-AR, PT Pelanggan AR, AKTIF, 2026-11-10 07:12:22, 2026-11-10 07:12:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.customers' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > penerimaan menghasilkan debit kas dan kredit piutan…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:22, 2026-11-10 07:12:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > penerimaan multi invoice dengan alokasi               QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:22, 2026-11-10 07:12:22))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > menolak alokasi melebihi sisa dan alokasi tidak sam…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:23, 2026-11-10 07:12:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > menolak invoice lunas dan invoice customer lain       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:23, 2026-11-10 07:12:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > menolak kas bank nonaktif dan jumlah nol              QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:23, 2026-11-10 07:12:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > request ganda dengan request key sama tidak menggan…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:23, 2026-11-10 07:12:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > pembayaran supplier debit utang kredit kas dan tida…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:23, 2026-11-10 07:12:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > menolak pembayaran tagihan yang belum diposting       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:23, 2026-11-10 07:12:23))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > menolak tagihan supplier lain                         QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:24, 2026-11-10 07:12:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > status draft tidak menghitung pembayaran              QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:24, 2026-11-10 07:12:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > penerimaan muncul di mutasi kas bank dan buku besar   QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:24, 2026-11-10 07:12:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > aging dan ringkasan konsisten                         QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:24, 2026-11-10 07:12:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > master mengembalikan customer dan supplier tanpa pe…  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:24, 2026-11-10 07:12:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > master kosong tetap sukses bukan error                QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:24, 2026-11-10 07:12:24))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > master dapat dimuat per bagian                        QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:25, 2026-11-10 07:12:25))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ReceivablePayableTest > user tanpa autentikasi ditolak                        QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist (Connection: mysql, SQL: insert into `accounts` (`nomor_akun`, `nama_akun`, `tipe_akun`, `saldo_normal`, `is_active`, `is_header`, `updated_at`, `created_at`) values (1-1100, Kas Utama, Aset, Debit, 1, 0, 2026-11-10 07:12:25, 2026-11-10 07:12:25))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.accounts' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > migration membuat empat tabel baru                                         
+  Tabel spks harus ada
+Failed asserting that false is true.
+
+  at tests\Feature\SpkFoundationTest.php:69
+     65▕ 
+     66▕     public function test_migration_membuat_empat_tabel_baru()
+     67▕     {
+     68▕         foreach (['spks', 'employees', 'spk_assignments', 'spk_ehs_permits'] as $t) {
+  ➜  69▕             $this->assertTrue(DB::getSchemaBuilder()->hasTable($t), "Tabel $t harus ada");
+     70▕         }
+     71▕     }
+     72▕ 
+     73▕     public function test_nomor_spk_dibuat_otomatis_dengan_format_benar()
+
+  1   tests\Feature\SpkFoundationTest.php:69
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > nomor spk dibuat otomatis dengan format benar                              
+  Expected response status code [201] but received 500.
+Failed asserting that 500 is identical to 201.
+
+  at tests\Feature\SpkFoundationTest.php:79
+     75▕         $res = $this->postJson('/api/spks', $this->payload());
+     76▕         if ($res->status() !== 201) {
+     77▕             fwrite(STDERR, "\nBODY: " . $res->getContent() . "\n");
+     78▕         }
+  ➜  79▕         $res->assertStatus(201);
+     80▕         $this->assertMatchesRegularExpression('/^SPK\/2026\/09\/\d{4}$/', $res->json('data.spk_number'));
+     81▕     }
+     82▕ 
+     83▕     public function test_nomor_spk_ikut_tahun_dan_bulan_spk_date()
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > nomor spk ikut tahun dan bulan spk date                                    
+  Failed asserting that null is identical to 'SPK/2026/09/0001'.
+
+  at tests\Feature\SpkFoundationTest.php:89
+     85▕         $r1 = $this->postJson('/api/spks', $this->payload(['spk_date' => '2026-09-25']));
+     86▕         $r2 = $this->postJson('/api/spks', $this->payload(['spk_date' => '2026-09-26']));
+     87▕         $r3 = $this->postJson('/api/spks', $this->payload(['spk_date' => '2026-11-01']));
+     88▕ 
+  ➜  89▕         $this->assertSame('SPK/2026/09/0001', $r1->json('data.spk_number'));
+     90▕         $this->assertSame('SPK/2026/09/0002', $r2->json('data.spk_number'));
+     91▕         $this->assertSame('SPK/2026/11/0001', $r3->json('data.spk_number'));
+     92▕     }
+     93▕
+
+  1   tests\Feature\SpkFoundationTest.php:89
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > nomor spk dari frontend diabaikan                                          
+  Expected response status code [201] but received 500.
+Failed asserting that 500 is identical to 201.
+
+  at tests\Feature\SpkFoundationTest.php:97
+     93▕ 
+     94▕     public function test_nomor_spk_dari_frontend_diabaikan()
+     95▕     {
+     96▕         $res = $this->postJson('/api/spks', $this->payload(['spk_number' => 'SPK/1900/01/9999']));
+  ➜  97▕         $res->assertStatus(201);
+     98▕         $this->assertNotSame('SPK/1900/01/9999', $res->json('data.spk_number'));
+     99▕     }
+    100▕ 
+    101▕     public function test_nomor_spk_unik()
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > nomor spk unik                                            QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks`)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > store simpan assignments dan ehs dalam satu request       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.employees' doesn't exist (Connection: mysql, SQL: insert into `employees` (`employee_code`, `employee_name`, `position`, `updated_at`, `created_at`) values (EMP-0001, FAJAR, Project Leader, 2026-11-10 07:12:29, 2026-11-10 07:12:29))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.employees' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > relasi spk employee bersamaan                             QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.employees' doesn't exist (Connection: mysql, SQL: insert into `employees` (`employee_code`, `employee_name`, `updated_at`, `created_at`) values (EMP-0001, FAJAR, 2026-11-10 07:12:30, 2026-11-10 07:12:30))
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\MySqlConnection.php:39
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.employees' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > validasi menolak data buruk                                                
+  Expected response status code [422] but received 500.
+Failed asserting that 500 is identical to 422.
+
+  at tests\Feature\SpkFoundationTest.php:160
+    156▕     {
+    157▕         $this->postJson('/api/spks', $this->payload([
+    158▕             'start_date' => '2026-10-13',
+    159▕             'finish_date' => '2026-09-30',
+  ➜ 160▕         ]))->assertStatus(422)->assertJsonValidationErrors('finish_date');
+    161▕ 
+    162▕         $this->postJson('/api/spks', $this->payload(['customer_id' => 999999]))
+    163▕             ->assertStatus(422)->assertJsonValidationErrors('customer_id');
+    164▕
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > hanya spk draft yang dapat dihapus                                         
+  Expected response status code [200] but received 405.
+Failed asserting that 405 is identical to 200.
+
+  at tests\Feature\SpkFoundationTest.php:185
+    181▕     public function test_hanya_spk_draft_yang_dapat_dihapus()
+    182▕     {
+    183▕         $id = $this->postJson('/api/spks', $this->payload())->json('data.id');
+    184▕ 
+  ➜ 185▕         $this->patchJson("/api/spks/{$id}", ['project_name' => 'Diperbarui'])->assertStatus(200);
+    186▕         $this->patchJson("/api/spks/{$id}", ['status' => 'IN_PROGRESS'])->assertStatus(200);
+    187▕         $this->deleteJson("/api/spks/{$id}")->assertStatus(422);
+    188▕         $this->assertDatabaseHas('spks', ['id' => $id]);
+    189▕
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > employee crud dan kode unik                                                
+  Expected response status code [201] but received 500.
+Failed asserting that 500 is identical to 201.
+
+  at tests\Feature\SpkFoundationTest.php:198
+    194▕ 
+    195▕     public function test_employee_crud_dan_kode_unik()
+    196▕     {
+    197▕         $this->postJson('/api/employees', ['employee_name' => 'FAJAR'])
+  ➜ 198▕             ->assertStatus(201)
+    199▕             ->assertJsonPath('data.employee_code', 'EMP-0001');
+    200▕ 
+    201▕         $this->postJson('/api/employees', ['employee_code' => 'EMP-0001', 'employee_name' => 'DUPLIKAT'])
+    202▕             ->assertStatus(422)->assertJsonValidationErrors('employee_code');
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkFoundationTest > tabel existing tidak berubah                                               
+  Expected response status code [201] but received 500.
+Failed asserting that 500 is identical to 201.
+
+  at tests\Feature\SpkFoundationTest.php:221
+    217▕             $before[$t] = DB::getSchemaBuilder()->getColumnListing($t);
+    218▕         }
+    219▕ 
+    220▕         $customerId = $this->seedCustomer();
+  ➜ 221▕         $this->postJson('/api/spks', $this->payload(['customer_id' => $customerId]))->assertStatus(201);
+    222▕ 
+    223▕         foreach ($before as $t => $cols) {
+    224▕             $this->assertSame($cols, DB::getSchemaBuilder()->getColumnListing($t), "Struktur $t tidak boleh berubah");
+    225▕         }
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > migration membuat tabel penjadwalan                                          
+  Tabel spk_schedules harus ada
+Failed asserting that false is true.
+
+  at tests\Feature\SpkScheduleTest.php:94
+     90▕ 
+     91▕     public function test_migration_membuat_tabel_penjadwalan()
+     92▕     {
+     93▕         foreach (['spk_schedules', 'spk_schedule_assignments'] as $t) {
+  ➜  94▕             $this->assertTrue(DB::getSchemaBuilder()->hasTable($t), "Tabel $t harus ada");
+     95▕         }
+     96▕ 
+     97▕         // Tabel existing tidak boleh disentuh / ditambah kolom.
+     98▕         $this->assertFalse(in_array('spk_id', DB::getSchemaBuilder()->getColumnListing('commissionings'), true));
+
+  1   tests\Feature\SpkScheduleTest.php:94
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > create schedule dengan kode otomatis                        QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > schedule terhubung ke spk dan memuat relasi                 QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > schedule code dari frontend diabaikan                       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > assignment employee disimpan bersama schedule               QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > employee harus active                                       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > spk cancelled ditolak                                       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > postponed wajib alasan                                      QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > progress diluar 0 100 ditolak                               QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > planned end tidak boleh sebelum start                       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > actual end tidak boleh sebelum actual start                 QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > actual hanya saat in progress atau done                     QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > activity dan planned date wajib                             QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > planned date di luar rentang spk ditolak                    QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > update schedule dan sinkronisasi assignments                QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > spk id tidak boleh dipindah saat edit                       QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > schedule done tidak boleh diedit                            QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > delete scheduled berhasil dan done ditolak                  QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > patch status dan progress                                   QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > status spk tidak berubah karena schedule                    QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > index dapat difilter                                        QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > bentrok personel ditolak tapi tanggal beda diizinkan        QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\SpkScheduleTest > tidak mengubah struktur tabel existing                      QueryException   
+  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist (Connection: mysql, SQL: select `spk_number` from `spks` where `spk_number` like SPK/2026/09/% order by `spk_number` desc limit 1)
+
+  at vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+    825▕                     $this->getName(), $query, $this->prepareBindings($bindings), $e
+    826▕                 );
+    827▕             }
+    828▕ 
+  ➜ 829▕             throw new QueryException(
+    830▕                 $this->getName(), $query, $this->prepareBindings($bindings), $e
+    831▕             );
+    832▕         }
+    833▕     }
+
+  1   vendor\laravel\framework\src\Illuminate\Database\Connection.php:829
+
+  2   vendor\laravel\framework\src\Illuminate\Database\Connection.php:423
+      NunoMaduro\Collision\Exceptions\TestException::("SQLSTATE[42S02]: Base table or view not found: 1146 Table 'aldigens_test.spks' doesn't exist")
+
+
+  Tests:    82 failed, 67 passed (320 assertions)
+  Duration: 100.71s
+

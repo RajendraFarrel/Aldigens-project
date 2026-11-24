@@ -98,13 +98,24 @@ export default function Commissioning() {
             setSoNumber('');
             setRefPo('');
             setCustomerId('');
+            setUnitModel('');
             return;
         }
 
         const selected = deliveryOrders.find(d => d.do_number === selectedDoNum);
         if (selected) {
+            // Validasi: Pastikan DO sudah dalam tahap pengiriman/selesai
+            if (['Waiting Production', 'In Production', 'Draft'].includes(selected.status)) {
+                alert('Peringatan: Delivery Order ini belum dikirim (Status: ' + selected.status + '). Komisioning biasanya dilakukan setelah barang sampai di lokasi pelanggan.');
+            }
+
             setSoNumber(selected.so_number || '');
             setRefPo(selected.customer_po || selected.ref_po || ''); 
+            
+            // Auto-fill Unit Model dari daftar item DO jika tersedia
+            if (selected.items && selected.items.length > 0) {
+                setUnitModel(selected.items[0].description || selected.items[0].part_number || '');
+            }
             
             if (selected.customer_id) {
                 setCustomerId(selected.customer_id);
@@ -210,7 +221,7 @@ export default function Commissioning() {
                 const updatedList = commissionings.map(c => c.id === editingId ? payload : c);
                 setCommissionings(updatedList);
                 localStorage.setItem('aldigens_commissionings', JSON.stringify(updatedList));
-                alert('Data Komisioning berhasil diperbarui!');
+                alert('Data Komisioning & BAST berhasil diperbarui!');
             } else {
                 try {
                     await axios.post('http://127.0.0.1:8000/api/commissionings', payload, { headers });
@@ -220,7 +231,22 @@ export default function Commissioning() {
                 const newList = [payload, ...commissionings];
                 setCommissionings(newList);
                 localStorage.setItem('aldigens_commissionings', JSON.stringify(newList));
-                alert('Data Komisioning & Installation Report berhasil disimpan!');
+                
+                // INTEGRASI: Kunci DO menjadi 'Completed/BAST Signed' setelah komisioning selesai
+                try {
+                    const savedDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
+                    const updatedDOs = savedDOs.map(doItem => {
+                        if (doItem.do_number === doNumber) {
+                            return { ...doItem, status: 'BAST Signed' };
+                        }
+                        return doItem;
+                    });
+                    localStorage.setItem('aldigens_delivery_orders', JSON.stringify(updatedDOs));
+                } catch (doErr) {
+                    console.error("Gagal mengupdate status DO:", doErr);
+                }
+
+                alert('Data Komisioning & Installation Report berhasil disimpan! DO siap ditagih.');
             }
             setShowModal(false);
             setEditingId(null);
@@ -552,7 +578,7 @@ export default function Commissioning() {
                                             placeholder="Inspection Item..." 
                                             value={item.check_item} 
                                             onChange={(e) => handleItemChange(idx, 'check_item', e.target.value)} 
-                                            className="flex-2 border rounded p-1.5 text-xs" 
+                                            className="flex-2 border rounded p-1.5 text-xs w-full" 
                                             required 
                                         />
                                         <select 
@@ -581,7 +607,7 @@ export default function Commissioning() {
                                             className="flex-1 border rounded p-1.5 text-xs" 
                                         />
                                         <button type="button" onClick={() => handleRemoveItem(idx)} className="text-rose-500 hover:bg-rose-50 p-1.5 rounded text-xs font-bold">
-                                            âœ•
+                                            ✕
                                         </button>
                                     </div>
                                 ))}

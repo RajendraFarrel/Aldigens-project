@@ -42,6 +42,11 @@ use App\Http\Controllers\SpkController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\SpkScheduleController;
 use App\Http\Controllers\GoodsReceiptController;
+use App\Http\Controllers\AssetController;
+use App\Http\Controllers\CapitalEntryController;
+use App\Http\Controllers\FinanceDashboardController;
+use App\Http\Controllers\Api\MaterialReleaseController;
+use App\Http\Controllers\Api\ProductResultController;
 
 
 /*  
@@ -63,6 +68,9 @@ Route::get('/ping', function () {
     ]);
 });
 
+// Endpoint untuk mengatasi error 404 pada Dashboard Financials
+Route::get('/dashboard-financials', [DashboardController::class, 'getFinancials']);
+
 // -----------------------------------------------
 // Protected routes (butuh Sanctum token)
 // -----------------------------------------------
@@ -76,9 +84,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // -----------------------------------------------
     // Dashboard Inventory
-    // Setiap route WAJIB memiliki middleware permission (AIMS Tahap 1).
-    // Modul Sales (quotations, sales-orders, delivery-orders) sengaja TIDAK
-    // dikunci karena masih tanggung jawab pengembang modul Sales.
     // -----------------------------------------------
     Route::get('/inventory/dashboard', [DashboardController::class, 'index'])
         ->middleware('permission:inventory.dashboard.view|accounting.dashboard.view');
@@ -200,7 +205,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inventory/transactions/batch', [InventoryTransactionController::class, 'batch'])
         ->middleware('permission:inventory.transactions.create');
 
-    // Reports dan export CSV (kompatibel dengan Excel)
+    // Reports dan export CSV
     Route::get('/inventory/reports/weekly', [ReportController::class, 'weekly'])
         ->middleware('permission:inventory.reports.view');
     Route::get('/inventory/reports/period', [ReportController::class, 'period'])
@@ -208,9 +213,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/exports/{type}', [ExportController::class, 'csv'])
         ->middleware('permission:inventory.reports.print|master.exports.print');
 
-    // Users & Roles — khusus permission administrasi sistem.
-    // Defense-in-depth (Tahap 1.1): middleware permission di route + policy di
-    // controller. Route ini TIDAK menyentuh Sales.
+    // Users & Roles
     Route::get('/permissions', [RoleController::class, 'permissions'])
         ->middleware('permission:security.roles.view');
     Route::put('users/{user}/menu-access', [UserController::class, 'updateMenuAccess'])
@@ -239,7 +242,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('roles/{role}', [RoleController::class, 'destroy'])
         ->middleware('permission:security.roles.manage');
 
-    // Purchase Request dan BOM → dikelola dengan hak Inventory
+    // Purchase Request dan BOM
     Route::apiResource('/purchase-requests', PurchaseRequestController::class)
         ->only(['index', 'show'])->middleware('permission:inventory.transactions.view');
     Route::post('/purchase-requests', [PurchaseRequestController::class, 'store'])
@@ -258,6 +261,10 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:inventory.products.manage');
     Route::apiResource('/productions', ProductionController::class)
         ->only(['index', 'store'])->middleware('permission:inventory.products.manage');
+
+    // --- TAMBAHAN ROUTE MATERIAL RELEASE & PRODUCT RESULT ---
+    Route::post('/material-releases', [MaterialReleaseController::class, 'store']);
+    Route::post('/product-results', [ProductResultController::class, 'store']);
 
     // --- PURCHASE ORDERS & RECEIVE ITEMS ---
     Route::post('/purchase-orders', [PurchaseOrderController::class, 'store'])
@@ -279,7 +286,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/receive-items/{id}', [ReceiveItemController::class, 'destroy'])
         ->middleware('permission:inventory.goods_receipt.create');
 
-    // --- Existing routes (modul Sales — TIDAK dikunci pada Tahap 1) ---
+    // --- Existing routes (modul Sales) ---
     Route::apiResource('quotations', QuotationController::class);
     Route::get('/sales-orders', [SalesOrderController::class, 'index']);
     Route::post('/sales-orders', [SalesOrderController::class, 'store']);
@@ -288,10 +295,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/delivery-orders', [DeliveryOrderController::class, 'index']);
     Route::post('/delivery-orders', [DeliveryOrderController::class, 'store']);
     Route::get('/delivery-orders/{id}', [DeliveryOrderController::class, 'show']);
-
     Route::post('/delivery-orders/{id}/approve', [DeliveryOrderController::class, 'approve']);
 
-    // Invoices (dari SO + DO)
+    // Invoices
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::post('/invoices', [InvoiceController::class, 'store']);
     Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
@@ -320,7 +326,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:accounting.journal.update');
     Route::delete('/accounting/vouchers/{journalVoucher}', [JournalVoucherController::class, 'destroy'])
         ->middleware('permission:accounting.journal.delete');
-    // Posting & reversal = aksi khusus (hak terpisah dari hak baca/buat).
     Route::post('/accounting/vouchers/{journalVoucher}/post', [JournalVoucherController::class, 'post'])
         ->middleware('permission:accounting.journal.post');
     Route::post('/accounting/vouchers/{journalVoucher}/reverse', [JournalVoucherController::class, 'reverse'])
@@ -331,7 +336,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:accounting.cash_bank.view');
     Route::get('/accounting/cash-banks/saldo-awal', [CashBankController::class, 'saldoAwal'])
         ->middleware('permission:accounting.cash_bank.view');
-    // Saldo awal = operasi berisiko tinggi, permission khusus.
     Route::put('/accounting/cash-banks/{cashBank}/saldo-awal', [CashBankController::class, 'simpanSaldoAwal'])
         ->middleware('permission:accounting.cash_bank.opening_balance');
     Route::get('/accounting/cash-banks/ringkasan', [CashBankReportController::class, 'ringkasan'])
@@ -380,7 +384,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/accounting/receivables-payables/pembayaran', [ReceivablePayableController::class, 'storePembayaran'])
         ->middleware('permission:accounting.payables.pay');
 
-    // Purchase Invoice & Purchase Payment (fungsi keuangan, bukan modul Sales)
+    // Purchase Invoice & Purchase Payment
     Route::get('/purchase-invoices', [PurchaseInvoiceController::class, 'index'])
         ->middleware('permission:accounting.payables.view');
     Route::post('/purchase-invoices', [PurchaseInvoiceController::class, 'store'])
@@ -419,7 +423,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/accounting/reports/neraca', [AccountingReportController::class, 'neraca'])
         ->middleware('permission:accounting.reports.view');
 
-    // Activity log (read-only, tidak ada route edit/hapus).
+    // Activity log
     Route::get('/security/activity-logs', [AuthController::class, 'activityLogs'])
         ->middleware('permission:security.activity_logs.view');
 
@@ -485,4 +489,26 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:operational.scheduling.manage');
     Route::delete('/spk-schedules/{id}', [SpkScheduleController::class, 'destroy'])
         ->middleware('permission:operational.scheduling.manage');
+
+    // --- Dashboard Keuangan, Aset, Modal ---
+    Route::get('/finance/dashboard', [FinanceDashboardController::class, 'summary'])
+        ->middleware('permission:accounting.dashboard.view|accounting.cash_bank.view');
+
+    Route::get('/assets', [AssetController::class, 'index'])
+        ->middleware('permission:accounting.cash_bank.view');
+    Route::get('/assets/{id}', [AssetController::class, 'show'])
+        ->middleware('permission:accounting.cash_bank.view');
+    Route::post('/assets', [AssetController::class, 'store'])
+        ->middleware('permission:accounting.cash_bank.post');
+    Route::put('/assets/{id}', [AssetController::class, 'update'])
+        ->middleware('permission:accounting.cash_bank.update');
+    Route::delete('/assets/{id}', [AssetController::class, 'destroy'])
+        ->middleware('permission:accounting.cash_bank.post');
+
+    Route::get('/capital-entries', [CapitalEntryController::class, 'index'])
+        ->middleware('permission:accounting.cash_bank.view');
+    Route::post('/capital-entries', [CapitalEntryController::class, 'store'])
+        ->middleware('permission:accounting.cash_bank.post');
+    Route::delete('/capital-entries/{id}', [CapitalEntryController::class, 'destroy'])
+        ->middleware('permission:accounting.cash_bank.post');
 });

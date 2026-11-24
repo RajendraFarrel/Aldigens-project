@@ -18,14 +18,40 @@ export default function WorkOrder() {
     }
   }, []);
 
+  // Menggabungkan data bawaan dengan data Work Order yang dikirim dari Delivery Order (LocalStorage)
   const [workOrders, setWorkOrders] = useState(() => {
-    const saved = localStorage.getItem('aldigens_wo');
-    if (saved) return JSON.parse(saved);
-    return [
+    const savedLocalWO = JSON.parse(localStorage.getItem('aldigens_work_orders') || '[]');
+    const savedOldWO = JSON.parse(localStorage.getItem('aldigens_wo') || 'null');
+    
+    const defaultData = [
       { id: 1, date: '25 Sep 2026', woNo: 'WO-202609-001', refBOM: 'BOM-202609-001', product: 'Meja Belajar Kayu', targetQty: 50, status: 'Dalam Proses', man_power: 'Dicky', jobdesc: 'Pelatihan Pengelasan Loto 2 sistem horizontal Puzle', model_bracket: 'Lotto 2 sistem horizontal', start_date: '2026-10-20', finish_date: '', raw_materials: [{ desc: 'Body Utama', unit: 'pcs' }, { desc: 'Bahu bawah', unit: 'pcs' }], consumables_b: [], consumables_c: [] },
       { id: 2, date: '24 Sep 2026', woNo: 'WO-202609-002', refBOM: 'BOM-202609-002', product: 'Kursi Kantor Ergonomis', targetQty: 100, status: 'Selesai' },
       { id: 3, date: '26 Sep 2026', woNo: 'WO-202609-003', refBOM: 'BOM-202609-001', product: 'Meja Belajar Kayu', targetQty: 25, status: 'Menunggu' },
     ];
+
+    const existingWO = savedOldWO || defaultData;
+    // Gabungkan data dari DO (aldigens_work_orders) agar muncul di atas
+    const mappedDoWo = savedLocalWO.map(wo => ({
+      id: wo.id,
+      date: wo.wo_date || new Date().toISOString().split('T')[0],
+      woNo: wo.wo_number,
+      refBOM: wo.ref_do ? `Ref DO: ${wo.ref_do}` : 'Manual',
+      product: wo.items?.[0]?.description || wo.customer_name || 'Produk Pesanan DO',
+      targetQty: wo.items?.[0]?.target_qty || 1,
+      status: wo.status || 'Menunggu',
+      man_power: '-',
+      jobdesc: `Pesanan untuk ${wo.customer_name} (SO: ${wo.ref_so})`,
+      model_bracket: '-',
+      start_date: wo.wo_date,
+      finish_date: '',
+      raw_materials: wo.items || [],
+      consumables_b: [],
+      consumables_c: []
+    }));
+
+    // Hindari duplikasi ID
+    const combined = [...mappedDoWo, ...existingWO.filter(o => !mappedDoWo.some(m => m.woNo === o.woNo))];
+    return combined;
   });
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -71,7 +97,8 @@ export default function WorkOrder() {
     switch (status) {
       case 'Selesai': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400';
       case 'Dalam Proses': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
-      case 'Menunggu': return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
+      case 'Menunggu': 
+      case 'Draft': return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
       default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400';
     }
   };
@@ -122,7 +149,6 @@ export default function WorkOrder() {
     }
   };
 
-  // Menarik Data dari State bomList (Local Storage)
   const handleBomChange = (e) => {
     const bomId = e.target.value;
     const bom = bomList.find(b => b.id === bomId);
@@ -174,7 +200,7 @@ export default function WorkOrder() {
     const rawRows = (wo.raw_materials || []).map((item, idx) => `
       <tr class="item-row">
         <td class="center">${idx + 1}</td>
-        <td>${item.desc || ''}</td>
+        <td>${item.desc || item.description || ''}</td>
         <td>${item.supplier || ''}</td>
         <td>${item.part_no1 || ''}</td>
         <td>${item.part_no2 || ''}</td>
@@ -234,8 +260,8 @@ export default function WorkOrder() {
         <body>
           <table class="outer-table">
             <tr>
-              <td colspan="5" class="title-row">Work Of order</td>
-              <td colspan="2" style="padding: 5px; font-weight: bold; text-align: right;">Issued : &nbsp;&nbsp;&nbsp;&nbsp; / &nbsp;&nbsp;&nbsp;&nbsp; / 25</td>
+              <td colspan="5" class="title-row">Work Order</td>
+              <td colspan="2" style="padding: 5px; font-weight: bold; text-align: right;">Issued : &nbsp;&nbsp;&nbsp;&nbsp; / &nbsp;&nbsp;&nbsp;&nbsp; / 26</td>
             </tr>
             <tr>
               <td colspan="5" class="header-col">
@@ -261,15 +287,12 @@ export default function WorkOrder() {
             
             <tr><td colspan="7" class="section-title">Main Asay Parts<br/>A. Raw Material</td></tr>
             ${rawRows || renderEmptyRows(7, 'pcs')}
-            ${(wo.raw_materials?.length > 0 && wo.raw_materials?.length < 7) ? renderEmptyRows(7 - wo.raw_materials.length, 'pcs') : ''}
             
             <tr><td colspan="7" class="section-title">B. Consumable</td></tr>
             ${bRows || renderEmptyRows(12, 'Ea')}
-            ${(wo.consumables_b?.length > 0 && wo.consumables_b?.length < 12) ? renderEmptyRows(12 - wo.consumables_b.length, 'Ea') : ''}
             
             <tr><td colspan="7" class="section-title">C. Consumable</td></tr>
             ${cRows || renderEmptyRows(5, 'Ea')}
-            ${(wo.consumables_c?.length > 0 && wo.consumables_c?.length < 5) ? renderEmptyRows(5 - wo.consumables_c.length, 'Ea') : ''}
             
             <tr class="signature-row"><td colspan="3" style="border-right: none;">TTd</td><td colspan="2" style="border-right: none; border-left: none;">TTd</td><td colspan="2" style="border-left: none;">TTd</td></tr>
             <tr class="note-row"><td colspan="7">Note :</td></tr>
@@ -339,8 +362,8 @@ export default function WorkOrder() {
             </div>
 
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-200 dark:border-slate-800">
-              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition">Batal</button>
-              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition">
+              <button type="button" onClick={() => setViewMode('list')} className="px-6 py-2.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-medium transition cursor-pointer">Batal</button>
+              <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-500/25 transition cursor-pointer">
                 <Save className="h-4 w-4" /> Simpan Work Order
               </button>
             </div>
@@ -401,12 +424,12 @@ export default function WorkOrder() {
                 pagination.paginatedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="px-6 py-4">{item.date}</td>
-                    <td className="px-6 py-4 font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">
+                    <td className="px-6 py-4 font-medium text-blue-600 dark:text-blue-400">
                       {item.woNo}
                     </td>
                     <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{item.refBOM}</td>
                     <td className="px-6 py-4 font-medium">{item.product}</td>
-                    <td className="px-6 py-4">{item.targetQty} {String(item.targetQty).includes('Unit') ? '' : 'Unit'}</td>
+                    <td className="px-6 py-4">{item.targetQty} Unit</td>
                     <td className="px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-full text-[11px] font-medium ${getStatusBadge(item.status)}`}>
                         {item.status}
@@ -414,10 +437,10 @@ export default function WorkOrder() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center gap-2">
-                        <button onClick={() => handleOpenEdit(item)} className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400 transition" title="Edit Data WO">
+                        <button onClick={() => handleOpenEdit(item)} className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-400 transition cursor-pointer" title="Edit Data WO">
                           <Edit2 className="h-4 w-4" />
                         </button>
-                        <button onClick={() => handlePrintWO(item)} className="p-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400 transition" title="Cetak Format Pabrik">
+                        <button onClick={() => handlePrintWO(item)} className="p-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400 transition cursor-pointer" title="Cetak Format Pabrik">
                           <Printer className="h-4 w-4" />
                         </button>
                       </div>
@@ -482,11 +505,11 @@ export default function WorkOrder() {
               <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">A. Raw Material</h4>
-                  <button onClick={() => setForm({...form, raw_materials: [...form.raw_materials, {desc: '', unit: 'pcs'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700"><Plus className="h-3 w-3"/> Tambah Baris</button>
+                  <button onClick={() => setForm({...form, raw_materials: [...form.raw_materials, {desc: '', unit: 'pcs'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700 cursor-pointer"><Plus className="h-3 w-3"/> Tambah Baris</button>
                 </div>
                 {form.raw_materials.map((rm, i) => (
                   <div key={i} className="flex gap-2 mb-2">
-                    <input type="text" value={rm.desc} onChange={e => { const newRm = [...form.raw_materials]; newRm[i].desc = e.target.value; setForm({...form, raw_materials: newRm})}} placeholder={`Description ${i+1}`} className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
+                    <input type="text" value={rm.desc || rm.description} onChange={e => { const newRm = [...form.raw_materials]; newRm[i].desc = e.target.value; setForm({...form, raw_materials: newRm})}} placeholder={`Description ${i+1}`} className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
                     <input type="text" value={rm.unit} onChange={e => { const newRm = [...form.raw_materials]; newRm[i].unit = e.target.value; setForm({...form, raw_materials: newRm})}} placeholder="Unit" className="w-20 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
                   </div>
                 ))}
@@ -496,7 +519,7 @@ export default function WorkOrder() {
               <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">B. Consumable</h4>
-                  <button onClick={() => setForm({...form, consumables_b: [...form.consumables_b, {desc: '', unit: 'Ea'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700"><Plus className="h-3 w-3"/> Tambah Baris</button>
+                  <button onClick={() => setForm({...form, consumables_b: [...form.consumables_b, {desc: '', unit: 'Ea'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700 cursor-pointer"><Plus className="h-3 w-3"/> Tambah Baris</button>
                 </div>
                 {form.consumables_b.map((rm, i) => (
                   <div key={i} className="flex gap-2 mb-2">
@@ -510,12 +533,12 @@ export default function WorkOrder() {
               <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">C. Consumable</h4>
-                  <button onClick={() => setForm({...form, consumables_c: [...form.consumables_c, {desc: '', unit: 'Ea'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700"><Plus className="h-3 w-3"/> Tambah Baris</button>
+                  <button onClick={() => setForm({...form, consumables_c: [...form.consumables_c, {desc: '', unit: 'Ea'}]})} className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-emerald-200 dark:hover:bg-emerald-700 cursor-pointer"><Plus className="h-3 w-3"/> Tambah Baris</button>
                 </div>
                 {form.consumables_c.map((rm, i) => (
                   <div key={i} className="flex gap-2 mb-2">
                     <input type="text" value={rm.desc} onChange={e => { const newRm = [...form.consumables_c]; newRm[i].desc = e.target.value; setForm({...form, consumables_c: newRm})}} placeholder={`Description C ${i+1}`} className="flex-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white focus:outline-none focus:border-blue-500" />
-                    <input type="text" value={rm.unit} onChange={e => { const newRm = [...form.consumables_c]; newRm[i].unit = e.target.value; setForm({...form, consumables_c: newRm})}} placeholder="Unit" className="w-20 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
+                    <input type="text" value={rm.unit} onChange={e => { const newOpts = [...form.consumables_c]; newOpts[i].unit = e.target.value; setForm({...form, consumables_c: newOpts})}} placeholder="Unit" className="w-20 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded px-3 py-1.5 text-sm text-slate-800 dark:text-white text-center focus:outline-none focus:border-blue-500" />
                   </div>
                 ))}
               </div>

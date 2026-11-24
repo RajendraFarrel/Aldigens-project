@@ -1,0 +1,19 @@
+﻿url        http://localhost:5174/
+http       200
+load       19851ms
+title      "Dashboard Utama | PT. Aldigens Putera Persada"
+bodyChars  468
+patchright c:\Users\Nakni\.vscode\extensions\danielsanmedium.dscodegpt-3.24.82\standalone\
+browser    pinned Chromium  C:\Users\Nakni\AppData\Local\ms-playwright\chromium-1248\chrome-win64\chrome.exe
+text       ALDIGENS PORTAL CORPORAT Sistem Informasi Terpadu PT. ALDIGENS PUTERA PERSADA Menghadirkan solusi konstruksi, pengembangan, dan layanan profesional dengan standar kualitas tinggi. Selamat Datang Kemba
+script     {
+ "navHTML": "<nav class=\"flex-1 p-3 space-y-4 overflow-y-auto\"><div><p class=\"text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-3 mb-1.5\">PO System</p><div class=\"space-y-1\"><div class=\"flex flex-col\"><button title=\"\" class=\"w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition cursor-pointer bg-blue-600 text-white shadow-md\"><div class=\"flex items-center space-x-3 truncate\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-layout-dashboard h-5 w-5 flex-shrink-0\" aria-hidden=\"true\"><rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"></rect><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"></rect><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"></rect><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"></rect></svg><span class=\"truncate transition-opacity duration-300 opacity-100 inline\">Main Dashboard</span></div></button></div></div></div></nav>",
+ "groups": [
+  "PO SYSTEM"
+ ]
+}
+
+console errors/warnings (0):
+
+requests failed (0):
+

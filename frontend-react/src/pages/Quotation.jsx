@@ -464,7 +464,7 @@ export default function Quotation() {
               <FileSignature className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quotation (Penawaran)</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quotation</h1>
               <p className="text-sm text-slate-500 mt-1">Buat dan cetak surat penawaran harga resmi untuk calon pelanggan.</p>
             </div>
           </div>

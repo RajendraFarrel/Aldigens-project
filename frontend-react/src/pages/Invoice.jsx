@@ -15,8 +15,7 @@ const PRINT_COMPANY = {
 };
 const PRINT_DOC_TITLE = 'INVOICE';
 const PRINT_PARTY_LABEL = 'Pelanggan';
-const PRINT_TERBILANG_LANG = 'en';   // 'en' = bahasa Inggris, 'id' = bahasa Indonesia
-const PRINT_SHOW_PAYMENT_INFO = true; 
+const PRINT_SHOW_PAYMENT_INFO = true;
 const PRINT_PAYMENT_INFO = { accountName: 'PT. ALDIGENS PUTERA PERSADA', bankName: 'BANK PERMATA', accountNo: '070.224.339-4' };
 const PRINT_SIGNER = { name: 'KHAFID YUSUF', title: 'Direktur' };
 
@@ -78,6 +77,13 @@ const pWords = (value) => {
 
 const pTerbilang = (value) => pWords(value);
 
+const calcLineTotal = (item) => {
+  const qty = Number(item.qty ?? item.quantity ?? 0);
+  const price = Number(item.unit_price ?? item.price ?? 0);
+  const disc = Number(item.discount ?? item.discount_percent ?? item.disc_percent ?? 0);
+  return qty * price * (1 - disc / 100);
+};
+
 const normalizeInvoiceForPrint = (inv = {}) => {
   const rawItems = inv.items || inv.details || inv.lines || [];
   const items = rawItems.map((it) => {
@@ -98,7 +104,7 @@ const normalizeInvoiceForPrint = (inv = {}) => {
   let subTotal = inv.sub_total ?? inv.subtotal ?? (items.length ? items.reduce((s, i) => s + i.total, 0) : null);
   let tax = inv.tax_amount ?? inv.tax ?? null;
   let grand = inv.grand_total ?? inv.total_amount ?? null;
-  
+
   if (subTotal == null) subTotal = grand != null ? (tax != null ? Number(grand) - Number(tax) : Math.round(Number(grand) / (1 + taxPct / 100))) : 0;
   if (tax == null) tax = Math.round(Number(subTotal) * taxPct / 100);
   if (grand == null) grand = Number(subTotal) + Number(tax);
@@ -271,10 +277,10 @@ ${autoPrint ? '<script>window.onload = function () { window.focus(); setTimeout(
 }
 // ============================================================
 
-
 export default function Invoice() {
   const [invoices, setInvoices] = useState([]);
   const [deliveryOrders, setDeliveryOrders] = useState([]);
+  const [salesOrders, setSalesOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -291,12 +297,14 @@ export default function Invoice() {
     do_reference: '',
     customer_name: '',
     customer_address: '',
+    tax_percentage: 11,
     notes: 'Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada',
     items: [],
   });
 
-  const formSubTotal = formData.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || 0)), 0);
-  const formTaxAmount = formSubTotal * 0.11;
+  const taxPct = Number(formData.tax_percentage ?? 11);
+  const formSubTotal = formData.items.reduce((acc, curr) => acc + calcLineTotal(curr), 0);
+  const formTaxAmount = Math.round(formSubTotal * (taxPct / 100));
   const formGrandTotal = formSubTotal + formTaxAmount;
 
   const fetchInvoices = useCallback(async () => {
@@ -313,27 +321,48 @@ export default function Invoice() {
     }
   }, []);
 
-  const fetchDOs = useCallback(async () => {
+  const fetchDOsAndSOs = useCallback(async () => {
     try {
       let apiDOs = [];
-      try {
-        const res = await api.get('/delivery-orders');
-        apiDOs = res.data?.data || res.data || [];
-      } catch {
-        console.warn("API DO offline.");
+      let apiSOs = [];
+
+      const [doRes, soRes] = await Promise.allSettled([
+        api.get('/delivery-orders'),
+        api.get('/sales-orders'),
+      ]);
+
+      if (doRes.status === 'fulfilled') {
+        apiDOs = doRes.value.data?.data || doRes.value.data || [];
       }
+      if (soRes.status === 'fulfilled') {
+        apiSOs = soRes.value.data?.data || soRes.value.data || [];
+      }
+
       const localDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]');
-      const combinedDOs = [...localDOs, ...(Array.isArray(apiDOs) ? apiDOs : [])];
-      setDeliveryOrders(combinedDOs);
+      const localSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
+
+      const mergedDOs = [...(Array.isArray(apiDOs) ? apiDOs : []), ...localDOs];
+      const uniqueDOs = Array.from(new Map(mergedDOs.map((d) => [d.do_number || d.id, d])).values());
+
+      const mergedSOs = [...(Array.isArray(apiSOs) ? apiSOs : []), ...localSOs];
+      const uniqueSOs = Array.from(new Map(mergedSOs.map((s) => [s.so_number || s.soNo || s.id, s])).values());
+
+      setDeliveryOrders(uniqueDOs);
+      setSalesOrders(uniqueSOs);
     } catch (e) {
-      console.error('Gagal memuat DO:', e);
+      console.error('Gagal memuat DO / SO:', e);
     }
   }, []);
 
   useEffect(() => {
     fetchInvoices();
-    fetchDOs();
-  }, [fetchInvoices, fetchDOs]);
+    fetchDOsAndSOs();
+  }, [fetchInvoices, fetchDOsAndSOs]);
+
+  // Filter DO untuk dropdown: Jangan tampilkan yang sudah ada di tabel invoices
+  const availableDOs = deliveryOrders.filter(
+    (doItem) => !invoices.some((inv) => inv.do_reference === doItem.do_number || inv.do_number === doItem.do_number)
+  );
 
   useEffect(() => {
     const activeRef = localStorage.getItem('active_invoice_ref');
@@ -349,11 +378,13 @@ export default function Invoice() {
           notes: `Referensi BAST: ${parsedRef.commissioning_code} | PO: ${parsedRef.ref_po || '-'} | SO: ${parsedRef.so_number || '-'}`,
           items: [
             {
+              part_number: parsedRef.part_number || '',
               description: `Pekerjaan Proyek / Komisioning: ${parsedRef.project_name || parsedRef.commissioning_code} (PO: ${parsedRef.ref_po || '-'})`,
               qty: 1,
-              unit_price: 0
-            }
-          ]
+              unit_price: Number(parsedRef.unit_price || parsedRef.total_amount || 0),
+              discount: 0,
+            },
+          ],
         }));
 
         localStorage.removeItem('active_invoice_ref');
@@ -368,50 +399,79 @@ export default function Invoice() {
     if (!doNumber) return;
 
     const selDO = deliveryOrders.find((d) => d.do_number === doNumber);
-    if (selDO) {
-      const allSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
-      const relatedSO = allSOs.find(so => so.so_number === selDO.so_number || so.soNo === selDO.so_number);
+    if (!selDO) return;
 
-      const mappedItems = (selDO.items || []).map(it => {
-        let finalPrice = Number(it.unit_price || it.price || it.harga || 0);
+    const normalizeText = (v) => String(v || '').trim().toLowerCase();
 
-        if (finalPrice === 0 && relatedSO && relatedSO.items) {
-          const matchedSoItem = relatedSO.items.find(soItem => 
-            soItem.description === it.description || 
-            soItem.part_number === it.part_number ||
-            soItem.description === it.part_number
-          );
-          if (matchedSoItem) {
-            finalPrice = Number(matchedSoItem.unit_price || matchedSoItem.price || 0);
-          }
-        }
+    // Cari Sales Order terkait baik dari relasi nested selDO.sales_order maupun daftar salesOrders
+    const relatedSO =
+      selDO.sales_order ||
+      salesOrders.find(
+        (so) =>
+          (selDO.so_number && (normalizeText(so.so_number) === normalizeText(selDO.so_number) || normalizeText(so.soNo) === normalizeText(selDO.so_number))) ||
+          (selDO.sales_order_id && String(so.id) === String(selDO.sales_order_id))
+      );
 
-        return {
-          description: it.description || it.part_number || '-',
-          qty: Number(it.qty_sent || it.qty || 1),
-          unit_price: finalPrice
-        };
-      });
+    const soItems = relatedSO?.items || relatedSO?.details || [];
+    const doItems = selDO.items || selDO.details || [];
 
-      setFormData((prev) => ({
-        ...prev,
-        customer_name: selDO.customer_name || '',
-        customer_address: selDO.delivery_address || selDO.customer_address || '',
-        items: mappedItems
-      }));
-    }
+    const mappedItems = doItems.map((it, idx) => {
+      const doCode = normalizeText(it.part_number || it.code || it.product?.part_number);
+      const doDesc = normalizeText(it.description || it.name || it.product?.name);
+
+      const matchedSoItem =
+        soItems.find(
+          (soItem) =>
+            (doCode && [soItem.part_number, soItem.code, soItem.product?.part_number].some((c) => normalizeText(c) === doCode)) ||
+            (doDesc && [soItem.description, soItem.name, soItem.product?.name].some((d) => normalizeText(d) === doDesc))
+        ) || soItems[idx];
+
+      // Prioritaskan harga asli dari Sales Order (karena DO sudah murni fisik tanpa harga)
+      const soPrice = Number(
+        matchedSoItem?.unit_price ?? matchedSoItem?.price ?? matchedSoItem?.harga ?? matchedSoItem?.selling_price ?? 0
+      );
+      const doPrice = Number(it.unit_price ?? it.price ?? it.harga ?? 0);
+      const finalPrice = soPrice > 0 ? soPrice : doPrice;
+
+      const finalDisc = Number(
+        matchedSoItem?.discount ?? matchedSoItem?.discount_percent ?? matchedSoItem?.disc_percent ?? it.discount ?? 0
+      );
+
+      return {
+        part_number: it.part_number || it.code || matchedSoItem?.part_number || matchedSoItem?.code || '',
+        description: it.description || it.name || matchedSoItem?.description || matchedSoItem?.name || it.part_number || '-',
+        qty: Number(it.qty_sent ?? it.qty ?? it.quantity ?? 1),
+        unit_price: finalPrice,
+        discount: finalDisc,
+      };
+    });
+
+    const resolvedTax = Number(relatedSO?.tax_percentage ?? relatedSO?.tax_rate ?? selDO.tax_percentage ?? 11);
+
+    setFormData((prev) => ({
+      ...prev,
+      customer_name: selDO.customer_name || relatedSO?.customer_name || '',
+      customer_address:
+        selDO.delivery_address ||
+        selDO.customer_address ||
+        relatedSO?.billing_address ||
+        relatedSO?.customer_address ||
+        '',
+      tax_percentage: Number.isNaN(resolvedTax) ? 11 : resolvedTax,
+      items: mappedItems,
+    }));
   };
 
   const handleItemChange = (index, field, value) => {
     const items = [...formData.items];
-    items[index][field] = (field === 'qty' || field === 'unit_price') ? Number(value) : value;
+    items[index][field] = ['qty', 'unit_price', 'discount'].includes(field) ? Number(value) : value;
     setFormData({ ...formData, items });
   };
 
   const handleAddItem = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { description: '', qty: 1, unit_price: 0 }],
+      items: [...formData.items, { part_number: '', description: '', qty: 1, unit_price: 0, discount: 0 }],
     });
   };
 
@@ -427,6 +487,7 @@ export default function Invoice() {
       do_reference: '',
       customer_name: '',
       customer_address: '',
+      tax_percentage: 11,
       notes: 'Pembayaran ditransfer ke rekening PT. Aldigens Putera Persada',
       items: [],
     });
@@ -441,27 +502,28 @@ export default function Invoice() {
     }
     setSaving(true);
     setError('');
-    
+
     try {
-      await api.post('/invoices', formData);
+      const payload = {
+        ...formData,
+        sub_total: formSubTotal,
+        tax_amount: formTaxAmount,
+        grand_total: formGrandTotal,
+      };
+      await api.post('/invoices', payload);
 
       setSuccessMsg('Invoice berhasil dibuat!');
       setIsCreating(false);
       resetForm();
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
-      
     } catch (err) {
       console.error(err);
-      
-      // --- KODE UNTUK MEMUNCULKAN ERROR ASLI LARAVEL KE LAYAR ---
       const errorMsg = err.response?.data?.message || err.message;
       const errorFile = err.response?.data?.file || 'Tidak diketahui';
       const errorLine = err.response?.data?.line || 'Tidak diketahui';
-      
-      // Memunculkan Pop-up Alert
-      alert("ERROR DARI BACKEND LARAVEL:\n\n" + errorMsg + "\n\nFile: " + errorFile + "\nBaris: " + errorLine);
-      
+
+      alert('ERROR DARI BACKEND LARAVEL:\n\n' + errorMsg + '\n\nFile: ' + errorFile + '\nBaris: ' + errorLine);
       setError('Gagal: ' + errorMsg);
     } finally {
       setSaving(false);
@@ -480,7 +542,6 @@ export default function Invoice() {
       setSuccessMsg(`Status invoice berhasil diubah menjadi ${newStatus}!`);
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
-      
     } catch (err) {
       console.error(err);
       setError('Gagal mengubah status invoice di Database.');
@@ -492,26 +553,31 @@ export default function Invoice() {
 
   const statusBadge = (status) => {
     const map = {
-      Unpaid: 'bg-rose-50 text-rose-700 border-rose-200',
-      Partial: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      Paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      Unpaid: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+      Partial: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+      Paid: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
     };
-    return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
+    return map[status] || 'bg-slate-700/60 text-slate-200 border-slate-600';
   };
 
   const printInvoice = (invData) => {
     if (!invData) return;
     const logoUrl = new URL(logoPerusahaan, window.location.href).href;
     const printWindow = window.open('', '_blank');
-    
+
     if (!printWindow) {
       swalError('Pop-up diblokir browser. Izinkan pop-up untuk mencetak invoice.');
       return;
     }
-    
+
     printWindow.document.write(buildInvoiceHtml(invData, { autoPrint: true, logoUrl }));
     printWindow.document.close();
   };
+
+  const selectedSubTotal = (selectedInvoice?.items || []).reduce((acc, curr) => acc + calcLineTotal(curr), 0);
+  const selectedTaxPct = Number(selectedInvoice?.tax_percentage ?? 11);
+  const selectedTaxAmount = Math.round(selectedSubTotal * (selectedTaxPct / 100));
+  const selectedGrandTotal = selectedSubTotal + selectedTaxAmount;
 
   return (
     <div className="p-4 md:p-8 w-full max-w-full space-y-6">
@@ -522,7 +588,7 @@ export default function Invoice() {
               <FileText className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Invoice (Faktur Penjualan)</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Invoice</h1>
               <p className="text-sm text-slate-500 mt-1">Terbitkan tagihan resmi ke pelanggan berdasarkan Surat Jalan (DO) atau BAST.</p>
             </div>
           </div>
@@ -537,7 +603,7 @@ export default function Invoice() {
       )}
 
       {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+        <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4" /> {successMsg}
         </div>
       )}
@@ -551,7 +617,7 @@ export default function Invoice() {
               </button>
               <div>
                 <h2 className="text-xl font-bold text-slate-800">Formulir Invoice Baru</h2>
-                <p className="text-sm text-slate-500">Tarik data dari D.O / BAST atau buat manual.</p>
+                <p className="text-sm text-slate-500">Kuantitas ditarik dari D.O dan harga otomatis mengikuti Sales Order terkait.</p>
               </div>
             </div>
             <button type="submit" disabled={saving} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2.5 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition cursor-pointer">
@@ -560,7 +626,7 @@ export default function Invoice() {
             </button>
           </div>
 
-          {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">{error}</div>}
+          {error && <div className="bg-red-500/15 border border-red-500/30 text-red-300 text-sm px-4 py-3 rounded-xl">{error}</div>}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-1.5 lg:col-span-1">
@@ -571,7 +637,7 @@ export default function Invoice() {
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition cursor-pointer"
               >
                 <option value="">-- Pilih D.O --</option>
-                {deliveryOrders.map((d) => (
+                {availableDOs.map((d) => (
                   <option key={d.id || d.do_number} value={d.do_number}>
                     {d.do_number} - {d.customer_name}
                   </option>
@@ -621,21 +687,51 @@ export default function Invoice() {
               <div className="space-y-3">
                 {formData.items.map((item, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 items-center">
-                    <div className="md:col-span-6">
+                    <div className="md:col-span-2">
+                      <label className="block text-[11px] font-bold text-slate-400 mb-1.5">PART NUMBER</label>
+                      <input
+                        type="text"
+                        placeholder="Kode"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={item.part_number || ''}
+                        onChange={(e) => handleItemChange(index, 'part_number', e.target.value)}
+                      />
+                    </div>
+                    <div className="md:col-span-4">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">DESKRIPSI BARANG / PROYEK</label>
-                      <input type="text" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} />
+                      <input
+                        type="text"
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={item.description}
+                        onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                      />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">QTY</label>
-                      <input type="number" min="1" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-center" value={item.qty} onChange={(e) => handleItemChange(index, 'qty', e.target.value)} />
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-center"
+                        value={item.qty}
+                        onChange={(e) => handleItemChange(index, 'qty', e.target.value)}
+                      />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-[11px] font-bold text-slate-400 mb-1.5">HARGA SATUAN (Rp)</label>
-                      <input type="number" min="0" required className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-right" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} />
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                        value={item.unit_price}
+                        onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
+                      />
                     </div>
                     <div className="md:col-span-1 text-right">
                       {formData.items.length > 1 && (
-                        <button type="button" onClick={() => handleRemoveItem(index)} className="p-2.5 text-rose-500 hover:bg-rose-50 rounded-xl transition cursor-pointer mt-5 md:mt-0">
+                        <button type="button" onClick={() => handleRemoveItem(index)} className="p-2.5 text-rose-500 hover:bg-rose-500/10 rounded-xl transition cursor-pointer mt-5 md:mt-0">
                           <Trash2 className="w-5 h-5" />
                         </button>
                       )}
@@ -646,18 +742,18 @@ export default function Invoice() {
             )}
 
             {formData.items.length > 0 && (
-              <div className="bg-indigo-50/50 rounded-xl p-5 border border-indigo-100 space-y-3 mt-6 shadow-sm">
-                <div className="flex justify-between items-center text-sm font-semibold text-slate-500">
+              <div className="rounded-2xl p-6 border border-slate-700/80 bg-slate-900/90 space-y-3 mt-6 shadow-inner">
+                <div className="flex justify-between items-center text-sm font-medium text-slate-400">
                   <span>Sub Total:</span>
-                  <span className="text-slate-700">{formatRupiah(formSubTotal)}</span>
+                  <span className="text-slate-200 font-semibold">{formatRupiah(formSubTotal)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm font-semibold text-slate-500">
-                  <span>PPN 11%:</span>
-                  <span className="text-slate-700">{formatRupiah(formTaxAmount)}</span>
+                <div className="flex justify-between items-center text-sm font-medium text-slate-400">
+                  <span>PPN {taxPct}%:</span>
+                  <span className="text-slate-200 font-semibold">{formatRupiah(formTaxAmount)}</span>
                 </div>
-                <div className="border-t border-indigo-200 pt-3 flex justify-between items-center text-lg font-bold">
-                  <span className="text-slate-800">Grand Total:</span>
-                  <span className="text-indigo-600">{formatRupiah(formGrandTotal)}</span>
+                <div className="border-t border-slate-700/80 pt-3 flex justify-between items-center text-lg font-bold">
+                  <span className="text-slate-100">Grand Total:</span>
+                  <span className="text-indigo-400">{formatRupiah(formGrandTotal)}</span>
                 </div>
               </div>
             )}
@@ -673,7 +769,7 @@ export default function Invoice() {
               <div>
                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">Invoice: {selectedInvoice.invoice_number}</h2>
                 <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1">
-                  <Calendar className="w-4 h-4" /> {selectedInvoice.date}
+                  <Calendar className="w-4 h-4" /> {selectedInvoice.date || selectedInvoice.invoice_date}
                 </p>
               </div>
             </div>
@@ -701,7 +797,7 @@ export default function Invoice() {
 
               <button
                 onClick={() => printInvoice(selectedInvoice)}
-                className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer"
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition cursor-pointer shadow-sm"
               >
                 <Printer className="w-4 h-4" /> Cetak Invoice
               </button>
@@ -716,7 +812,9 @@ export default function Invoice() {
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Jatuh Tempo</p>
-              <p className="font-semibold text-slate-800">{selectedInvoice.due_date || '-'}</p>
+              <p className="font-semibold text-slate-800">
+                {selectedInvoice.due_date ? new Date(selectedInvoice.due_date).toISOString().split('T')[0] : '-'}
+              </p>
             </div>
             <div>
               <p className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Ref D.O / BAST</p>
@@ -739,40 +837,44 @@ export default function Invoice() {
                 {(selectedInvoice.items || []).length === 0 ? (
                   <tr><td colSpan="5" className="p-12 text-center text-sm text-slate-400">Tidak ada rincian.</td></tr>
                 ) : selectedInvoice.items.map((it, idx) => {
-                  const safeQty = Number(it.qty) || 1;
-                  const safePrice = Number(it.unit_price || it.price || 0);
-                  
+                  const safeQty = Number(it.qty ?? it.quantity) || 1;
+                  const safePrice = Number(it.unit_price ?? it.price ?? 0);
+                  const lineTotal = calcLineTotal(it);
+
                   return (
                     <tr key={idx} className="hover:bg-slate-50/50 transition">
                       <td className="p-4 text-sm font-semibold text-slate-500 text-center">{idx + 1}</td>
-                      <td className="p-4 text-sm font-medium text-slate-700">{it.description}</td>
+                      <td className="p-4 text-sm font-medium text-slate-700">
+                        {it.part_number && <span className="font-mono text-xs text-indigo-400 mr-2">[{it.part_number}]</span>}
+                        {it.description}
+                      </td>
                       <td className="p-4 text-sm text-center font-bold text-slate-800">{safeQty}</td>
                       <td className="p-4 text-sm text-right text-slate-600">{formatRupiah(safePrice)}</td>
-                      <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(safeQty * safePrice)}</td>
+                      <td className="p-4 text-sm text-right font-bold text-slate-800">{formatRupiah(lineTotal)}</td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
             </table>
-            
+
             {selectedInvoice.items && selectedInvoice.items.length > 0 && (
-              <div className="bg-slate-100 border-t border-slate-200 p-5 space-y-2 text-sm">
+              <div className="bg-slate-900/90 border-t border-slate-700/80 p-5 space-y-2 text-sm">
                 <div className="flex justify-end items-center gap-6">
-                  <span className="font-semibold text-slate-500">Sub Total:</span>
-                  <span className="font-bold text-slate-700 w-32 text-right">
-                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0))}
+                  <span className="font-semibold text-slate-400">Sub Total:</span>
+                  <span className="font-bold text-slate-200 w-36 text-right">
+                    {formatRupiah(selectedSubTotal)}
                   </span>
                 </div>
                 <div className="flex justify-end items-center gap-6">
-                  <span className="font-semibold text-slate-500">PPN 11%:</span>
-                  <span className="font-bold text-slate-700 w-32 text-right">
-                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0) * 0.11)}
+                  <span className="font-semibold text-slate-400">PPN {selectedTaxPct}%:</span>
+                  <span className="font-bold text-slate-200 w-36 text-right">
+                    {formatRupiah(selectedTaxAmount)}
                   </span>
                 </div>
-                <div className="flex justify-end items-center gap-6 pt-3 mt-3 border-t border-slate-300">
-                  <span className="font-bold text-slate-800 text-base">Grand Total:</span>
-                  <span className="font-black text-indigo-600 text-base w-32 text-right">
-                    {formatRupiah(selectedInvoice.items.reduce((acc, curr) => acc + (Number(curr.qty || 0) * Number(curr.unit_price || curr.price || 0)), 0) * 1.11)}
+                <div className="flex justify-end items-center gap-6 pt-3 mt-3 border-t border-slate-700/80">
+                  <span className="font-bold text-slate-100 text-base">Grand Total:</span>
+                  <span className="font-black text-indigo-400 text-base w-36 text-right">
+                    {formatRupiah(selectedGrandTotal)}
                   </span>
                 </div>
               </div>
@@ -810,7 +912,7 @@ export default function Invoice() {
                     <td className="p-5 font-bold text-slate-800">{inv.invoice_number}</td>
                     <td className="p-5 text-slate-700 font-medium">{inv.customer_name}</td>
                     <td className="p-5 text-slate-500">{inv.date || inv.invoice_date}</td>
-                    <td className="p-5 text-slate-500">{inv.due_date}</td>
+                    <td className="p-5 text-slate-500">{inv.due_date ? new Date(inv.due_date).toISOString().split('T')[0] : '-'}</td>
                     <td className="p-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusBadge(inv.status || 'Unpaid')}`}>{inv.status || 'Unpaid'}</span>
                     </td>

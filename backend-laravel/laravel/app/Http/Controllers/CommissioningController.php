@@ -6,6 +6,7 @@ use App\Models\Commissioning;
 use App\Models\CommissioningItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class CommissioningController extends Controller
 {
@@ -19,7 +20,7 @@ class CommissioningController extends Controller
         ]);
     }
 
-    // Menyimpan data komisioning baru beserta checklist-nya
+    // Menyimpan data komisioning baru & Potong Stok
     public function store(Request $request)
     {
         $request->validate([
@@ -27,12 +28,6 @@ class CommissioningController extends Controller
             'commissioning_date' => 'required|date',
             'technician_name' => 'required|string',
             'items' => 'required|array|min:1',
-            'do_number' => 'nullable|string',
-            'so_number' => 'nullable|string',
-            'ref_po' => 'nullable|string',
-            'unit_model' => 'nullable|string',
-            'serial_no' => 'nullable|string',
-            'installation_date' => 'nullable|date',
         ]);
 
         try {
@@ -42,7 +37,9 @@ class CommissioningController extends Controller
             $lastId = $lastCommissioning ? $lastCommissioning->id : 0;
             $commCode = 'COM-' . date('Y') . '-' . str_pad($lastId + 1, 4, '0', STR_PAD_LEFT);
 
-            // Simpan header komisioning termasuk unit_model dan serial_no
+            $status = $request->status ?? 'COMPLETED';
+
+            // 1. Simpan header komisioning
             $commissioning = Commissioning::create([
                 'commissioning_code' => $request->commissioning_code ?? $commCode,
                 'customer_id' => $request->customer_id,
@@ -54,28 +51,66 @@ class CommissioningController extends Controller
                 'installation_date' => $request->installation_date,
                 'commissioning_date' => $request->commissioning_date,
                 'technician_name' => $request->technician_name,
-                'status' => $request->status ?? 'COMPLETED',
+                'status' => $status,
                 'notes' => $request->notes,
             ]);
 
-            // Simpan item checklist lapangan
+            // 2. Simpan item checklist (DIPERBAIKI AGAR TIDAK ERROR TRUNCATED)
+            $hasResultCol = Schema::hasColumn('commissioning_items', 'result');
             foreach ($request->items as $item) {
-                CommissioningItem::create([
+                $itemData = [
                     'commissioning_id' => $commissioning->id,
                     'no' => $item['no'] ?? null,
                     'check_item' => $item['check_item'],
                     'physical' => $item['physical'] ?? 'Good',
                     'function' => $item['function'] ?? 'Good',
-                    'result' => $item['result'] ?? 'Good',
                     'remarks' => $item['remarks'] ?? null,
-                ]);
+                ];
+
+                // Jika kolom result ada, kita isi angka 1 (true) bukan teks 'Good'
+                if ($hasResultCol) {
+                    $itemData['result'] = '1';
+                }
+
+                CommissioningItem::create($itemData);
+            }
+
+            // 3. LOGIKA PEMOTONGAN STOK BARANG JADI
+            if ($status === 'COMPLETED' || $status === 'APPROVED') {
+                $productName = trim($request->unit_model);
+                
+                if ($productName) {
+                    $tableName = 'products';
+                    if (!Schema::hasTable($tableName)) {
+                        $tableName = 'inventories';
+                    }
+
+                    if (Schema::hasTable($tableName)) {
+                        $columns = Schema::getColumnListing($tableName);
+                        $stockCol = 'stock';
+                        foreach (['stock', 'stok', 'qty', 'quantity', 'jumlah', 'balance'] as $col) {
+                            if (in_array($col, $columns)) {
+                                $stockCol = $col;
+                                break;
+                            }
+                        }
+
+                        $nameCol = 'name';
+                        if (in_array('item_name', $columns)) $nameCol = 'item_name';
+                        elseif (in_array('product_name', $columns)) $nameCol = 'product_name';
+
+                        DB::table($tableName)
+                            ->where($nameCol, 'LIKE', '%' . $productName . '%')
+                            ->decrement($stockCol, 1);
+                    }
+                }
             }
 
             DB::commit();
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'Data Komisioning & BAST berhasil disimpan!',
+                'message' => 'Data Komisioning & BAST berhasil disimpan dan Stok Terpotong!',
                 'data' => $commissioning->load('items')
             ], 201);
 
@@ -117,18 +152,24 @@ class CommissioningController extends Controller
                 'notes' => $request->notes,
             ]);
 
-            // Hapus item lama dan masukkan item checklist yang baru
+            // Hapus yang lama, insert yang baru (DIPERBAIKI)
             $commissioning->items()->delete();
+            $hasResultCol = Schema::hasColumn('commissioning_items', 'result');
             foreach ($request->items as $item) {
-                CommissioningItem::create([
+                $itemData = [
                     'commissioning_id' => $commissioning->id,
                     'no' => $item['no'] ?? null,
                     'check_item' => $item['check_item'],
                     'physical' => $item['physical'] ?? 'Good',
                     'function' => $item['function'] ?? 'Good',
-                    'result' => $item['result'] ?? 'Good',
                     'remarks' => $item['remarks'] ?? null,
-                ]);
+                ];
+
+                if ($hasResultCol) {
+                    $itemData['result'] = '1';
+                }
+
+                CommissioningItem::create($itemData);
             }
 
             DB::commit();

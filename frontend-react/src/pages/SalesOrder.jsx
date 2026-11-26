@@ -252,7 +252,7 @@ export default function SalesOrder() {
   const [viewMode, setViewMode] = useState('list');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
-  
+
   // State Master Data
   const [masterProducts, setMasterProducts] = useState([]);
   const [masterCustomers, setMasterCustomers] = useState([]);
@@ -326,12 +326,21 @@ export default function SalesOrder() {
 
   const pagination = usePagination(filteredSalesOrders, 10);
 
-  const generateNewSoNumber = () => {
-    const today = new Date();
-    const prefix = `SO-${String(today.getFullYear()).slice(-2)}${String(today.getMonth() + 1).padStart(2, '0')}-`;
-    const sameMonth = salesOrders.filter(so => (so.soNo || '').startsWith(prefix));
-    const urut = String(sameMonth.length + 1).padStart(3, '0');
-    return prefix + urut;
+  // Generator otomatis 8 digit YYMM0001 (contoh: 26110001) real-time sesuai tahun & bulan
+  const generateNewSoNumber = (targetDate = null) => {
+    const d = targetDate ? new Date(targetDate) : new Date();
+    const yy = String(d.getFullYear()).slice(-2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const prefix = `${yy}${mm}`;
+
+    const maxSeq = salesOrders.reduce((max, so) => {
+      const raw = String(so.soNo || so.so_number || '').replace(/^SO-/i, '').replace(/-/g, '');
+      if (!raw.startsWith(prefix)) return max;
+      const seq = parseInt(raw.slice(4), 10);
+      return !Number.isNaN(seq) && seq > max ? seq : max;
+    }, 0);
+
+    return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
   };
 
   const formatRupiah = (angka) => {
@@ -357,18 +366,18 @@ export default function SalesOrder() {
   const calculatedTotals = useMemo(() => {
     let subTotal = 0;
     let taxAmount = 0;
-    
+
     formData.items.forEach(it => {
       const qty = Number(it.qty || 1);
       const price = Number(it.price || 0);
       const totalItem = qty * price;
-      
+
       subTotal += totalItem;
       if ((it.tax_code || '').toUpperCase() === 'T') {
         taxAmount += totalItem * ((formData.tax_percentage || 11) / 100);
       }
     });
-    
+
     return {
       subTotal,
       taxAmount,
@@ -377,15 +386,16 @@ export default function SalesOrder() {
   }, [formData.items, formData.tax_percentage]);
 
   const handleOpenAddForm = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
     setEditingId(null);
     setFormData({
-      soNo: generateNewSoNumber(),
-      date: new Date().toISOString().split('T')[0],
+      soNo: generateNewSoNumber(todayStr),
+      date: todayStr,
       customer: '',
       shipTo: '',
       refPo: '',
       terms: 'Net 30',
-      estDate: new Date().toISOString().split('T')[0],
+      estDate: todayStr,
       sentBy: 'Kurir Perusahaan',
       salesman: 'Diah Ayu Komala',
       status: 'Disetujui',
@@ -400,7 +410,7 @@ export default function SalesOrder() {
     setEditingId(item.id);
     setFormData({
       ...item,
-      soNo: item.soNo || item.so_number || generateNewSoNumber(),
+      soNo: item.soNo || item.so_number || generateNewSoNumber(item.date),
       customer: item.customer || item.customer_name || '',
       shipTo: item.shipTo || item.customer_address || '',
       refPo: item.refPo || item.reff_po || item.customer_po || '',
@@ -429,7 +439,7 @@ export default function SalesOrder() {
       ...formData,
       customer: customerName,
       shipTo: selectedCust?.customer_address || selectedCust?.address || formData.shipTo,
-      items: [] 
+      items: []
     });
   };
 
@@ -453,15 +463,15 @@ export default function SalesOrder() {
       const invCode = p.inventory_part_number;
 
       let matchedInv = null;
-      
+
       if (invCode) {
-        matchedInv = masterProducts.find(mp => 
+        matchedInv = masterProducts.find(mp =>
           String(mp.product_code || mp.part_number || mp.code || '').trim().toLowerCase() === String(invCode).trim().toLowerCase()
         );
       }
-      
+
       if (!matchedInv) {
-        matchedInv = masterProducts.find(mp => 
+        matchedInv = masterProducts.find(mp =>
           String(mp.part_number || mp.product_code || '').trim().toLowerCase() === String(partNum).trim().toLowerCase()
         );
       }
@@ -469,14 +479,14 @@ export default function SalesOrder() {
       if (!matchedInv) {
         const desc = (p.item_description || p.description || p.name || '').trim().toLowerCase();
         if (desc) {
-          matchedInv = masterProducts.find(mp => 
+          matchedInv = masterProducts.find(mp =>
             String(mp.name || mp.item_description || '').trim().toLowerCase() === desc
           );
         }
       }
 
-      const stockQty = matchedInv 
-          ? Number(matchedInv.stock || matchedInv.qty || 0) 
+      const stockQty = matchedInv
+          ? Number(matchedInv.stock || matchedInv.qty || 0)
           : Number(p.inventory_product?.stock_gudang || p.inventory_product?.stock || p.stock_gudang || p.stock || p.inventory_stock_total || 0);
 
       return {
@@ -546,7 +556,7 @@ export default function SalesOrder() {
       return;
     }
 
-    const currentSoNo = formData.soNo || generateNewSoNumber();
+    const currentSoNo = formData.soNo || generateNewSoNumber(formData.date);
     const { subTotal, taxAmount, grandTotal } = calculatedTotals;
 
     const payload = {
@@ -557,7 +567,7 @@ export default function SalesOrder() {
       customer_address: formData.shipTo,
       customer_po: formData.refPo,
       ref_po: formData.refPo,
-      subject: formData.keterangan, 
+      subject: formData.keterangan,
       sub_total: subTotal,
       tax_amount: taxAmount,
       grand_total: grandTotal,
@@ -588,13 +598,9 @@ export default function SalesOrder() {
     }
   };
 
-  // ---------------------------------------------------------
-  // PERBAIKAN: Penomoran DO Unik (Timestamp + Random) agar Bebas Error 422
-  // ---------------------------------------------------------
   const handleConvertToDO = async (item) => {
     setActiveMenuId(null);
-    
-    // Menangkap berbagai kemungkinan nama variabel dari objek Sales Order
+
     const soNumber = item.soNo || item.so_number || item.id || 'SO-UNKNOWN';
     const customerPo = item.refPo || item.reff_po || item.customer_po || item.ref_po || '-';
 
@@ -607,9 +613,9 @@ export default function SalesOrder() {
     const payload = {
       sales_order_id: null,
       do_number: uniqueDoNumber,
-      so_number: soNumber,      // Mengirim No. SO
-      ref_po: customerPo,       // Mengirim No. PO Pelanggan
-      customer_po: customerPo,  // Cadangan key PO Pelanggan
+      so_number: soNumber,
+      ref_po: customerPo,
+      customer_po: customerPo,
       do_date: new Date().toISOString().split('T')[0],
       customer_name: item.customer || item.customer_name || 'Pelanggan',
       delivery_address: item.shipTo || item.customer_address || 'Jakarta',
@@ -657,7 +663,7 @@ export default function SalesOrder() {
                 <p className="text-xs text-slate-500">Formulir pesanan penjualan terintegrasi stok gudang</p>
               </div>
             </div>
-            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold">
+            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-full text-xs font-semibold font-mono">
               {formData.soNo}
             </span>
           </div>
@@ -666,16 +672,29 @@ export default function SalesOrder() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 dark:bg-slate-950/50 p-5 rounded-xl border border-slate-200/60 dark:border-slate-800">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">No. SO Internal</label>
-                <input 
-                  type="text" 
-                  value={formData.soNo} 
-                  readOnly 
-                  className="w-full px-4 py-2.5 bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 cursor-not-allowed" 
+                <input
+                  type="text"
+                  value={formData.soNo}
+                  readOnly
+                  className="w-full px-4 py-2.5 bg-slate-200/60 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-mono font-bold text-slate-600 dark:text-slate-400 cursor-not-allowed"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Tanggal</label>
-                <input required type="date" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" />
+                <input
+                  required
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setFormData((prev) => ({
+                      ...prev,
+                      date: newDate,
+                      soNo: !editingId ? generateNewSoNumber(newDate) : prev.soNo,
+                    }));
+                  }}
+                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Nama Pelanggan <span className="text-red-500">*</span></label>
@@ -712,12 +731,12 @@ export default function SalesOrder() {
 
               <div className="md:col-span-3 mt-2">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Keterangan / Memo</label>
-                <textarea 
+                <textarea
                   rows="2"
-                  placeholder="Tambahkan catatan khusus untuk Sales Order ini..." 
-                  value={formData.keterangan} 
-                  onChange={(e) => setFormData({...formData, keterangan: e.target.value})} 
-                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none" 
+                  placeholder="Tambahkan catatan khusus untuk Sales Order ini..."
+                  value={formData.keterangan}
+                  onChange={(e) => setFormData({...formData, keterangan: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 dark:text-white resize-none"
                 />
               </div>
             </div>
@@ -756,14 +775,14 @@ export default function SalesOrder() {
                         <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                           <td className="px-4 py-3 text-center text-slate-400 font-medium text-xs">{index + 1}</td>
                           <td className="px-4 py-3">
-                            <input 
-                              required 
-                              type="text" 
+                            <input
+                              required
+                              type="text"
                               list={`master-parts-list-${item.id}`}
                               placeholder="Ketik Part No..."
-                              value={item.code || item.part_number || ''} 
-                              onChange={(e) => handleItemChange(item.id, 'code', e.target.value)} 
-                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono" 
+                              value={item.code || item.part_number || ''}
+                              onChange={(e) => handleItemChange(item.id, 'code', e.target.value)}
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white font-mono"
                               disabled={!formData.customer}
                             />
                             <datalist id={`master-parts-list-${item.id}`}>
@@ -776,8 +795,8 @@ export default function SalesOrder() {
 
                             <div className="mt-1 flex items-center gap-1.5">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
-                                Number(item.current_stock || 0) > 0 
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                Number(item.current_stock || 0) > 0
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-amber-50 text-amber-700 border border-amber-200'
                               }`}>
                                 <AlertCircle className="w-3 h-3" />
@@ -803,13 +822,13 @@ export default function SalesOrder() {
                             <input required type="number" min="0" value={item.price || item.unit_price || 0} onChange={(e) => handleItemChange(item.id, 'price', Number(e.target.value))} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-right" />
                           </td>
                           <td className="px-4 py-3">
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               maxLength="1"
                               placeholder="T"
-                              value={item.tax_code || ''} 
-                              onChange={(e) => handleItemChange(item.id, 'tax_code', e.target.value.toUpperCase())} 
-                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-center font-bold" 
+                              value={item.tax_code || ''}
+                              onChange={(e) => handleItemChange(item.id, 'tax_code', e.target.value.toUpperCase())}
+                              className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-center font-bold"
                             />
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -833,8 +852,8 @@ export default function SalesOrder() {
                   <div className="flex justify-between items-center text-sm font-semibold text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-2">
                       <span>PPN (%):</span>
-                      <select 
-                        value={formData.tax_percentage} 
+                      <select
+                        value={formData.tax_percentage}
                         onChange={(e) => setFormData({...formData, tax_percentage: Number(e.target.value.toUpperCase())})}
                         className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none text-xs"
                       >
@@ -871,16 +890,16 @@ export default function SalesOrder() {
           <div className="flex items-center gap-3">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Cari no. SO atau pelanggan..." 
+              <input
+                type="text"
+                placeholder="Cari no. SO atau pelanggan..."
                 className="pl-10 pr-4 py-2.5 w-full sm:w-80 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
-          
+
           <button type="button" onClick={handleOpenAddForm} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/25 transition cursor-pointer">
             <Plus className="h-4 w-4" />
             Buat Sales Order (SO) Baru
@@ -910,7 +929,7 @@ export default function SalesOrder() {
               ) : pagination.paginatedItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition relative">
                   <td className="px-6 py-4">{item.date || '-'}</td>
-                  <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400">{item.soNo || item.so_number}</td>
+                  <td className="px-6 py-4 font-bold font-mono text-blue-600 dark:text-blue-400">{item.soNo || item.so_number}</td>
                   <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">{item.customer || item.customer_name}</td>
                   <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-medium">{item.refPo || item.reff_po || item.customer_po || '-'}</td>
                   <td className="px-6 py-4">{item.salesman || item.admin_sales || 'Administrator'}</td>
@@ -921,7 +940,7 @@ export default function SalesOrder() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center relative">
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
                       className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
@@ -931,28 +950,28 @@ export default function SalesOrder() {
 
                     {activeMenuId === item.id && (
                       <div className="absolute right-12 top-10 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1.5 z-20 text-left">
-                        <button 
+                        <button
                           type="button"
                           onClick={() => handleConvertToDO(item)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 cursor-pointer"
                         >
                           <Truck className="h-4 w-4" /> Proses ke DO
                         </button>
-                        <button 
+                        <button
                           type="button"
                           onClick={() => handleOpenEditForm(item)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Edit3 className="h-4 w-4 text-blue-500" /> Edit SO
                         </button>
-                        <button 
+                        <button
                           type="button"
                           onClick={() => handlePrint(item)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
                         >
                           <Printer className="h-4 w-4 text-emerald-500" /> Cetak Dokumen
                         </button>
-                        <button 
+                        <button
                           type="button"
                           onClick={() => handleDelete(item.id)}
                           className="w-full px-4 py-2 text-xs font-medium flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-t border-slate-100 dark:border-slate-700 cursor-pointer"

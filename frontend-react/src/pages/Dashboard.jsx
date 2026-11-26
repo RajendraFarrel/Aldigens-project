@@ -3,12 +3,13 @@ import api from '../services/api';
 import {
   Wallet, ArrowDownRight, ArrowUpRight, RefreshCw, PlusCircle, X,
   Car, Bike, Package, FileText, AlertTriangle, Wrench, ShieldAlert,
-  Navigation, CheckCircle2, Plus, Trash2, TrendingUp, ShoppingCart,
+  Navigation, CheckCircle2, Plus, Trash2, TrendingUp, ShoppingCart, Pencil,
 } from 'lucide-react';
 import { swalSuccess, swalError } from '../utils/swal';
 
 const FLEET_STORAGE_KEY = 'aldigens_fleet_assets';
 const PR_QUEUE_KEY = 'aldigens_pr_draft_queue';
+const PRODUCTS_CACHE_KEY = 'aldigens_products_cache';
 
 const DEFAULT_FLEET = [
   {
@@ -68,6 +69,27 @@ const EMPTY_FLEET_FORM = {
   service_due_date: '',
 };
 
+const DEFAULT_MUTATIONS = [
+  {
+    id: 'def-1',
+    ref: 'BKM-2611001',
+    date: '2026-11-26',
+    description: 'Pelunasan Invoice PT United Tractors',
+    account: 'Bank Permata (070.224.339-4)',
+    type: 'IN',
+    amount: 25500000,
+  },
+  {
+    id: 'def-2',
+    ref: 'BKK-2611002',
+    date: '2026-11-25',
+    description: 'Pembayaran Pembelian Material Toko Garda',
+    account: 'Bank Permata (070.224.339-4)',
+    type: 'OUT',
+    amount: 8400000,
+  },
+];
+
 const daysUntil = (dateStr) => {
   if (!dateStr) return null;
   const target = new Date(String(dateStr).slice(0, 10));
@@ -84,15 +106,44 @@ export default function Dashboard() {
     total_cash_in: 35200000,
     total_cash_out: 12800000,
   });
-  const [mutations, setMutations] = useState([
-    { id: 1, ref: 'BKM-2609001', date: '2026-09-28', description: 'Pelunasan Invoice PT United Tractors', account: 'Bank Permata (070.224.339-4)', type: 'IN', amount: 25500000 },
-    { id: 2, ref: 'BKK-2609002', date: '2026-09-27', description: 'Pembayaran Pembelian Material Toko Garda', account: 'Bank Permata (070.224.339-4)', type: 'OUT', amount: 8400000 },
-  ]);
+  const [mutations, setMutations] = useState(DEFAULT_MUTATIONS);
 
-  const [products, setProducts] = useState([]);
+  // Cache produk instan agar daftar stok menipis langsung tampil (0 detik)
+  const [products, setProducts] = useState(() => {
+    try {
+      const cached = localStorage.getItem(PRODUCTS_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // abaikan error parse cache
+    }
+    return [];
+  });
+
   const [invoices, setInvoices] = useState([]);
-  const [deliveryOrders, setDeliveryOrders] = useState([]);
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [deliveryOrders, setDeliveryOrders] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [purchaseOrders, setPurchaseOrders] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [workOrders, setWorkOrders] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('aldigens_work_orders') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   const [fleet, setFleet] = useState(() => {
     try {
@@ -111,6 +162,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [isInputModalOpen, setIsInputModalOpen] = useState(false);
   const [isFleetModalOpen, setIsFleetModalOpen] = useState(false);
+  const [editingFleetId, setEditingFleetId] = useState(null);
 
   const [formData, setFormData] = useState({
     type: 'IN',
@@ -133,61 +185,128 @@ export default function Dashboard() {
     }
   }, []);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(() => {
     setLoading(true);
-    try {
-      const [finRes, prodRes, invRes, doRes, poRes, fleetRes] = await Promise.allSettled([
-        api.get('/dashboard-financials'),
-        api.get('/products'),
-        api.get('/invoices'),
-        api.get('/delivery-orders'),
-        api.get('/purchase-orders'),
-        api.get('/fleet-assets'),
-      ]);
+
+    // 1. Produk & Stok
+    api.get('/products')
+      .then((res) => {
+        const list = res.data?.data || res.data || [];
+        if (Array.isArray(list)) {
+          setProducts(list);
+          try {
+            localStorage.setItem(PRODUCTS_CACHE_KEY, JSON.stringify(list));
+          } catch {
+            // abaikan jika kuota penuh
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+
+    // 2. Keuangan & Sinkronisasi Mutasi dari Sales Receipt / Purchase Payment
+    Promise.allSettled([
+      api.get('/dashboard-financials'),
+      api.get('/sales-receipts'),
+      api.get('/purchase-payments'),
+    ]).then(([finRes, srRes, ppRes]) => {
+      let baseSummary = {
+        total_cash_modal: 145500000,
+        total_cash_in: 35200000,
+        total_cash_out: 12800000,
+      };
+      let apiMutations = [];
 
       if (finRes.status === 'fulfilled' && finRes.value.data) {
-        if (finRes.value.data.summary) setSummary(finRes.value.data.summary);
-        if (finRes.value.data.mutations) setMutations(finRes.value.data.mutations);
+        if (finRes.value.data.summary) baseSummary = finRes.value.data.summary;
+        if (Array.isArray(finRes.value.data.mutations)) apiMutations = finRes.value.data.mutations;
       }
 
-      if (prodRes.status === 'fulfilled') {
-        const list = prodRes.value.data?.data || prodRes.value.data || [];
-        setProducts(Array.isArray(list) ? list : []);
-      }
+      const apiReceipts = srRes.status === 'fulfilled' ? (srRes.value.data?.data || srRes.value.data || []) : [];
+      const localReceipts = JSON.parse(localStorage.getItem('aldigens_sales_receipts') || '[]');
+      const allReceipts = [...(Array.isArray(apiReceipts) ? apiReceipts : []), ...localReceipts];
 
-      if (invRes.status === 'fulfilled') {
-        const list = invRes.value.data?.data || invRes.value.data || [];
+      const apiPayments = ppRes.status === 'fulfilled' ? (ppRes.value.data?.data || ppRes.value.data || []) : [];
+      const localPayments = JSON.parse(localStorage.getItem('aldigens_purchase_payments') || '[]');
+      const allPayments = [...(Array.isArray(apiPayments) ? apiPayments : []), ...localPayments];
+
+      const receiptMutations = allReceipts.map((r, idx) => ({
+        id: `sr-${r.id || r.receipt_number || idx}`,
+        ref: r.receipt_number || r.reference_number || `SR-${idx + 1}`,
+        date: String(r.payment_date || r.date || '2026-11-26').slice(0, 10),
+        description: `Penerimaan Pelunasan ${r.customer_name || r.invoice_number || 'Customer'}`,
+        account: r.payment_method || r.bank_account || 'Bank Permata (070.224.339-4)',
+        type: 'IN',
+        amount: Number(r.amount || r.total_paid || 0),
+      })).filter((m) => m.amount > 0);
+
+      const paymentMutations = allPayments.map((p, idx) => ({
+        id: `pp-${p.id || p.payment_number || idx}`,
+        ref: p.payment_number || p.reference_number || `PP-${idx + 1}`,
+        date: String(p.payment_date || p.date || '2026-11-26').slice(0, 10),
+        description: `Pembayaran Supplier ${p.supplier_name || p.po_number || 'Vendor'}`,
+        account: p.payment_method || p.bank_account || 'Bank Permata (070.224.339-4)',
+        type: 'OUT',
+        amount: Number(p.amount || p.total_paid || 0),
+      })).filter((m) => m.amount > 0);
+
+      const extraIn = receiptMutations.reduce((s, m) => s + m.amount, 0);
+      const extraOut = paymentMutations.reduce((s, m) => s + m.amount, 0);
+
+      setSummary({
+        total_cash_modal: Number(baseSummary.total_cash_modal || 0) + extraIn - extraOut,
+        total_cash_in: Number(baseSummary.total_cash_in || 0) + extraIn,
+        total_cash_out: Number(baseSummary.total_cash_out || 0) + extraOut,
+      });
+
+      const mergedMutations = [...receiptMutations, ...paymentMutations, ...apiMutations];
+      setMutations(mergedMutations.length > 0 ? mergedMutations.slice(0, 10) : DEFAULT_MUTATIONS);
+    });
+
+    // 3. Invoices
+    api.get('/invoices')
+      .then((res) => {
+        const list = res.data?.data || res.data || [];
         setInvoices(Array.isArray(list) ? list : []);
-      }
+      })
+      .catch(() => {});
 
-      if (doRes.status === 'fulfilled') {
-        const apiDOs = doRes.value.data?.data || doRes.value.data || [];
+    // 4. Delivery Orders
+    api.get('/delivery-orders')
+      .then((res) => {
+        const apiDOs = res.data?.data || res.data || [];
         const localDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
-        setDeliveryOrders([...(Array.isArray(apiDOs) ? apiDOs : []), ...localDOs]);
-      } else {
+        const map = new Map();
+        localDOs.forEach((d) => map.set(d.do_number || d.id, d));
+        (Array.isArray(apiDOs) ? apiDOs : []).forEach((d) => map.set(d.do_number || d.id, d));
+        setDeliveryOrders(Array.from(map.values()));
+      })
+      .catch(() => {
         setDeliveryOrders(JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]'));
-      }
+      });
 
-      if (poRes.status === 'fulfilled') {
-        const apiPOs = poRes.value.data?.data || poRes.value.data || [];
+    // 5. Purchase Orders
+    api.get('/purchase-orders')
+      .then((res) => {
+        const apiPOs = res.data?.data || res.data || [];
         const localPOs = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
-        setPurchaseOrders([...(Array.isArray(apiPOs) ? apiPOs : []), ...localPOs]);
-      } else {
+        const map = new Map();
+        localPOs.forEach((p) => map.set(p.po_number || p.id, p));
+        (Array.isArray(apiPOs) ? apiPOs : []).forEach((p) => map.set(p.po_number || p.id, p));
+        setPurchaseOrders(Array.from(map.values()));
+      })
+      .catch(() => {
         setPurchaseOrders(JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]'));
-      }
+      });
 
-      if (fleetRes.status === 'fulfilled') {
-        const apiFleet = fleetRes.value.data?.data || fleetRes.value.data || [];
-        if (Array.isArray(apiFleet) && apiFleet.length > 0) {
-          saveFleet(apiFleet);
-        }
-      }
-    } catch (error) {
-      console.warn('Sebagian data dashboard memakai fallback:', error);
-    } finally {
-      setLoading(false);
+    // 6. Work Orders (Manufaktur) - ambil langsung dari localStorage agar bebas 404
+    try {
+      const localWOs = JSON.parse(localStorage.getItem('aldigens_work_orders') || '[]');
+      setWorkOrders(Array.isArray(localWOs) ? localWOs : []);
+    } catch {
+      setWorkOrders([]);
     }
-  }, [saveFleet]);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -269,13 +388,16 @@ export default function Dashboard() {
       return sum + itemsSum;
     }, 0);
     const unpaidCount = invoices.filter((inv) => (inv.status || 'Unpaid') !== 'Paid').length;
+    const activeWoCount = workOrders.filter((w) => !['Completed', 'Selesai', 'Done'].includes(w.status)).length;
     return {
       totalInvoiceValue,
       unpaidCount,
       doCount: deliveryOrders.length,
       poCount: purchaseOrders.length,
+      woCount: workOrders.length,
+      activeWoCount,
     };
-  }, [invoices, deliveryOrders, purchaseOrders]);
+  }, [invoices, deliveryOrders, purchaseOrders, workOrders]);
 
   const handleTypeChange = (newType) => {
     const prefix = newType === 'IN' ? 'BKM-' : 'BKK-';
@@ -309,53 +431,69 @@ export default function Dashboard() {
     }
   };
 
-  const handleAddFleet = async (e) => {
-    e.preventDefault();
-    const newAsset = {
-      ...fleetForm,
-      id: `flt-${Date.now()}`,
-      plate_number: fleetForm.plate_number.toUpperCase().trim(),
-    };
-
-    try {
-      const res = await api.post('/fleet-assets', newAsset);
-      if (res.data?.data) {
-        saveFleet([res.data.data, ...fleet]);
-      } else {
-        saveFleet([newAsset, ...fleet]);
-      }
-    } catch {
-      saveFleet([newAsset, ...fleet]);
-    }
-
-    swalSuccess('Armada Ditambahkan', `${newAsset.plate_number} (${newAsset.name}) berhasil dicatat.`);
+  const openAddFleetModal = () => {
+    setEditingFleetId(null);
     setFleetForm(EMPTY_FLEET_FORM);
-    setIsFleetModalOpen(false);
+    setIsFleetModalOpen(true);
   };
 
-  const handleCycleFleetStatus = async (item) => {
+  const openEditFleetModal = (item) => {
+    setEditingFleetId(item.id);
+    setFleetForm({
+      plate_number: item.plate_number || '',
+      name: item.name || '',
+      type: item.type || 'Mobil',
+      driver: item.driver || '',
+      status: item.status || 'Standby',
+      assignment: item.assignment || '',
+      tax_due_date: item.tax_due_date || '',
+      service_due_date: item.service_due_date || '',
+    });
+    setIsFleetModalOpen(true);
+  };
+
+  const closeFleetModal = () => {
+    setIsFleetModalOpen(false);
+    setEditingFleetId(null);
+    setFleetForm(EMPTY_FLEET_FORM);
+  };
+
+  const handleSaveFleet = (e) => {
+    e.preventDefault();
+    const normalizedPlate = fleetForm.plate_number.toUpperCase().trim();
+
+    if (editingFleetId) {
+      const updated = fleet.map((f) =>
+        f.id === editingFleetId
+          ? { ...f, ...fleetForm, plate_number: normalizedPlate }
+          : f
+      );
+      saveFleet(updated);
+      swalSuccess('Armada Diperbarui', `Data ${normalizedPlate} (${fleetForm.name}) berhasil diubah.`);
+    } else {
+      const newAsset = {
+        ...fleetForm,
+        id: `flt-${Date.now()}`,
+        plate_number: normalizedPlate,
+      };
+      saveFleet([newAsset, ...fleet]);
+      swalSuccess('Armada Ditambahkan', `${newAsset.plate_number} (${newAsset.name}) berhasil dicatat.`);
+    }
+
+    closeFleetModal();
+  };
+
+  const handleCycleFleetStatus = (item) => {
     const order = ['Standby', 'Sedang Jalan', 'Servis'];
     const nextStatus = order[(order.indexOf(item.status) + 1) % order.length];
     const updated = fleet.map((f) => (f.id === item.id ? { ...f, status: nextStatus } : f));
     saveFleet(updated);
-
-    try {
-      await api.put(`/fleet-assets/${item.id}`, { status: nextStatus });
-    } catch {
-      // tetap tersimpan lokal
-    }
   };
 
-  const handleDeleteFleet = async (item) => {
+  const handleDeleteFleet = (item) => {
     if (!window.confirm(`Hapus kendaraan ${item.plate_number} (${item.name}) dari daftar aset berjalan?`)) return;
     const updated = fleet.filter((f) => f.id !== item.id);
     saveFleet(updated);
-
-    try {
-      await api.delete(`/fleet-assets/${item.id}`);
-    } catch {
-      // abaikan
-    }
   };
 
   const fleetStatusStyle = (status) => {
@@ -383,7 +521,7 @@ export default function Dashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setIsFleetModalOpen(true)}
+            onClick={openAddFleetModal}
             className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 px-3.5 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition cursor-pointer"
           >
             <Car className="h-4 w-4 text-sky-400" />
@@ -479,7 +617,7 @@ export default function Dashboard() {
                 Status Aset Berjalan (Mobil &amp; Motor)
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Klik badge status untuk mengganti kondisi operasional (Standby / Sedang Jalan / Servis).
+                Klik badge status untuk mengganti kondisi operasional, atau klik ikon pensil untuk edit detail.
               </p>
             </div>
             <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
@@ -538,14 +676,24 @@ export default function Dashboard() {
                       </button>
                     </td>
                     <td className="px-5 py-3.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteFleet(item)}
-                        title="Hapus unit"
-                        className="p-1.5 text-rose-400 hover:bg-rose-500/15 rounded-lg transition cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="inline-flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditFleetModal(item)}
+                          title="Edit detail armada"
+                          className="p-1.5 text-sky-400 hover:bg-sky-500/15 rounded-lg transition cursor-pointer"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFleet(item)}
+                          title="Hapus unit"
+                          className="p-1.5 text-rose-400 hover:bg-rose-500/15 rounded-lg transition cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -574,7 +722,7 @@ export default function Dashboard() {
                 <p className="text-[11px] text-slate-400">Tidak ada jatuh tempo dalam 30 hari ke depan.</p>
               </div>
             ) : (
-              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
                 {fleetStats.alerts.map((a) => (
                   <div key={a.id} className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700/80 space-y-1.5">
                     <div className="flex justify-between items-center">
@@ -623,75 +771,90 @@ export default function Dashboard() {
       </div>
 
       {/* Ringkasan Arus Keuangan & Stok Menipis */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-5">
-          <div>
-            <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              Ringkasan Penjualan &amp; Arus Kas
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Perbandingan omzet tagihan terhadap uang masuk dan uang keluar.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="lg:col-span-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between space-y-5">
+          <div className="space-y-5">
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                Ringkasan Penjualan &amp; Arus Kas
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Perbandingan omzet tagihan terhadap uang masuk dan uang keluar.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-xs font-semibold mb-1.5">
+                  <span className="text-slate-500 dark:text-slate-400">Total Penjualan (Invoice)</span>
+                  <span className="text-indigo-500 dark:text-indigo-400 font-bold">Rp {Number(salesStats.totalInvoiceValue).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.round((salesStats.totalInvoiceValue / maxChartVal) * 100))}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs font-semibold mb-1.5">
+                  <span className="text-slate-500 dark:text-slate-400">Total Uang Masuk (Kas &amp; Bank)</span>
+                  <span className="text-emerald-500 dark:text-emerald-400 font-bold">+ Rp {Number(summary.total_cash_in).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.round((Number(summary.total_cash_in || 0) / maxChartVal) * 100))}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs font-semibold mb-1.5">
+                  <span className="text-slate-500 dark:text-slate-400">Total Uang Keluar (Operasional &amp; PO)</span>
+                  <span className="text-rose-500 dark:text-rose-400 font-bold">- Rp {Number(summary.total_cash_out).toLocaleString('id-ID')}</span>
+                </div>
+                <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-rose-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.round((Number(summary.total_cash_out || 0) / maxChartVal) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-xs font-semibold mb-1.5">
-                <span className="text-slate-500 dark:text-slate-400">Total Penjualan (Invoice)</span>
-                <span className="text-indigo-500 dark:text-indigo-400 font-bold">Rp {Number(salesStats.totalInvoiceValue).toLocaleString('id-ID')}</span>
+          <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-700/60 text-xs">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
+                <p className="text-slate-500 dark:text-slate-400">Purchase Order</p>
+                <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{salesStats.poCount} Dokumen</p>
               </div>
-              <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-500 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, Math.round((salesStats.totalInvoiceValue / maxChartVal) * 100))}%` }}
-                />
+              <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
+                <p className="text-slate-500 dark:text-slate-400">Delivery Order</p>
+                <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{salesStats.doCount} Dokumen</p>
               </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs font-semibold mb-1.5">
-                <span className="text-slate-500 dark:text-slate-400">Total Uang Masuk (Kas &amp; Bank)</span>
-                <span className="text-emerald-500 dark:text-emerald-400 font-bold">+ Rp {Number(summary.total_cash_in).toLocaleString('id-ID')}</span>
-              </div>
-              <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, Math.round((Number(summary.total_cash_in || 0) / maxChartVal) * 100))}%` }}
-                />
+              <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
+                <p className="text-slate-500 dark:text-slate-400">Sales Invoice</p>
+                <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{invoices.length} Dokumen</p>
               </div>
             </div>
 
-            <div>
-              <div className="flex justify-between text-xs font-semibold mb-1.5">
-                <span className="text-slate-500 dark:text-slate-400">Total Uang Keluar (Operasional &amp; PO)</span>
-                <span className="text-rose-500 dark:text-rose-400 font-bold">- Rp {Number(summary.total_cash_out).toLocaleString('id-ID')}</span>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl flex items-center justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Invoice Belum Lunas</span>
+                <span className="font-bold text-amber-500 dark:text-amber-400">{salesStats.unpaidCount} Tagihan</span>
               </div>
-              <div className="w-full h-3 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-rose-500 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, Math.round((Number(summary.total_cash_out || 0) / maxChartVal) * 100))}%` }}
-                />
+              <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl flex items-center justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Work Order Produksi</span>
+                <span className="font-bold text-sky-500 dark:text-sky-400">{salesStats.activeWoCount} Aktif / {salesStats.woCount} Total</span>
               </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700/60 text-xs">
-            <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
-              <p className="text-slate-500 dark:text-slate-400">Purchase Order</p>
-              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{salesStats.poCount} Dokumen</p>
-            </div>
-            <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
-              <p className="text-slate-500 dark:text-slate-400">Delivery Order</p>
-              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{salesStats.doCount} Dokumen</p>
-            </div>
-            <div className="bg-slate-100 dark:bg-slate-900/60 p-3 rounded-xl">
-              <p className="text-slate-500 dark:text-slate-400">Sales Invoice</p>
-              <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">{invoices.length} Dokumen</p>
             </div>
           </div>
         </div>
 
         {/* Radar Stok Menipis / Habis + Tombol Ajukan PR */}
-        <div className="lg:col-span-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+        <div className="lg:col-span-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col justify-between space-y-4">
           <div className="flex flex-wrap justify-between items-start gap-2">
             <div>
               <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
@@ -723,13 +886,13 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
             {inventoryStats.lowStockItems.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-10">
                 Semua stok barang di gudang berada di atas batas minimum.
               </p>
             ) : (
-              inventoryStats.lowStockItems.slice(0, 12).map((p) => {
+              inventoryStats.lowStockItems.slice(0, 15).map((p) => {
                 const stock = Number(p.stock || 0);
                 return (
                   <div
@@ -815,20 +978,21 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Modal Tambah Armada (Mobil / Motor) */}
+      {/* Modal Tambah / Edit Armada (Mobil / Motor) */}
       {isFleetModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700">
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
               <h3 className="font-bold text-slate-800 dark:text-white text-base flex items-center gap-2">
-                <Plus className="w-4 h-4 text-sky-400" /> Tambah Aset Berjalan (Mobil / Motor)
+                {editingFleetId ? <Pencil className="w-4 h-4 text-sky-400" /> : <Plus className="w-4 h-4 text-sky-400" />}
+                {editingFleetId ? 'Edit Data Aset Berjalan' : 'Tambah Aset Berjalan (Mobil / Motor)'}
               </h3>
-              <button onClick={() => setIsFleetModalOpen(false)} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg cursor-pointer">
+              <button onClick={closeFleetModal} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg cursor-pointer">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddFleet} className="p-6 space-y-4">
+            <form onSubmit={handleSaveFleet} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Jenis Kendaraan</label>
@@ -878,7 +1042,7 @@ export default function Dashboard() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Status Awal</label>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Status</label>
                   <select
                     value={fleetForm.status}
                     onChange={(e) => setFleetForm({ ...fleetForm, status: e.target.value })}
@@ -926,7 +1090,7 @@ export default function Dashboard() {
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-700">
                 <button
                   type="button"
-                  onClick={() => setIsFleetModalOpen(false)}
+                  onClick={closeFleetModal}
                   className="px-4 py-2 border border-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-700 cursor-pointer"
                 >
                   Batal
@@ -935,7 +1099,7 @@ export default function Dashboard() {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold cursor-pointer"
                 >
-                  Simpan Kendaraan
+                  {editingFleetId ? 'Simpan Perubahan' : 'Simpan Kendaraan'}
                 </button>
               </div>
             </form>

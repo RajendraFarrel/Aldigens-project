@@ -169,49 +169,22 @@ export default function InventoryWarehouse() {
     setFormError('');
   };
 
-<<<<<<< HEAD
   const buildPayload = () => {
-    const quantity = Number(form.quantity);
     const selected = products.find((product) => String(product.id) === String(form.product_id));
     const barcode = selected?.barcode || selected?.part_number || selected?.product_code || form.barcode;
-    const base = {
-      quantity,
-      reference_type: config.referenceType,
+    return {
+      quantity: Number(form.quantity),
+      reference_type: CONFIG.referenceType,
       reference_number: form.reference_number || null,
       notes: form.notes || null,
-    };
-    if (isTransfer) {
-      return {
-        ...base,
-        product_id: form.product_id,
-        barcode,
-        source_warehouse_id: form.source_warehouse_id,
-        source_location_id: form.source_location_id || null,
-        destination_warehouse_id: form.destination_warehouse_id,
-        destination_location_id: form.destination_location_id || null,
-      };
-    }
-    return {
-      ...base,
       product_id: form.product_id,
       barcode,
-      warehouse_id: form.warehouse_id || null,
-      warehouse_location_id: form.warehouse_location_id || null,
+      source_warehouse_id: form.source_warehouse_id,
+      source_location_id: form.source_location_id || null,
+      destination_warehouse_id: form.destination_warehouse_id,
+      destination_location_id: form.destination_location_id || null,
     };
   };
-=======
-  const buildPayload = () => ({
-    quantity: Number(form.quantity),
-    reference_type: CONFIG.referenceType,
-    reference_number: form.reference_number || null,
-    notes: form.notes || null,
-    barcode: form.barcode,
-    source_warehouse_id: form.source_warehouse_id,
-    source_location_id: form.source_location_id || null,
-    destination_warehouse_id: form.destination_warehouse_id,
-    destination_location_id: form.destination_location_id || null,
-  });
->>>>>>> 1b308f855bef98e0753d30ec2e8aeb895ac92a9b
 
   const submit = async (event) => {
     event.preventDefault();
@@ -603,5 +576,5 @@ export default function InventoryWarehouse() {
         </Modal>
       )}
     </div>
-    );
+  );
 }

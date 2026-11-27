@@ -1,18 +1,51 @@
-﻿import { useState, useEffect } from 'react';
-import axios from 'axios';
+﻿import { useState, useEffect, useCallback } from 'react';
+import api from '../services/api';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
+const COMM_STORAGE_KEY = 'aldigens_commissionings';
+const DO_STORAGE_KEY = 'aldigens_delivery_orders';
+const CUSTOMER_STORAGE_KEY = 'aldigens_customers';
+
+const DEFAULT_ITEMS = [
+    { no: 'A.1', check_item: 'Related Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
+    { no: 'B.1', check_item: 'Seat Belt 2 Point', physical: 'Good', function: 'Good', remarks: '' },
+    { no: 'C.1', check_item: 'Bracket Related Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
+    { no: 'C.2', check_item: 'Bracket Seat Belt 2 Point', physical: 'Good', function: 'Good', remarks: '' },
+    { no: 'D.1', check_item: 'Wiring Harness Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
+];
+
 export default function Commissioning() {
-    const [commissionings, setCommissionings] = useState([]);
-    const [customersList, setCustomersList] = useState([]);
-    const [deliveryOrders, setDeliveryOrders] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [commissionings, setCommissionings] = useState(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(COMM_STORAGE_KEY) || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch {
+            return [];
+        }
+    });
+    const [customersList, setCustomersList] = useState(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CUSTOMER_STORAGE_KEY) || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch {
+            return [];
+        }
+    });
+    const [deliveryOrders, setDeliveryOrders] = useState(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(DO_STORAGE_KEY) || '[]');
+            return Array.isArray(saved) ? saved.filter((d) => d.status !== 'Cancelled') : [];
+        } catch {
+            return [];
+        }
+    });
+    const [loading, setLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
 
     const pagination = usePagination(commissionings, 10);
-    
+
     // State untuk Cetak BAST / Installation Report
     const [selectedBast, setSelectedBast] = useState(null);
 
@@ -27,69 +60,77 @@ export default function Commissioning() {
     const [commissioningDate, setCommissioningDate] = useState('');
     const [technicianName, setTechnicianName] = useState('');
     const [notes, setNotes] = useState('');
-    
+
     // Checklist Items State sesuai Standar Template Komisioning/Installation Report
-    const [items, setItems] = useState([
-        { no: 'A.1', check_item: 'Related Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
-        { no: 'B.1', check_item: 'Seat Belt 2 Point', physical: 'Good', function: 'Good', remarks: '' },
-        { no: 'C.1', check_item: 'Bracket Related Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
-        { no: 'C.2', check_item: 'Bracket Seat Belt 2 Point', physical: 'Good', function: 'Good', remarks: '' },
-        { no: 'D.1', check_item: 'Wiring Harness Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
-    ]);
+    const [items, setItems] = useState(DEFAULT_ITEMS);
 
-    const fetchData = async () => {
-        setLoading(true);
-        const token = localStorage.getItem('auth_token');
-        const headers = { Authorization: `Bearer ${token}` };
-
-        // 1. Tarik Data Commissioning (Dengan Fallback LocalStorage)
+    const fetchData = useCallback(async (isInitial = false) => {
+        if (!isInitial) setLoading(true);
         try {
-            const commRes = await axios.get('http://127.0.0.1:8000/api/commissionings', { headers });
-            const apiComms = commRes.data.data || commRes.data || [];
-            const localComms = JSON.parse(localStorage.getItem('aldigens_commissionings') || '[]');
-            
-            setCommissionings(apiComms.length > 0 ? apiComms : localComms);
-        } catch {
-            console.warn('API Commissioning gagal, menggunakan LocalStorage.');
-            const localComms = JSON.parse(localStorage.getItem('aldigens_commissionings') || '[]');
-            setCommissionings(localComms);
-        }
+            const [commRes, custRes, doRes] = await Promise.allSettled([
+                api.get('/commissionings', { timeout: 5000 }),
+                api.get('/customers', { timeout: 5000 }),
+                api.get('/delivery-orders', { timeout: 5000 }),
+            ]);
 
-        // 2. Tarik Data Customer
-        try {
-            const custRes = await axios.get('http://127.0.0.1:8000/api/customers', { headers });
-            const custData = custRes.data.data || custRes.data.customers || custRes.data || [];
-            setCustomersList(Array.isArray(custData) ? custData : []);
-        } catch (error) {
-            console.error('Gagal mengambil data customer:', error);
-            setCustomersList([]);
-        }
-
-        // 3. Tarik Data Delivery Order (Gabungan Backend API & LocalStorage)
-        try {
-            let apiDOs = [];
-            try {
-                const doRes = await axios.get('http://127.0.0.1:8000/api/delivery-orders', { headers });
-                apiDOs = doRes.data.data || doRes.data || [];
-            } catch {
-                console.warn('API DO belum tersedia, menggunakan data lokal.');
+            // 1. Gabungkan Data Commissioning (LocalStorage + Backend API)
+            let apiComms = [];
+            if (commRes.status === 'fulfilled') {
+                const raw = commRes.value?.data?.data || commRes.value?.data || [];
+                apiComms = Array.isArray(raw) ? raw : [];
             }
-            
-            const localDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
-            const combinedDOs = [...localDOs, ...(Array.isArray(apiDOs) ? apiDOs : [])];
-            const uniqueDOs = Array.from(new Map(combinedDOs.map(item => [item.do_number, item])).values());
-            
-            setDeliveryOrders(uniqueDOs.filter(d => d.status !== 'Cancelled'));
-        } catch (error) {
-            console.error('Gagal memproses data DO:', error);
-        }
+            const localComms = JSON.parse(localStorage.getItem(COMM_STORAGE_KEY) || '[]');
+            const commMap = new Map();
+            (Array.isArray(localComms) ? localComms : []).forEach((c) => {
+                const key = c?.commissioning_code || c?.comm_number || c?.id;
+                if (key) commMap.set(key, c);
+            });
+            apiComms.forEach((c) => {
+                const key = c?.commissioning_code || c?.comm_number || c?.id;
+                if (key) commMap.set(key, c);
+            });
+            const uniqueComms = Array.from(commMap.values());
+            setCommissionings(uniqueComms);
+            localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(uniqueComms));
 
-        setLoading(false);
-    };
+            // 2. Data Customer
+            if (custRes.status === 'fulfilled') {
+                const rawCust = custRes.value?.data?.data || custRes.value?.data?.customers || custRes.value?.data || [];
+                const custArray = Array.isArray(rawCust) ? rawCust : [];
+                setCustomersList(custArray);
+                if (custArray.length > 0) {
+                    localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(custArray));
+                }
+            }
+
+            // 3. Gabungkan Data Delivery Order (LocalStorage + Backend API)
+            let apiDOs = [];
+            if (doRes.status === 'fulfilled') {
+                const rawDO = doRes.value?.data?.data || doRes.value?.data || [];
+                apiDOs = Array.isArray(rawDO) ? rawDO : [];
+            }
+            const localDOs = JSON.parse(localStorage.getItem(DO_STORAGE_KEY) || '[]');
+            const doMap = new Map();
+            (Array.isArray(localDOs) ? localDOs : []).forEach((d) => {
+                const key = d?.do_number || d?.id;
+                if (key) doMap.set(key, d);
+            });
+            apiDOs.forEach((d) => {
+                const key = d?.do_number || d?.id;
+                if (key) doMap.set(key, d);
+            });
+            const uniqueDOs = Array.from(doMap.values());
+            setDeliveryOrders(uniqueDOs.filter((d) => d.status !== 'Cancelled'));
+        } catch {
+            // Gunakan cache lokal jika gagal
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        fetchData(true);
+    }, [fetchData]);
 
     // --- FUNGSI AUTO-FILL DARI DELIVERY ORDER ---
     const handleDoChange = (selectedDoNum) => {
@@ -102,28 +143,27 @@ export default function Commissioning() {
             return;
         }
 
-        const selected = deliveryOrders.find(d => d.do_number === selectedDoNum);
+        const selected = deliveryOrders.find((d) => d.do_number === selectedDoNum);
         if (selected) {
-            // Validasi: Pastikan DO sudah dalam tahap pengiriman/selesai
             if (['Waiting Production', 'In Production', 'Draft'].includes(selected.status)) {
                 alert('Peringatan: Delivery Order ini belum dikirim (Status: ' + selected.status + '). Komisioning biasanya dilakukan setelah barang sampai di lokasi pelanggan.');
             }
 
             setSoNumber(selected.so_number || '');
-            setRefPo(selected.customer_po || selected.ref_po || ''); 
-            
-            // Auto-fill Unit Model dari daftar item DO jika tersedia
+            setRefPo(selected.customer_po || selected.ref_po || '');
+
             if (selected.items && selected.items.length > 0) {
                 setUnitModel(selected.items[0].description || selected.items[0].part_number || '');
             }
-            
+
             if (selected.customer_id) {
                 setCustomerId(selected.customer_id);
             } else if (selected.customer_name) {
-                const matchedCust = customersList.find(c => 
-                    String(c.id) === String(selected.customer_id) ||
-                    (c.customer_name || '').toLowerCase().trim() === (selected.customer_name || '').toLowerCase().trim() ||
-                    (c.customer_name || '').toLowerCase().includes((selected.customer_name || '').toLowerCase())
+                const matchedCust = customersList.find(
+                    (c) =>
+                        String(c.id) === String(selected.customer_id) ||
+                        (c.customer_name || '').toLowerCase().trim() === (selected.customer_name || '').toLowerCase().trim() ||
+                        (c.customer_name || '').toLowerCase().includes((selected.customer_name || '').toLowerCase())
                 );
                 if (matchedCust) {
                     setCustomerId(matchedCust.id);
@@ -133,7 +173,10 @@ export default function Commissioning() {
     };
 
     const handleAddItem = () => {
-        setItems([...items, { no: `${String.fromCharCode(65 + items.length)}.1`, check_item: '', physical: 'Good', function: 'Good', remarks: '' }]);
+        setItems([
+            ...items,
+            { no: `${String.fromCharCode(65 + items.length)}.1`, check_item: '', physical: 'Good', function: 'Good', remarks: '' },
+        ]);
     };
 
     const handleRemoveItem = (index) => {
@@ -158,13 +201,7 @@ export default function Commissioning() {
         setCommissioningDate(new Date().toISOString().split('T')[0]);
         setTechnicianName('');
         setNotes('');
-        setItems([
-            { no: 'A.1', check_item: 'Related Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
-            { no: 'B.1', check_item: 'Seat Belt 2 Point', physical: 'Good', function: 'Good', remarks: '' },
-            { no: 'C.1', check_item: 'Bracket Related Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
-            { no: 'C.2', check_item: 'Bracket Seat Belt 2 Point', physical: 'Good', function: 'Good', remarks: '' },
-            { no: 'D.1', check_item: 'Wiring Harness Treeway Valve', physical: 'Good', function: 'Good', remarks: '' },
-        ]);
+        setItems(DEFAULT_ITEMS.map((item) => ({ ...item })));
         setShowModal(true);
     };
 
@@ -180,27 +217,29 @@ export default function Commissioning() {
         setCommissioningDate(comm.commissioning_date || '');
         setTechnicianName(comm.technician_name || '');
         setNotes(comm.notes || '');
-        setItems(comm.items && comm.items.length > 0 ? comm.items : [
-            { no: 'A.1', check_item: 'Pemeriksaan Visual & Fisik', physical: 'Good', function: 'Good', remarks: '' }
-        ]);
+        setItems(
+            comm.items && comm.items.length > 0
+                ? comm.items
+                : [{ no: 'A.1', check_item: 'Pemeriksaan Visual & Fisik', physical: 'Good', function: 'Good', remarks: '' }]
+        );
         setShowModal(true);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const token = localStorage.getItem('auth_token');
-        const headers = { Authorization: `Bearer ${token}` };
-
-        const selectedCustomerObj = customersList.find(c => String(c.id) === String(customerId));
+        const selectedCustomerObj = customersList.find((c) => String(c.id) === String(customerId));
+        const existingItem = editingId ? commissionings.find((c) => c.id === editingId) : null;
 
         const payload = {
             id: editingId || Date.now(),
-            commissioning_code: editingId ? (commissionings.find(c => c.id === editingId)?.commissioning_code || 'COMM-001') : 'COMM-' + Math.floor(1000 + Math.random() * 9000),
+            commissioning_code: editingId
+                ? existingItem?.commissioning_code || existingItem?.comm_number || 'COMM-001'
+                : 'COMM-' + Math.floor(1000 + Math.random() * 9000),
             do_number: doNumber,
             so_number: soNumber,
             ref_po: refPo,
             customer_id: customerId,
-            customer: selectedCustomerObj || { customer_name: 'Customer' },
+            customer: selectedCustomerObj || existingItem?.customer || { customer_name: 'Customer' },
             unit_model: unitModel,
             serial_no: serialNo,
             installation_date: installationDate,
@@ -208,49 +247,48 @@ export default function Commissioning() {
             technician_name: technicianName,
             notes: notes,
             items: items,
-            status: 'COMPLETED'
+            status: 'COMPLETED',
         };
 
         try {
             if (editingId) {
                 try {
-                    await axios.put(`http://127.0.0.1:8000/api/commissionings/${editingId}`, payload, { headers });
-                } catch (apiErr) {
-                    console.warn('API update error 500/failed, menggunakan LocalStorage fallback.', apiErr);
+                    const res = await api.put(`/commissionings/${editingId}`, payload);
+                    if (res.data?.data) Object.assign(payload, res.data.data);
+                } catch {
+                    // Tetap simpan ke LocalStorage jika API gagal
                 }
-                const updatedList = commissionings.map(c => c.id === editingId ? payload : c);
+                const updatedList = commissionings.map((c) => (c.id === editingId ? payload : c));
                 setCommissionings(updatedList);
-                localStorage.setItem('aldigens_commissionings', JSON.stringify(updatedList));
+                localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(updatedList));
                 alert('Data Komisioning & BAST berhasil diperbarui!');
             } else {
                 try {
-                    await axios.post('http://127.0.0.1:8000/api/commissionings', payload, { headers });
-                } catch (apiErr) {
-                    console.warn('API store error 500/failed, menggunakan LocalStorage fallback.', apiErr);
+                    const res = await api.post('/commissionings', payload);
+                    if (res.data?.data) Object.assign(payload, res.data.data);
+                } catch {
+                    // Tetap simpan ke LocalStorage jika API gagal
                 }
                 const newList = [payload, ...commissionings];
                 setCommissionings(newList);
-                localStorage.setItem('aldigens_commissionings', JSON.stringify(newList));
-                
-                // INTEGRASI: Kunci DO menjadi 'Completed/BAST Signed' setelah komisioning selesai
+                localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(newList));
+
+                // INTEGRASI: Update status DO menjadi 'BAST Signed' setelah komisioning selesai
                 try {
-                    const savedDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]');
-                    const updatedDOs = savedDOs.map(doItem => {
-                        if (doItem.do_number === doNumber) {
-                            return { ...doItem, status: 'BAST Signed' };
-                        }
-                        return doItem;
-                    });
-                    localStorage.setItem('aldigens_delivery_orders', JSON.stringify(updatedDOs));
-                } catch (doErr) {
-                    console.error("Gagal mengupdate status DO:", doErr);
+                    const savedDOs = JSON.parse(localStorage.getItem(DO_STORAGE_KEY) || '[]');
+                    const updatedDOs = savedDOs.map((doItem) =>
+                        doItem.do_number === doNumber ? { ...doItem, status: 'BAST Signed' } : doItem
+                    );
+                    localStorage.setItem(DO_STORAGE_KEY, JSON.stringify(updatedDOs));
+                } catch {
+                    // Abaikan error update DO lokal
                 }
 
                 alert('Data Komisioning & Installation Report berhasil disimpan! DO siap ditagih.');
             }
             setShowModal(false);
             setEditingId(null);
-            fetchData();
+            fetchData(true);
         } catch (error) {
             alert('Gagal menyimpan data. Pastikan semua field terisi dengan benar.');
             console.error(error);
@@ -272,7 +310,7 @@ export default function Commissioning() {
                         <h1 className="text-2xl font-bold text-slate-800">Komisioning & Installation Report</h1>
                         <p className="text-sm text-slate-500">Manajemen pengujian unit, fisik, fungsional, dan Berita Acara</p>
                     </div>
-                    <button 
+                    <button
                         onClick={handleOpenCreate}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition cursor-pointer"
                     >
@@ -294,13 +332,13 @@ export default function Commissioning() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-sm">
-                            {loading ? (
+                            {loading && commissionings.length === 0 ? (
                                 <tr><td colSpan="7" className="p-4 text-center text-slate-400">Memuat data...</td></tr>
                             ) : pagination.paginatedItems.length === 0 ? (
                                 <tr><td colSpan="7" className="p-4 text-center text-slate-400">Belum ada data komisioning.</td></tr>
                             ) : (
                                 pagination.paginatedItems.map((comm) => (
-                                    <tr key={comm.id} className="hover:bg-slate-50">
+                                    <tr key={comm.id || comm.commissioning_code} className="hover:bg-slate-50">
                                         <td className="p-4 font-semibold text-slate-700">{comm.commissioning_code || comm.comm_number}</td>
                                         <td className="p-4">{comm.customer?.customer_name || '-'}</td>
                                         <td className="p-4">
@@ -322,13 +360,13 @@ export default function Commissioning() {
                                             </span>
                                         </td>
                                         <td className="p-4 text-center flex justify-center gap-2">
-                                            <button 
+                                            <button
                                                 onClick={() => handleOpenEdit(comm)}
                                                 className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition"
                                             >
                                                 Edit
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={() => handlePrint(comm)}
                                                 className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-medium cursor-pointer transition"
                                             >
@@ -454,18 +492,18 @@ export default function Commissioning() {
                             {editingId ? 'Edit Komisioning & Report' : 'Form Komisioning & Installation Report'}
                         </h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            
+
                             <div className="p-4 bg-blue-50/50 border border-blue-200 rounded-lg space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-700 mb-1">1. Tarik Data dari DO (Surat Jalan)</label>
-                                        <select 
-                                            value={doNumber} 
-                                            onChange={(e) => handleDoChange(e.target.value)} 
+                                        <select
+                                            value={doNumber}
+                                            onChange={(e) => handleDoChange(e.target.value)}
                                             className="w-full border border-blue-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500"
                                         >
                                             <option value="">-- Pilih DO --</option>
-                                            {deliveryOrders.map(d => (
+                                            {deliveryOrders.map((d) => (
                                                 <option key={d.id || d.do_number} value={d.do_number}>
                                                     {d.do_number} - {d.customer_name || 'Customer'}
                                                 </option>
@@ -474,21 +512,21 @@ export default function Commissioning() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-700 mb-1">2. No. PO Pelanggan (Otomatis)</label>
-                                        <input 
-                                            type="text" 
-                                            value={refPo} 
-                                            readOnly 
+                                        <input
+                                            type="text"
+                                            value={refPo}
+                                            readOnly
                                             placeholder="Terisi otomatis dari DO..."
-                                            className="w-full border rounded-lg p-2 text-sm bg-slate-100 text-slate-600 font-semibold" 
+                                            className="w-full border rounded-lg p-2 text-sm bg-slate-100 text-slate-600 font-semibold"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-700 mb-1">3. Pilih Customer</label>
-                                        <select 
-                                            value={customerId} 
-                                            onChange={(e) => setCustomerId(e.target.value)} 
-                                            className="w-full border border-blue-300 rounded-lg p-2 text-sm bg-white" 
-                                            required 
+                                        <select
+                                            value={customerId}
+                                            onChange={(e) => setCustomerId(e.target.value)}
+                                            className="w-full border border-blue-300 rounded-lg p-2 text-sm bg-white"
+                                            required
                                         >
                                             <option value="">-- Pilih Customer --</option>
                                             {customersList.map((cust) => (
@@ -500,59 +538,59 @@ export default function Commissioning() {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 mb-1">Unit Model</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Contoh: D65P-12 / SY215H" 
-                                        value={unitModel} 
-                                        onChange={(e) => setUnitModel(e.target.value)} 
-                                        className="w-full border rounded-lg p-2 text-sm" 
+                                    <input
+                                        type="text"
+                                        placeholder="Contoh: D65P-12 / SY215H"
+                                        value={unitModel}
+                                        onChange={(e) => setUnitModel(e.target.value)}
+                                        className="w-full border rounded-lg p-2 text-sm"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 mb-1">Serial No. (S/N)</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Nomor Seri Unit" 
-                                        value={serialNo} 
-                                        onChange={(e) => setSerialNo(e.target.value)} 
-                                        className="w-full border rounded-lg p-2 text-sm" 
+                                    <input
+                                        type="text"
+                                        placeholder="Nomor Seri Unit"
+                                        value={serialNo}
+                                        onChange={(e) => setSerialNo(e.target.value)}
+                                        className="w-full border rounded-lg p-2 text-sm"
                                     />
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 mb-1">Installation Date</label>
-                                    <input 
-                                        type="date" 
-                                        value={installationDate} 
-                                        onChange={(e) => setInstallationDate(e.target.value)} 
-                                        className="w-full border rounded-lg p-2 text-sm" 
+                                    <input
+                                        type="date"
+                                        value={installationDate}
+                                        onChange={(e) => setInstallationDate(e.target.value)}
+                                        className="w-full border rounded-lg p-2 text-sm"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 mb-1">Commissioning Date</label>
-                                    <input 
-                                        type="date" 
-                                        value={commissioningDate} 
-                                        onChange={(e) => setCommissioningDate(e.target.value)} 
-                                        className="w-full border rounded-lg p-2 text-sm" 
-                                        required 
+                                    <input
+                                        type="date"
+                                        value={commissioningDate}
+                                        onChange={(e) => setCommissioningDate(e.target.value)}
+                                        className="w-full border rounded-lg p-2 text-sm"
+                                        required
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-600 mb-1">Inspector / Teknisi Lapangan</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Nama teknisi" 
-                                        value={technicianName} 
-                                        onChange={(e) => setTechnicianName(e.target.value)} 
-                                        className="w-full border rounded-lg p-2 text-sm" 
-                                        required 
+                                    <input
+                                        type="text"
+                                        placeholder="Nama teknisi"
+                                        value={technicianName}
+                                        onChange={(e) => setTechnicianName(e.target.value)}
+                                        className="w-full border rounded-lg p-2 text-sm"
+                                        required
                                     />
                                 </div>
                             </div>
@@ -566,45 +604,45 @@ export default function Commissioning() {
                                 </div>
                                 {items.map((item, idx) => (
                                     <div key={idx} className="flex gap-2 mb-2 items-center bg-slate-50 p-2 rounded border">
-                                        <input 
-                                            type="text" 
-                                            placeholder="No (Cth: A.1)" 
-                                            value={item.no} 
-                                            onChange={(e) => handleItemChange(idx, 'no', e.target.value)} 
-                                            className="w-20 border rounded p-1.5 text-xs text-center" 
+                                        <input
+                                            type="text"
+                                            placeholder="No (Cth: A.1)"
+                                            value={item.no}
+                                            onChange={(e) => handleItemChange(idx, 'no', e.target.value)}
+                                            className="w-20 border rounded p-1.5 text-xs text-center"
                                         />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Inspection Item..." 
-                                            value={item.check_item} 
-                                            onChange={(e) => handleItemChange(idx, 'check_item', e.target.value)} 
-                                            className="flex-2 border rounded p-1.5 text-xs w-full" 
-                                            required 
+                                        <input
+                                            type="text"
+                                            placeholder="Inspection Item..."
+                                            value={item.check_item}
+                                            onChange={(e) => handleItemChange(idx, 'check_item', e.target.value)}
+                                            className="flex-2 border rounded p-1.5 text-xs w-full"
+                                            required
                                         />
-                                        <select 
-                                            value={item.physical} 
-                                            onChange={(e) => handleItemChange(idx, 'physical', e.target.value)} 
+                                        <select
+                                            value={item.physical}
+                                            onChange={(e) => handleItemChange(idx, 'physical', e.target.value)}
                                             className="border rounded p-1.5 text-xs bg-white w-28 font-bold"
                                         >
                                             <option value="Good">Good [V]</option>
                                             <option value="Bad">Bad [X]</option>
                                             <option value="Fixed">Corrected [-]</option>
                                         </select>
-                                        <select 
-                                            value={item.function} 
-                                            onChange={(e) => handleItemChange(idx, 'function', e.target.value)} 
+                                        <select
+                                            value={item.function}
+                                            onChange={(e) => handleItemChange(idx, 'function', e.target.value)}
                                             className="border rounded p-1.5 text-xs bg-white w-28 font-bold"
                                         >
                                             <option value="Good">Good [V]</option>
                                             <option value="Bad">Bad [X]</option>
                                             <option value="Fixed">Corrected [-]</option>
                                         </select>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Remarks..." 
-                                            value={item.remarks} 
-                                            onChange={(e) => handleItemChange(idx, 'remarks', e.target.value)} 
-                                            className="flex-1 border rounded p-1.5 text-xs" 
+                                        <input
+                                            type="text"
+                                            placeholder="Remarks..."
+                                            value={item.remarks}
+                                            onChange={(e) => handleItemChange(idx, 'remarks', e.target.value)}
+                                            className="flex-1 border rounded p-1.5 text-xs"
                                         />
                                         <button type="button" onClick={() => handleRemoveItem(idx)} className="text-rose-500 hover:bg-rose-50 p-1.5 rounded text-xs font-bold">
                                             ✕
@@ -615,25 +653,25 @@ export default function Commissioning() {
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-600 mb-1">Customer Comment & Remarks</label>
-                                <textarea 
-                                    value={notes} 
-                                    onChange={(e) => setNotes(e.target.value)} 
-                                    className="w-full border rounded-lg p-2 text-sm" 
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    className="w-full border rounded-lg p-2 text-sm"
                                     rows="2"
                                     placeholder="Catatan atau komentar customer..."
                                 ></textarea>
                             </div>
 
                             <div className="flex justify-end gap-2 pt-4">
-                                <button 
-                                    type="button" 
-                                    onClick={() => setShowModal(false)} 
+                                <button
+                                    type="button"
+                                    onClick={() => setShowModal(false)}
                                     className="px-4 py-2 bg-slate-200 text-slate-700 text-sm rounded-lg hover:bg-slate-300 cursor-pointer"
                                 >
                                     Batal
                                 </button>
-                                <button 
-                                    type="submit" 
+                                <button
+                                    type="submit"
                                     className="px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 cursor-pointer font-medium"
                                 >
                                     {editingId ? 'Simpan Perubahan' : 'Simpan Komisioning'}

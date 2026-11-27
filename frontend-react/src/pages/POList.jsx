@@ -10,14 +10,11 @@ import Select from 'react-select';
 // TEMPLATE CETAK PURCHASE ORDER (meniru layout form PO fisik)
 // Logo: file 'LOGO ALDIGENS2.jpeg' harus ada di frontend-react/public
 // ============================================================
-// Template cetak Purchase Order yang mengikuti layout form PO fisik PT. Aldigens.
-
 const COMPANY = {
     name: 'PT. ALDIGENS PUTERA PERSADA',
     address: ['Ruko Bekasi Mas Blok C-25', 'Jl. Jend. Ahmad Yani, Margajaya', 'Bekasi Selatan - 17141'],
 };
 
-// Nama file logo di folder public
 const LOGO_FILE = 'LOGO ALDIGENS2.jpeg';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -32,10 +29,8 @@ const SCALES = ['', 'thousand', 'million', 'billion', 'trillion'];
 const esc = (v) =>
     String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Teks multi-baris: escape dulu, lalu ubah enter menjadi <br>
 const escLines = (v) => esc(v).replace(/\r?\n/g, '<br/>');
 
-// Tanda "-" dianggap kosong (default form kontak berisi "-")
 const clean = (v) => {
     const s = String(v ?? '').trim();
     return s === '-' ? '' : s;
@@ -43,7 +38,6 @@ const clean = (v) => {
 
 const fmtNumber = (n) => Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
 
-// 2026-09-08 -> 8 Sep 2026
 const fmtDate = (value) => {
     if (!value) return '';
     const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -69,7 +63,6 @@ const below1000 = (num) => {
     return words.join(' ');
 };
 
-// 5930000 -> "Five million nine hundred thirty thousand"
 const numberToWordsEn = (value) => {
     let n = Math.floor(Math.abs(Number(value) || 0));
     if (n === 0) return 'Zero';
@@ -135,7 +128,6 @@ const STYLE = `
     .sign { display: flex; gap: 10px; margin-top: 10px; }
     .sign .col { flex: 1; }
     .sign .space { min-height: 18mm; }
-    /* Logo di pojok kiri atas, sejajar kotak perusahaan. brightness: latar abu-abu muda dibuat putih */
     .logo { width: 58mm; height: auto; display: block; margin: 0 0 3mm 62px; filter: brightness(1.06); }
     .sign .line { border-bottom: 1px solid #444; width: 90%; margin-bottom: 3px; }
 `;
@@ -143,11 +135,9 @@ const STYLE = `
 function buildPurchaseOrderHtml(po = {}, { autoPrint = false, logoUrl = '' } = {}) {
     const items = Array.isArray(po.items) ? po.items : [];
 
-    // --- Total ---
     const subTotal = Number(po.sub_total ?? items.reduce((s, i) => s + Number(i.qty || 0) * Number(i.unit_price || 0), 0));
     const discount = Number(po.discount ?? po.discount_amount ?? 0);
     const taxPct = Number(po.tax_percentage || 0);
-    // Pajak dihitung dari item yang bertanda tax_code "T", sama seperti logika lama
     const taxAmount = Number(
         po.tax_amount ??
             items.reduce((sum, it) => {
@@ -163,7 +153,6 @@ function buildPurchaseOrderHtml(po = {}, { autoPrint = false, logoUrl = '' } = {
     const taxable = po.vendor_taxable ?? po.is_taxable ?? (hasTaxedItem || taxAmount > 0);
     const taxableText = isYes(taxable) ? 'Yes' : 'No';
 
-    // --- Data vendor & pengiriman ---
     const vendorName = po.customer_name || po.supplier_name || po.vendor_name || '';
     const vendorAddress = po.customer_address || po.supplier_address || '';
     const phone = clean(po.supplier_phone ?? po.customer_phone);
@@ -182,7 +171,6 @@ function buildPurchaseOrderHtml(po = {}, { autoPrint = false, logoUrl = '' } = {
         ['Rate', po.rate ?? po.exchange_rate ?? 1],
     ];
 
-    // --- Baris item ---
     const rows = items
         .map((it) => {
             const qty = Number(it.qty || 0);
@@ -202,10 +190,8 @@ function buildPurchaseOrderHtml(po = {}, { autoPrint = false, logoUrl = '' } = {
         })
         .join('');
 
-    // Baris kosong agar garis kolom memanjang sampai bawah, seperti form asli
     const fillHeightMm = Math.max(0, 108 - items.length * 5);
 
-    // Logo di pojok kiri atas (seperti logo pada form fisik). Disembunyikan jika gambar gagal dimuat.
     const logoBlock = logoUrl
         ? `<img class="logo" src="${esc(logoUrl)}" alt="PT. Aldigens Putera Persada" onerror="this.style.display='none'" />`
         : '';
@@ -313,17 +299,27 @@ function printPurchaseOrder(po) {
         alert('Pop-up diblokir browser. Izinkan pop-up untuk mencetak PO.');
         return;
     }
-    // File logo harus ada di folder frontend-react/public
     const logoUrl = `${window.location.origin}/${encodeURI(LOGO_FILE)}`;
     printWindow.document.write(buildPurchaseOrderHtml(po, { autoPrint: true, logoUrl }));
     printWindow.document.close();
 }
 
-
 export default function POList() {
-    const [purchaseOrders, setPurchaseOrders] = useState([]);
-    const [inventoryItems, setInventoryItems] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [purchaseOrders, setPurchaseOrders] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
+        } catch {
+            return [];
+        }
+    });
+    const [inventoryItems, setInventoryItems] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('aldigens_products_cache') || localStorage.getItem('aldigens_products') || '[]');
+        } catch {
+            return [];
+        }
+    });
+    const [loading, setLoading] = useState(false);
 
     const pagination = usePagination(purchaseOrders, 10);
 
@@ -348,20 +344,24 @@ export default function POList() {
     }, []);
 
     const fetchPurchaseOrders = async () => {
-        setLoading(true);
+        if (purchaseOrders.length === 0) setLoading(true);
         try {
             const response = await api.get('/purchase-orders').catch(() => null);
             const apiData = response?.data?.data || response?.data;
+            const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
 
             if (Array.isArray(apiData) && apiData.length > 0) {
-                setPurchaseOrders(apiData);
+                const mergedMap = new Map();
+                localData.forEach((item) => mergedMap.set(item.po_number || item.id, item));
+                apiData.forEach((item) => mergedMap.set(item.po_number || item.id, item));
+                const merged = Array.from(mergedMap.values());
+                setPurchaseOrders(merged);
+                localStorage.setItem('aldigens_purchase_orders', JSON.stringify(merged));
             } else {
-                const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
                 setPurchaseOrders(localData);
             }
         } catch {
-            const localData = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || localStorage.getItem('purchase_orders') || '[]');
-            setPurchaseOrders(localData);
+            // tetap gunakan data lokal yang sudah dimuat
         } finally {
             setLoading(false);
         }
@@ -369,25 +369,23 @@ export default function POList() {
 
     const fetchInventoryParts = async () => {
         try {
-            const response = await api.get('/inventory/products').catch(() => null);
+            const response = await api.get('/products').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-
             if (Array.isArray(apiData) && apiData.length > 0) {
                 setInventoryItems(apiData);
+                localStorage.setItem('aldigens_products_cache', JSON.stringify(apiData));
                 return;
             }
-        } catch (err) {
-            const localParts = JSON.parse(localStorage.getItem('aldigens_products') || localStorage.getItem('aldigens_customer_part_numbers') || '[]');
-            setInventoryItems(localParts);
+        } catch {
+            // lanjut ke fallback lokal
         }
 
         const localProducts = JSON.parse(localStorage.getItem('aldigens_products') || '[]');
         const localInventory = JSON.parse(localStorage.getItem('aldigens_inventory') || '[]');
         const localCustomerParts = JSON.parse(localStorage.getItem('aldigens_customer_part_numbers') || '[]');
-        
+
         const combined = [...localProducts, ...localInventory, ...localCustomerParts];
         const uniqueItems = Array.from(new Map(combined.map(item => [item.part_number || item.product_code || item.id, item])).values());
-
         setInventoryItems(uniqueItems);
     };
 
@@ -483,12 +481,13 @@ export default function POList() {
             try {
                 await api.post('/purchase-orders', newPOItem);
             } catch {
-                console.log('Disimpan ke local storage.');
+                // fallback tersimpan di localStorage
             }
 
             const existingLocal = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
             const updatedList = [newPOItem, ...existingLocal];
             localStorage.setItem('aldigens_purchase_orders', JSON.stringify(updatedList));
+            setPurchaseOrders(updatedList);
 
             swalSuccess('Berhasil', 'Purchase Order baru berhasil dibuat!');
             setIsModalOpen(false);
@@ -546,17 +545,16 @@ export default function POList() {
 
             swalSuccess('Berhasil', 'Barang diterima dan rincian item masuk ke Receive Item!');
             fetchPurchaseOrders();
-       } catch (error) {
+        } catch (error) {
             console.error(error);
             const errorMsg = error.response?.data?.message || 'Terjadi kesalahan saat memproses penerimaan barang.';
             swalError('Gagal', errorMsg);
         }
     };
 
-    // Template cetak PO ada di bagian printPurchaseOrder di atas file ini
     const handlePrintPO = (po) => printPurchaseOrder(po);
 
-    if (loading) return <div className="p-6 text-slate-600">Memuat data Purchase Order...</div>;
+    if (loading) return <div className="p-6 text-slate-600 dark:text-slate-300">Memuat data Purchase Order...</div>;
 
     return (
         <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow">
@@ -586,9 +584,9 @@ export default function POList() {
                             pagination.paginatedItems.map((po, idx) => (
                                 <tr key={po.id || idx}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
-                                        {po.po_number} <br/><span className="text-xs text-slate-500">{po.customer_name}</span>
+                                        {po.po_number} <br/><span className="text-xs text-slate-500">{po.customer_name || po.supplier_name}</span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{po.date}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{po.date || po.po_date}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
                                             po.status?.includes('Received') || po.status?.includes('Completed') || po.status === 'Sudah Diterima'

@@ -6,6 +6,10 @@ import { swalError } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
+const INVOICE_STORAGE_KEY = 'aldigens_invoices';
+const DO_STORAGE_KEY = 'aldigens_delivery_orders';
+const SO_STORAGE_KEY = 'aldigens_sales_orders';
+
 // ============================================================
 // TEMPLATE CETAK INVOICE (mengikuti format invoice fisik / Accurate)
 // ============================================================
@@ -278,9 +282,34 @@ ${autoPrint ? '<script>window.onload = function () { window.focus(); setTimeout(
 // ============================================================
 
 export default function Invoice() {
-  const [invoices, setInvoices] = useState([]);
-  const [deliveryOrders, setDeliveryOrders] = useState([]);
-  const [salesOrders, setSalesOrders] = useState([]);
+  const [invoices, setInvoices] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [deliveryOrders, setDeliveryOrders] = useState(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(DO_STORAGE_KEY) || localStorage.getItem('delivery_orders') || '[]'
+      );
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [salesOrders, setSalesOrders] = useState(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(SO_STORAGE_KEY) || localStorage.getItem('sales_orders') || '[]'
+      );
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -308,18 +337,31 @@ export default function Invoice() {
   const formGrandTotal = formSubTotal + formTaxAmount;
 
   const fetchInvoices = useCallback(async () => {
-    setLoading(true);
+    if (invoices.length === 0) setLoading(true);
     try {
       const res = await api.get('/invoices');
-      const apiInvoices = res.data?.data || res.data || [];
-      setInvoices(Array.isArray(apiInvoices) ? apiInvoices : []);
-    } catch (e) {
-      console.error('Gagal memuat Invoice:', e);
-      setInvoices([]);
+      const raw = res.data?.data || res.data || [];
+      const apiInvoices = Array.isArray(raw) ? raw : [];
+      const localInvoices = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]');
+
+      const mergedMap = new Map();
+      (Array.isArray(localInvoices) ? localInvoices : []).forEach((inv) => {
+        if (inv?.invoice_number || inv?.id) mergedMap.set(inv.invoice_number || inv.id, inv);
+      });
+      apiInvoices.forEach((inv) => {
+        if (inv?.invoice_number || inv?.id) mergedMap.set(inv.invoice_number || inv.id, inv);
+      });
+
+      const mergedList = Array.from(mergedMap.values());
+      setInvoices(mergedList);
+      localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(mergedList));
+    } catch {
+      const localInvoices = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]');
+      setInvoices(Array.isArray(localInvoices) ? localInvoices : []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [invoices.length]);
 
   const fetchDOsAndSOs = useCallback(async () => {
     try {
@@ -338,19 +380,19 @@ export default function Invoice() {
         apiSOs = soRes.value.data?.data || soRes.value.data || [];
       }
 
-      const localDOs = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]');
-      const localSOs = JSON.parse(localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]');
+      const localDOs = JSON.parse(localStorage.getItem(DO_STORAGE_KEY) || localStorage.getItem('delivery_orders') || '[]');
+      const localSOs = JSON.parse(localStorage.getItem(SO_STORAGE_KEY) || localStorage.getItem('sales_orders') || '[]');
 
-      const mergedDOs = [...(Array.isArray(apiDOs) ? apiDOs : []), ...localDOs];
+      const mergedDOs = [...(Array.isArray(localDOs) ? localDOs : []), ...(Array.isArray(apiDOs) ? apiDOs : [])];
       const uniqueDOs = Array.from(new Map(mergedDOs.map((d) => [d.do_number || d.id, d])).values());
 
-      const mergedSOs = [...(Array.isArray(apiSOs) ? apiSOs : []), ...localSOs];
+      const mergedSOs = [...(Array.isArray(localSOs) ? localSOs : []), ...(Array.isArray(apiSOs) ? apiSOs : [])];
       const uniqueSOs = Array.from(new Map(mergedSOs.map((s) => [s.so_number || s.soNo || s.id, s])).values());
 
       setDeliveryOrders(uniqueDOs);
       setSalesOrders(uniqueSOs);
-    } catch (e) {
-      console.error('Gagal memuat DO / SO:', e);
+    } catch {
+      // abaikan
     }
   }, []);
 
@@ -359,7 +401,6 @@ export default function Invoice() {
     fetchDOsAndSOs();
   }, [fetchInvoices, fetchDOsAndSOs]);
 
-  // Filter DO untuk dropdown: Jangan tampilkan yang sudah ada di tabel invoices
   const availableDOs = deliveryOrders.filter(
     (doItem) => !invoices.some((inv) => inv.do_reference === doItem.do_number || inv.do_number === doItem.do_number)
   );
@@ -403,7 +444,6 @@ export default function Invoice() {
 
     const normalizeText = (v) => String(v || '').trim().toLowerCase();
 
-    // Cari Sales Order terkait baik dari relasi nested selDO.sales_order maupun daftar salesOrders
     const relatedSO =
       selDO.sales_order ||
       salesOrders.find(
@@ -426,7 +466,6 @@ export default function Invoice() {
             (doDesc && [soItem.description, soItem.name, soItem.product?.name].some((d) => normalizeText(d) === doDesc))
         ) || soItems[idx];
 
-      // Prioritaskan harga asli dari Sales Order (karena DO sudah murni fisik tanpa harga)
       const soPrice = Number(
         matchedSoItem?.unit_price ?? matchedSoItem?.price ?? matchedSoItem?.harga ?? matchedSoItem?.selling_price ?? 0
       );
@@ -506,11 +545,20 @@ export default function Invoice() {
     try {
       const payload = {
         ...formData,
+        status: 'Unpaid',
         sub_total: formSubTotal,
         tax_amount: formTaxAmount,
         grand_total: formGrandTotal,
       };
-      await api.post('/invoices', payload);
+      const res = await api.post('/invoices', payload);
+      const savedRecord = { ...payload, ...(res.data?.data || {}) };
+
+      const existing = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]').filter(
+        (x) => x.invoice_number !== savedRecord.invoice_number
+      );
+      const updatedList = [savedRecord, ...existing];
+      localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(updatedList));
+      setInvoices(updatedList);
 
       setSuccessMsg('Invoice berhasil dibuat!');
       setIsCreating(false);
@@ -518,7 +566,6 @@ export default function Invoice() {
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      console.error(err);
       const errorMsg = err.response?.data?.message || err.message;
       const errorFile = err.response?.data?.file || 'Tidak diketahui';
       const errorLine = err.response?.data?.line || 'Tidak diketahui';
@@ -539,11 +586,18 @@ export default function Invoice() {
       const updatedInvoice = { ...selectedInvoice, status: newStatus };
       setSelectedInvoice(updatedInvoice);
 
+      const updatedList = invoices.map((inv) =>
+        (inv.id && inv.id === selectedInvoice.id) || inv.invoice_number === selectedInvoice.invoice_number
+          ? updatedInvoice
+          : inv
+      );
+      setInvoices(updatedList);
+      localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(updatedList));
+
       setSuccessMsg(`Status invoice berhasil diubah menjadi ${newStatus}!`);
       fetchInvoices();
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) {
-      console.error(err);
+    } catch {
       setError('Gagal mengubah status invoice di Database.');
     }
   };
@@ -896,7 +950,7 @@ export default function Invoice() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {loading && invoices.length === 0 ? (
                   <tr><td colSpan="6" className="text-center p-12 text-slate-400 text-sm">
                     <RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data...
                   </td></tr>

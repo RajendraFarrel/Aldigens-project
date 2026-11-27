@@ -10,6 +10,7 @@ import logoPerusahaan from '../../LOGO ALDIGENS2.jpeg';
 import { swalSuccess, swalError } from '../utils/swal';
 
 const SALES_RETURN_STORAGE_KEY = 'aldigens_sales_returns';
+const INVOICE_STORAGE_KEY = 'aldigens_invoices';
 
 const PRINT_COMPANY = {
   name: 'PT. ALDIGENS PUTERA PERSADA',
@@ -153,8 +154,22 @@ export default function SalesReturn() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [returns, setReturns] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  const [returns, setReturns] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SALES_RETURN_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [invoices, setInvoices] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
   const rowSeq = useRef(1);
 
   const [formData, setFormData] = useState({
@@ -168,12 +183,12 @@ export default function SalesReturn() {
     items: [emptyItem(0)],
   });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isInitial = false) => {
+    if (!isInitial) setLoading(true);
     try {
       const [retRes, invRes] = await Promise.allSettled([
-        api.get('/sales-returns'),
-        api.get('/invoices'),
+        api.get('/sales-returns', { timeout: 5000 }),
+        api.get('/invoices', { timeout: 5000 }),
       ]);
 
       let apiReturns = [];
@@ -182,23 +197,46 @@ export default function SalesReturn() {
         apiReturns = Array.isArray(raw) ? raw : [];
       }
       const localReturns = JSON.parse(localStorage.getItem(SALES_RETURN_STORAGE_KEY) || '[]');
-      const merged = [...apiReturns, ...localReturns];
-      const unique = Array.from(new Map(merged.map((r) => [r.returnNo || r.return_no || r.id, r])).values());
+      const retMap = new Map();
+      (Array.isArray(localReturns) ? localReturns : []).forEach((r) => {
+        const key = r?.returnNo || r?.return_no || r?.id;
+        if (key) retMap.set(key, r);
+      });
+      apiReturns.forEach((r) => {
+        const key = r?.returnNo || r?.return_no || r?.id;
+        if (key) retMap.set(key, r);
+      });
+      const unique = Array.from(retMap.values());
       setReturns(unique);
+      localStorage.setItem(SALES_RETURN_STORAGE_KEY, JSON.stringify(unique));
 
+      let apiInvoices = [];
       if (invRes.status === 'fulfilled') {
         const rawInv = invRes.value?.data?.data || invRes.value?.data || [];
-        setInvoices(Array.isArray(rawInv) ? rawInv : []);
+        apiInvoices = Array.isArray(rawInv) ? rawInv : [];
       }
-    } catch (e) {
-      console.error('Gagal memuat Sales Return:', e);
+      const localInvoices = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]');
+      const invMap = new Map();
+      (Array.isArray(localInvoices) ? localInvoices : []).forEach((inv) => {
+        const key = inv?.invoice_number || inv?.invoiceNo || inv?.id;
+        if (key) invMap.set(key, inv);
+      });
+      apiInvoices.forEach((inv) => {
+        const key = inv?.invoice_number || inv?.invoiceNo || inv?.id;
+        if (key) invMap.set(key, inv);
+      });
+      const uniqueInv = Array.from(invMap.values());
+      setInvoices(uniqueInv);
+      localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(uniqueInv));
+    } catch {
+      // Gunakan cache lokal jika offline
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, [loadData]);
 
   const calcTotalReturn = (items = []) =>
@@ -340,12 +378,13 @@ export default function SalesReturn() {
         ? existing.map((x) => (x.id === editingId ? payload : x))
         : [payload, ...existing.filter((x) => x.returnNo !== payload.returnNo)];
       localStorage.setItem(SALES_RETURN_STORAGE_KEY, JSON.stringify(updatedList));
+      setReturns(updatedList);
 
       swalSuccess(
         editingId ? 'Retur Diperbarui' : 'Sales Return Tersimpan',
         `${payload.returnNo} sebesar ${formatRupiah(totalAmount)} berhasil dicatat.`
       );
-      await loadData();
+      loadData(true);
       setViewMode('list');
     } catch {
       swalError('Gagal Menyimpan', 'Terjadi kesalahan saat menyimpan retur penjualan.');
@@ -412,7 +451,7 @@ export default function SalesReturn() {
 
             <div className="flex items-center gap-2.5">
               <button
-                onClick={loadData}
+                onClick={() => loadData(false)}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition cursor-pointer"
                 title="Muat ulang"
               >
@@ -835,7 +874,7 @@ export default function SalesReturn() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-sm">
-                {loading ? (
+                {loading && returns.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="text-center p-12 text-slate-400">
                       <RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data retur penjualan...

@@ -15,6 +15,9 @@ import api, {
 import logoPerusahaan from '../../LOGO ALDIGENS2.jpeg';
 import { swalSuccess, swalError } from '../utils/swal';
 
+const PP_STORAGE_KEY = 'aldigens_purchase_payments';
+const PI_STORAGE_KEY = 'aldigens_purchase_invoices';
+
 const PRINT_COMPANY = {
   name: 'PT. ALDIGENS PUTERA PERSADA',
   address: ['Ruko Bekasi Mas Blok C-25', 'Jl. Jend Ahmad Yani, Margajaya', 'Bekasi Selatan - 17141'],
@@ -118,8 +121,22 @@ export default function PurchasePayment() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [payments, setPayments] = useState([]);
-  const [allInvoices, setAllInvoices] = useState([]);
+  const [payments, setPayments] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PP_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [allInvoices, setAllInvoices] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
@@ -145,17 +162,34 @@ export default function PurchasePayment() {
         getPurchasePayments(),
       ]);
 
+      const localInv = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
       if (invRes.status === 'fulfilled') {
         const rawInv = invRes.value?.data?.data ?? invRes.value?.data ?? invRes.value ?? [];
-        setAllInvoices(Array.isArray(rawInv) ? rawInv : []);
+        const apiInvList = Array.isArray(rawInv) ? rawInv : [];
+        const mergedInvMap = new Map();
+        localInv.forEach((inv) => mergedInvMap.set(inv.invoice_number || inv.supplier_invoice_number || inv.id, inv));
+        apiInvList.forEach((inv) => mergedInvMap.set(inv.invoice_number || inv.supplier_invoice_number || inv.id, inv));
+        const mergedInv = Array.from(mergedInvMap.values());
+        setAllInvoices(mergedInv);
+        localStorage.setItem(PI_STORAGE_KEY, JSON.stringify(mergedInv));
+      } else {
+        setAllInvoices(Array.isArray(localInv) ? localInv : []);
       }
 
+      const localPay = JSON.parse(localStorage.getItem(PP_STORAGE_KEY) || '[]');
       if (payRes.status === 'fulfilled') {
         const rawPay = payRes.value?.data?.data ?? payRes.value?.data ?? payRes.value ?? [];
-        setPayments(Array.isArray(rawPay) ? rawPay : []);
+        const apiPayList = Array.isArray(rawPay) ? rawPay : [];
+        const mergedPayMap = new Map();
+        localPay.forEach((p) => mergedPayMap.set(p.paymentNo || p.payment_no || p.id, p));
+        apiPayList.forEach((p) => mergedPayMap.set(p.paymentNo || p.payment_no || p.id, p));
+        const mergedPay = Array.from(mergedPayMap.values());
+        setPayments(mergedPay);
+        localStorage.setItem(PP_STORAGE_KEY, JSON.stringify(mergedPay));
+      } else {
+        setPayments(Array.isArray(localPay) ? localPay : []);
       }
-    } catch (e) {
-      console.error('Gagal memuat data Purchase Payment:', e);
+    } catch {
       setError('Gagal memuat data dari server.');
     } finally {
       setLoading(false);
@@ -180,19 +214,21 @@ export default function PurchasePayment() {
   const unpaidInvoices = useMemo(() => {
     return allInvoices
       .map((inv) => {
+        const invNo = inv.invoice_number || inv.supplier_invoice_number || '';
         const total = Number(inv.grand_total ?? inv.total_amount ?? inv.amount ?? 0);
-        const paid = paidByInvoiceMap[inv.invoice_number] ?? Number(inv.paid_amount || 0);
+        const paid = paidByInvoiceMap[invNo] ?? Number(inv.paid_amount || 0);
         const remaining = Math.max(0, total - paid);
         const supplierName = inv.supplier?.supplier_name || inv.supplier_name || 'Supplier';
         return {
           ...inv,
+          invoice_number: invNo,
           _total: total,
           _paid: paid,
           _remaining: remaining,
           _supplierName: supplierName,
         };
       })
-      .filter((inv) => inv.status !== 'Paid' && inv._remaining > 0);
+      .filter((inv) => inv.status !== 'Paid' && inv.status !== 'Lunas' && inv.status !== 'PAID' && inv._remaining > 0);
   }, [allInvoices, paidByInvoiceMap]);
 
   const handleSelectInvoice = (invoiceNo) => {
@@ -265,7 +301,7 @@ export default function PurchasePayment() {
   const handleOpenEditForm = (item) => {
     setEditingId(item.id);
     setError('');
-    const matchedInv = allInvoices.find((inv) => inv.invoice_number === item.invoice_reference);
+    const matchedInv = allInvoices.find((inv) => (inv.invoice_number || inv.supplier_invoice_number) === item.invoice_reference);
     const total = Number(matchedInv?.grand_total ?? matchedInv?.amount ?? item.amount ?? 0);
     const alreadyPaid = paidByInvoiceMap[item.invoice_reference] || 0;
 
@@ -301,33 +337,60 @@ export default function PurchasePayment() {
     setSaving(true);
     setError('');
 
-    try {
-      const payload = {
-        paymentNo: formData.paymentNo,
-        date: formData.date,
-        invoice_reference: formData.invoice_reference,
-        vendorName: formData.vendorName,
-        paymentMethod: formData.paymentMethod,
-        amount: payAmount,
-        notes: formData.notes,
-      };
+    const payload = {
+      paymentNo: formData.paymentNo,
+      payment_no: formData.paymentNo,
+      date: formData.date,
+      invoice_reference: formData.invoice_reference,
+      vendorName: formData.vendorName,
+      vendor_name: formData.vendorName,
+      paymentMethod: formData.paymentMethod,
+      payment_method: formData.paymentMethod,
+      amount: payAmount,
+      notes: formData.notes,
+    };
 
+    const localRecord = {
+      ...payload,
+      id: editingId || Date.now(),
+    };
+
+    try {
       if (editingId) {
         await updatePurchasePayment(editingId, payload);
       } else {
         await createPurchasePayment(payload);
       }
 
-      if (formData.invoice_id) {
+      const existingPay = JSON.parse(localStorage.getItem(PP_STORAGE_KEY) || '[]');
+      const updatedPay = editingId
+        ? existingPay.map((p) => (p.id === editingId ? localRecord : p))
+        : [localRecord, ...existingPay];
+      localStorage.setItem(PP_STORAGE_KEY, JSON.stringify(updatedPay));
+      setPayments(updatedPay);
+
+      if (formData.invoice_id || formData.invoice_reference) {
         const totalPaidAfter = Number(formData.alreadyPaid || 0) + payAmount;
-        const nextStatus = totalPaidAfter >= Number(formData.invoiceTotal || 0) ? 'Paid' : 'Partial';
-        try {
-          await api.put(`/purchase-invoices/${formData.invoice_id}`, {
-            status: nextStatus,
-            paid_amount: totalPaidAfter,
-          });
-        } catch (invErr) {
-          console.warn('Status Purchase Invoice tidak terupdate otomatis:', invErr);
+        const nextStatus = totalPaidAfter >= Number(formData.invoiceTotal || 0) ? 'Lunas' : 'Partial';
+
+        const existingInv = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
+        const updatedInv = existingInv.map((inv) =>
+          (inv.id === formData.invoice_id || inv.invoice_number === formData.invoice_reference || inv.supplier_invoice_number === formData.invoice_reference)
+            ? { ...inv, status: nextStatus, paid_amount: totalPaidAfter }
+            : inv
+        );
+        localStorage.setItem(PI_STORAGE_KEY, JSON.stringify(updatedInv));
+        setAllInvoices(updatedInv);
+
+        if (formData.invoice_id) {
+          try {
+            await api.put(`/purchase-invoices/${formData.invoice_id}`, {
+              status: nextStatus === 'Lunas' ? 'Paid' : 'Partial',
+              paid_amount: totalPaidAfter,
+            });
+          } catch {
+            // abaikan jika endpoint put tidak tersedia
+          }
         }
       }
 
@@ -343,7 +406,7 @@ export default function PurchasePayment() {
             description: formData.notes || `Pembayaran supplier ${formData.vendorName}`,
           });
         } catch {
-          // Abaikan jika endpoint mutasi tidak tersedia
+          // abaikan jika endpoint mutasi tidak tersedia
         }
       }
 
@@ -353,14 +416,26 @@ export default function PurchasePayment() {
       );
       await loadData();
       setViewMode('list');
-    } catch (e) {
-      console.error('Detail Error:', e);
-      const errorMessage =
-        e.response?.data?.message ||
-        e.response?.data?.error ||
-        e.message ||
-        'Terjadi kesalahan sistem saat menyimpan.';
-      swalError('Gagal Menyimpan', errorMessage);
+    } catch (err) {
+      const msg = String(err.response?.data?.message || err.message || '');
+      if (msg.includes('paymentNo')) {
+        const existingPay = JSON.parse(localStorage.getItem(PP_STORAGE_KEY) || '[]');
+        const updatedPay = editingId
+          ? existingPay.map((p) => (p.id === editingId ? localRecord : p))
+          : [localRecord, ...existingPay];
+        localStorage.setItem(PP_STORAGE_KEY, JSON.stringify(updatedPay));
+        setPayments(updatedPay);
+        swalSuccess(
+          'Tersimpan Lokal',
+          `${formData.paymentNo} sebesar ${formatRupiah(payAmount)} tersimpan di lokal. Tambahkan 'paymentNo' ke $fillable model PurchasePayment di Laravel agar masuk ke MySQL.`
+        );
+        setViewMode('list');
+      } else {
+        swalError(
+          'Gagal Menyimpan',
+          err.response?.data?.message || err.response?.data?.error || err.message || 'Terjadi kesalahan saat menyimpan.'
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -370,12 +445,17 @@ export default function PurchasePayment() {
     if (!window.confirm('Hapus Bukti Pembayaran ini?')) return;
     try {
       await deletePurchasePayment(id);
-      swalSuccess('Terhapus', 'Data pembayaran pembelian berhasil dihapus.');
-      if (selectedPayment?.id === id) setSelectedPayment(null);
-      await loadData();
     } catch {
-      swalError('Gagal Menghapus', 'Gagal menghapus data pembayaran dari server.');
+      // lanjut hapus lokal
     }
+    const existingPay = JSON.parse(localStorage.getItem(PP_STORAGE_KEY) || '[]');
+    const updatedPay = existingPay.filter((p) => p.id !== id);
+    localStorage.setItem(PP_STORAGE_KEY, JSON.stringify(updatedPay));
+    setPayments(updatedPay);
+
+    swalSuccess('Terhapus', 'Data pembayaran pembelian berhasil dihapus.');
+    if (selectedPayment?.id === id) setSelectedPayment(null);
+    await loadData();
   };
 
   const handlePrint = (item) => {
@@ -738,7 +818,7 @@ export default function PurchasePayment() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-sm">
-                {loading ? (
+                {loading && payments.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="text-center p-12 text-slate-400">
                       <RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data pembayaran...

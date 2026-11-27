@@ -9,6 +9,9 @@ import { swalConfirm, swalError, swalToast } from '../utils/swal';
 import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
+const DO_STORAGE_KEY = 'aldigens_delivery_orders';
+const SO_STORAGE_KEY = 'aldigens_sales_orders';
+
 // ============================================================
 // TEMPLATE CETAK DELIVERY ORDER (mengikuti format fisik / Accurate)
 // ============================================================
@@ -183,7 +186,7 @@ function buildDeliveryOrderHtml(doData = {}, { autoPrint = false, logoUrl = '' }
       <div class="sign-line">${dEsc(DO_COMPANY.name)}</div>
     </div>
     <div class="sign-col">
-      <div class="sign-header">Diterima dan Diperiksa Oleh :</div>
+      <div className="sign-header">Diterima dan Diperiksa Oleh :</div>
       <div class="sign-space"></div>
       <div class="sign-line">${dEsc(customerName)}</div>
     </div>
@@ -201,8 +204,26 @@ ${autoPrint ? '<script>window.onload = function () { window.focus(); setTimeout(
 // ============================================================
 
 export default function DeliveryOrder() {
-  const [deliveryOrders, setDeliveryOrders] = useState([]);
-  const [salesOrders, setSalesOrders] = useState([]);
+  const [deliveryOrders, setDeliveryOrders] = useState(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(DO_STORAGE_KEY) || localStorage.getItem('delivery_orders') || '[]'
+      );
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [salesOrders, setSalesOrders] = useState(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(SO_STORAGE_KEY) || localStorage.getItem('sales_orders') || '[]'
+      );
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedDO, setSelectedDO] = useState(null);
@@ -233,23 +254,22 @@ export default function DeliveryOrder() {
   };
 
   const fetchDOs = useCallback(async () => {
-    setLoading(true);
+    if (deliveryOrders.length === 0) setLoading(true);
     try {
       let apiData = [];
       try {
         const res = await api.get('/delivery-orders');
-        apiData = res.data.data || res.data || [];
+        apiData = res.data?.data || res.data || [];
       } catch {
-        console.warn('API DO offline, menggunakan localStorage.');
+        // pakai cache lokal
       }
 
       const localSaved = JSON.parse(
-        localStorage.getItem('aldigens_delivery_orders') || localStorage.getItem('delivery_orders') || '[]'
+        localStorage.getItem(DO_STORAGE_KEY) || localStorage.getItem('delivery_orders') || '[]'
       );
 
-      // Gabungkan data API & localStorage agar field lengkap (customer_address, warehouse, notes item) tetap terjaga
       const mergedMap = new Map();
-      localSaved.forEach((item) => {
+      (Array.isArray(localSaved) ? localSaved : []).forEach((item) => {
         if (item?.do_number) mergedMap.set(item.do_number, item);
       });
       (Array.isArray(apiData) ? apiData : []).forEach((apiItem) => {
@@ -272,32 +292,37 @@ export default function DeliveryOrder() {
         }
       });
 
-      setDeliveryOrders(Array.from(mergedMap.values()));
-    } catch (e) {
-      console.error('Gagal memuat DO:', e);
-      setDeliveryOrders([]);
+      const mergedList = Array.from(mergedMap.values());
+      setDeliveryOrders(mergedList);
+      localStorage.setItem(DO_STORAGE_KEY, JSON.stringify(mergedList));
+    } catch {
+      const localSaved = JSON.parse(localStorage.getItem(DO_STORAGE_KEY) || '[]');
+      setDeliveryOrders(Array.isArray(localSaved) ? localSaved : []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [deliveryOrders.length]);
 
   const fetchSOs = useCallback(async () => {
     try {
       let apiSOs = [];
       try {
         const res = await api.get('/sales-orders');
-        apiSOs = res.data.data || res.data || [];
+        apiSOs = res.data?.data || res.data || [];
       } catch {
-        console.warn('API SO offline.');
+        // pakai cache lokal
       }
 
       const localSOs = JSON.parse(
-        localStorage.getItem('aldigens_sales_orders') || localStorage.getItem('sales_orders') || '[]'
+        localStorage.getItem(SO_STORAGE_KEY) || localStorage.getItem('sales_orders') || '[]'
       );
-      const combinedSOs = [...localSOs, ...(Array.isArray(apiSOs) ? apiSOs : [])];
-      setSalesOrders(combinedSOs);
-    } catch (e) {
-      console.error('Gagal memuat SO:', e);
+      const combinedSOs = [...(Array.isArray(localSOs) ? localSOs : []), ...(Array.isArray(apiSOs) ? apiSOs : [])];
+      const uniqueSOs = Array.from(
+        new Map(combinedSOs.map((s) => [s.soNo || s.so_number || s.id, s])).values()
+      );
+      setSalesOrders(uniqueSOs);
+    } catch {
+      // abaikan
     }
   }, []);
 
@@ -322,7 +347,6 @@ export default function DeliveryOrder() {
     const custAddr = so.customer_address || so.address || '';
     const shipTo = so.shipTo || so.delivery_address || [custName, custAddr].filter(Boolean).join('\n');
 
-    // Hanya tarik data barang, qty, satuan, dan keterangan (tanpa harga)
     const items = (so.items || []).map((it) => ({
       sales_order_item_id: it.id,
       product_id: it.product_id || '',
@@ -395,55 +419,64 @@ export default function DeliveryOrder() {
     }
     setSaving(true);
     setError('');
+
+    const sanitizedItems = formData.items.map((it) => ({
+      part_number: it.part_number || '',
+      description: it.description || '-',
+      qty_sent: Number(it.qty_sent || 1),
+      unit: it.unit || 'PCS',
+      notes: it.notes || '',
+    }));
+
+    const matchedSO = salesOrders.find(
+      (s) =>
+        String(s.id) === String(formData.sales_order_id) ||
+        String(s.soNo) === String(formData.sales_order_id) ||
+        String(s.so_number) === String(formData.sales_order_id)
+    );
+
+    const payload = {
+      sales_order_id: matchedSO && !Number.isNaN(Number(matchedSO.id)) ? Number(matchedSO.id) : null,
+      so_number: matchedSO?.soNo || matchedSO?.so_number || String(formData.sales_order_id),
+      do_number: formData.do_number,
+      do_date: formData.do_date,
+      ref_po: formData.ref_po,
+      vehicle_number: formData.vehicle_number,
+      driver_name: formData.vehicle_number,
+      warehouse: formData.warehouse,
+      customer_name: formData.customer_name,
+      customer_address: formData.customer_address,
+      delivery_address: formData.delivery_address,
+      notes: formData.notes,
+      items: sanitizedItems,
+    };
+
     try {
-      const sanitizedItems = formData.items.map((it) => ({
-        part_number: it.part_number || '',
-        description: it.description || '-',
-        qty_sent: Number(it.qty_sent || 1),
-        unit: it.unit || 'PCS',
-        notes: it.notes || '',
-      }));
-
-      const matchedSO = salesOrders.find(
-        (s) =>
-          String(s.id) === String(formData.sales_order_id) ||
-          String(s.soNo) === String(formData.sales_order_id) ||
-          String(s.so_number) === String(formData.sales_order_id)
-      );
-
-      const payload = {
-        sales_order_id: matchedSO && !Number.isNaN(Number(matchedSO.id)) ? Number(matchedSO.id) : null,
-        so_number: matchedSO?.soNo || matchedSO?.so_number || String(formData.sales_order_id),
-        do_number: formData.do_number,
-        do_date: formData.do_date,
-        ref_po: formData.ref_po,
-        vehicle_number: formData.vehicle_number,
-        driver_name: formData.vehicle_number,
-        warehouse: formData.warehouse,
-        customer_name: formData.customer_name,
-        customer_address: formData.customer_address,
-        delivery_address: formData.delivery_address,
-        notes: formData.notes,
-        items: sanitizedItems,
-      };
-
-      const response = await api.post('/delivery-orders', payload);
-      const apiCreated = response.data?.data || {};
+      let apiCreated = {};
+      try {
+        const response = await api.post('/delivery-orders', payload);
+        apiCreated = response.data?.data || {};
+      } catch {
+        // tetap simpan lokal jika API gagal
+      }
 
       const createdDO = {
         ...payload,
         ...apiCreated,
+        status: apiCreated.status || 'Ready',
         customer_address: formData.customer_address,
         warehouse: formData.warehouse,
         items: sanitizedItems,
       };
 
-      const existing = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]').filter(
+      const existing = JSON.parse(localStorage.getItem(DO_STORAGE_KEY) || '[]').filter(
         (d) => d.do_number !== createdDO.do_number
       );
-      localStorage.setItem('aldigens_delivery_orders', JSON.stringify([createdDO, ...existing]));
+      const updatedList = [createdDO, ...existing];
+      localStorage.setItem(DO_STORAGE_KEY, JSON.stringify(updatedList));
+      setDeliveryOrders(updatedList);
 
-      setSuccessMsg(response.data?.message || 'Surat Jalan berhasil dibuat.');
+      setSuccessMsg('Surat Jalan berhasil dibuat.');
       setIsCreating(false);
       resetForm();
       fetchDOs();
@@ -477,10 +510,10 @@ export default function DeliveryOrder() {
     if (selectedDO && selectedDO.do_number === doNumber) {
       setSelectedDO((prev) => ({ ...prev, status: newStatus }));
     }
-    const updatedLocal = JSON.parse(localStorage.getItem('aldigens_delivery_orders') || '[]').map((d) =>
+    const updatedLocal = JSON.parse(localStorage.getItem(DO_STORAGE_KEY) || '[]').map((d) =>
       d.do_number === doNumber ? { ...d, status: newStatus } : d
     );
-    localStorage.setItem('aldigens_delivery_orders', JSON.stringify(updatedLocal));
+    localStorage.setItem(DO_STORAGE_KEY, JSON.stringify(updatedLocal));
   };
 
   const handleCreateWO = async (doData) => {
@@ -516,7 +549,7 @@ export default function DeliveryOrder() {
       try {
         await api.post('/work-orders', newWO);
       } catch {
-        console.warn('API Work Order offline, data disimpan di lokal.');
+        // data tersimpan lokal
       }
 
       swalToast(`Work Order ${newWO.wo_number} berhasil dikirim ke Pabrik!`, 'success');
@@ -561,21 +594,21 @@ export default function DeliveryOrder() {
             ref_po: doData.ref_po,
             items: doData.items,
           });
-          targetId = response.data.data?.id;
+          targetId = response.data?.data?.id;
         } catch {
-          // Abaikan jika sudah pernah tersinkronisasi
+          // abaikan jika sudah tersinkronisasi
         }
 
         try {
           const listRes = await api.get('/delivery-orders');
-          const foundInApi = (listRes.data.data || listRes.data || []).find(
+          const foundInApi = (listRes.data?.data || listRes.data || []).find(
             (item) => item.do_number === doData.do_number
           );
           if (foundInApi) {
             targetId = foundInApi.id;
           }
         } catch {
-          // Abaikan jika API offline
+          // abaikan jika offline
         }
       }
 
@@ -658,7 +691,6 @@ export default function DeliveryOrder() {
             </button>
           </div>
 
-          {/* Baris 1: Referensi SO, No. DO, Tanggal */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Referensi Sales Order <span className="text-red-500">*</span></label>
@@ -703,7 +735,6 @@ export default function DeliveryOrder() {
             </div>
           </div>
 
-          {/* Baris 2: Reff PO No, Dikirim Oleh (Kendaraan/Kurir), Gudang */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Reff PO No</label>
@@ -743,7 +774,6 @@ export default function DeliveryOrder() {
             </div>
           </div>
 
-          {/* Baris 3: Pelanggan & Dikirim Ke */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -796,7 +826,6 @@ export default function DeliveryOrder() {
             </div>
           </div>
 
-          {/* Baris 4: Rincian Barang (Kode Barang, Nama Barang, Qty, Satuan, Keterangan) */}
           <div className="space-y-4 pt-6 border-t border-slate-100">
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
@@ -880,7 +909,6 @@ export default function DeliveryOrder() {
             )}
           </div>
 
-          {/* Baris 5: Keterangan (Kotak Keterangan Bawah DO) */}
           <div className="space-y-1.5 pt-4 border-t border-slate-100">
             <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Keterangan (Kotak Catatan Bawah Surat Jalan)</label>
             <textarea
@@ -1036,7 +1064,7 @@ export default function DeliveryOrder() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {loading ? (
+                {loading && deliveryOrders.length === 0 ? (
                   <tr><td colSpan="7" className="text-center p-12 text-slate-400 text-sm">
                     <RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data...
                   </td></tr>

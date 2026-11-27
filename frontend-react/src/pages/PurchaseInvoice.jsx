@@ -6,6 +6,9 @@ import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 import logoAldigens from '../../LOGO ALDIGENS2.jpeg';
 
+const PI_STORAGE_KEY = 'aldigens_purchase_invoices';
+const SUPPLIER_STORAGE_KEY = 'aldigens_suppliers';
+
 const normName = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const findSupplierByName = (list, name) => {
     const key = normName(name);
@@ -45,19 +48,15 @@ function terbilang(nilai) {
     return bagi(angka).trim() + ' Rupiah';
 }
 
-// ============================================================
-// TEMPLATE CETAK INVOICE (mengikuti format invoice fisik / Accurate)
-// Logo diambil dari import logoAldigens di bagian atas file ini.
-// ============================================================
 const PRINT_COMPANY = {
     name: 'PT. ALDIGENS PUTERA PERSADA',
     address: ['Ruko Bekasi Mas Blok C-25', 'Jl. Jend Ahmad Yani, Margajaya', 'Bekasi Selatan - 17141'],
 };
 const PRINT_DOC_TITLE = 'INVOICE';
 const PRINT_PARTY_LABEL = 'Pelanggan';
-const PRINT_TERBILANG_LANG = 'en';   // 'en' = bahasa Inggris seperti foto, 'id' = bahasa Indonesia
-const PRINT_SHOW_PAYMENT_INFO = true; // false = sembunyikan blok "Mohon Pembayaran..."
-const PRINT_PAYMENT_INFO = { accountName: 'PT. ALDIGENS PUTERA PERSADA', bankName: 'BANK PERMATA', accountNo: '' }; // isi nomor rekening
+const PRINT_TERBILANG_LANG = 'en';
+const PRINT_SHOW_PAYMENT_INFO = true;
+const PRINT_PAYMENT_INFO = { accountName: 'PT. ALDIGENS PUTERA PERSADA', bankName: 'BANK PERMATA', accountNo: '' };
 const PRINT_SIGNER = { name: 'KHAFID YUSUF', title: 'Direktur' };
 
 const P_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -73,7 +72,6 @@ const pEsc = (v) =>
 const pLines = (v) => pEsc(v).replace(/\r?\n/g, '<br/>');
 const pFmt = (n) => Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
 
-// 2026-09-17 -> 17 Sep 2026
 const pDate = (value) => {
     if (!value) return '-';
     const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -102,7 +100,6 @@ const pBelow1000 = (num) => {
     return words.join(' ');
 };
 
-// 25500000 -> "Twenty-five million five hundred thousand Rupiah"
 const pWords = (value) => {
     let n = Math.floor(Math.abs(Number(value) || 0));
     if (n === 0) return 'Zero Rupiah';
@@ -120,7 +117,6 @@ const pWords = (value) => {
 
 const pTerbilang = (value) => (PRINT_TERBILANG_LANG === 'id' ? terbilang(value) : pWords(value));
 
-// Samakan bentuk data invoice dari API (nama field bisa berbeda-beda)
 const normalizeInvoiceForPrint = (inv = {}) => {
     const rawItems = inv.items || inv.details || inv.lines || [];
     const items = rawItems.map((it) => {
@@ -147,7 +143,6 @@ const normalizeInvoiceForPrint = (inv = {}) => {
 
     const invoiceDate = inv.invoice_date || inv.date;
     const days = pDaysBetween(invoiceDate, inv.due_date);
-    // Buang awalan "Reff PO. No. :" / "Ref PO:" supaya tidak tercetak dobel
     const rawRef = String(inv.po_reference || inv.notes || '').replace(/^\s*Re(?:f|ff)\.?\s*PO\.?(?:\s*No\.?)?\s*:?\s*/i, '').trim();
 
     return {
@@ -174,7 +169,6 @@ const PRINT_INVOICE_STYLE = `
     .script { font-family: 'Comic Sans MS', 'Comic Sans', 'Comic Neue', cursive; }
 
     .head { display: flex; justify-content: space-between; align-items: flex-start; }
-    /* brightness: latar JPEG abu-abu muda dibuat putih, bagian hitam tetap hitam */
     .logo { width: 62mm; height: auto; display: block; margin-bottom: 2mm; filter: brightness(1.06); }
     .co-name { font-weight: 700; }
     .co-addr { line-height: 1.35; }
@@ -228,7 +222,6 @@ function buildInvoiceHtml(rawInvoice, { autoPrint = false, logoUrl = '' } = {}) 
         )
         .join('');
 
-    // Baris kosong supaya garis kolom memanjang ke bawah seperti invoice fisik
     const fillHeightMm = Math.max(0, 78 - d.items.length * 5);
 
     const logoTag = logoUrl
@@ -328,12 +321,32 @@ function printInvoiceDocument(invoice, logoUrl) {
     printWindow.document.close();
 }
 
-
 export default function PurchaseInvoice() {
-    const [invoices, setInvoices] = useState([]);
-    const [purchaseOrders, setPurchaseOrders] = useState([]);
-    const [suppliers, setSuppliers] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [invoices, setInvoices] = useState(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch {
+            return [];
+        }
+    });
+    const [purchaseOrders, setPurchaseOrders] = useState(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem('aldigens_purchase_orders') || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch {
+            return [];
+        }
+    });
+    const [suppliers, setSuppliers] = useState(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(SUPPLIER_STORAGE_KEY) || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch {
+            return [];
+        }
+    });
+    const [loading, setLoading] = useState(false);
 
     const pagination = usePagination(invoices, 10);
 
@@ -347,14 +360,25 @@ export default function PurchaseInvoice() {
     }, []);
 
     const fetchInvoices = async () => {
-        setLoading(true);
+        if (invoices.length === 0) setLoading(true);
         try {
-            const response = await api.get('/purchase-invoices');
+            const response = await api.get('/purchase-invoices').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-            setInvoices(Array.isArray(apiData) ? apiData : []);
-        } catch (error) {
-            console.error('Gagal memuat invoice:', error);
-            setInvoices([]);
+            const localData = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
+
+            if (Array.isArray(apiData) && apiData.length > 0) {
+                const mergedMap = new Map();
+                localData.forEach((inv) => mergedMap.set(inv.invoice_number || inv.supplier_invoice_number || inv.id, inv));
+                apiData.forEach((inv) => mergedMap.set(inv.invoice_number || inv.supplier_invoice_number || inv.id, inv));
+                const merged = Array.from(mergedMap.values());
+                setInvoices(merged);
+                localStorage.setItem(PI_STORAGE_KEY, JSON.stringify(merged));
+            } else {
+                setInvoices(Array.isArray(localData) ? localData : []);
+            }
+        } catch {
+            const localData = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
+            setInvoices(Array.isArray(localData) ? localData : []);
         } finally {
             setLoading(false);
         }
@@ -389,15 +413,18 @@ export default function PurchaseInvoice() {
 
     const fetchSuppliers = async () => {
         try {
-            const response = await api.get('/suppliers');
+            const response = await api.get('/suppliers').catch(() => null);
             const apiData = response?.data?.data || response?.data;
-            const list = Array.isArray(apiData) ? apiData : [];
-            setSuppliers(list);
-            return list;
-        } catch (error) {
-            console.error('Gagal memuat supplier:', error);
-            return [];
-        }
+            if (Array.isArray(apiData) && apiData.length > 0) {
+                setSuppliers(apiData);
+                localStorage.setItem(SUPPLIER_STORAGE_KEY, JSON.stringify(apiData));
+                return apiData;
+            }
+        } catch { /* abaikan */ }
+
+        const localSuppliers = JSON.parse(localStorage.getItem(SUPPLIER_STORAGE_KEY) || '[]');
+        setSuppliers(Array.isArray(localSuppliers) ? localSuppliers : []);
+        return Array.isArray(localSuppliers) ? localSuppliers : [];
     };
 
     const registerSupplier = async (name, address) => {
@@ -411,7 +438,6 @@ export default function PurchaseInvoice() {
         }, 0);
         const codes = [`SUP-${String(maxNo + 1).padStart(3, '0')}`, `SUP-${String(Date.now()).slice(-6)}`];
 
-        let lastError;
         for (const code of codes) {
             try {
                 const res = await api.post('/suppliers', {
@@ -423,11 +449,22 @@ export default function PurchaseInvoice() {
                 const created = res?.data?.data ?? res?.data;
                 await fetchSuppliers();
                 return created?.id;
-            } catch (error) {
-                lastError = error;
+            } catch {
+                // coba kode berikutnya
             }
         }
-        throw lastError;
+
+        const localNew = {
+            id: Date.now(),
+            supplier_code: codes[1],
+            supplier_name: name,
+            address: address || '',
+            status: 'AKTIF',
+        };
+        const updatedSuppliers = [localNew, ...latest];
+        setSuppliers(updatedSuppliers);
+        localStorage.setItem(SUPPLIER_STORAGE_KEY, JSON.stringify(updatedSuppliers));
+        return localNew.id;
     };
 
     const handleSelectPO = (poIdentifier) => {
@@ -502,6 +539,16 @@ export default function PurchaseInvoice() {
                 return;
             }
 
+            const matchedSupplierObj = suppliers.find((s) => Number(s.id) === supplierId);
+            const subTotal = formData.items.reduce((sum, item) => {
+                const qty = Number(item.qty || 0);
+                const price = Number(item.unit_price || 0);
+                const disc = Number(item.discount || 0);
+                return sum + qty * price * (1 - disc / 100);
+            }, 0);
+            const taxAmount = Math.round(subTotal * 0.11);
+            const grandTotal = subTotal + taxAmount;
+
             const payload = {
                 supplier_id: supplierId,
                 supplier_invoice_number: formData.invoice_number,
@@ -515,13 +562,36 @@ export default function PurchaseInvoice() {
                     description: item.description,
                     qty: Number(item.qty),
                     unit: 'PCS',
-                    unit_price: Number(item.unit_price)
+                    unit_price: Number(item.unit_price),
+                    discount: Number(item.discount || 0),
                 }))
             };
 
-            await api.post('/purchase-invoices', payload);
+            const localInvoiceRecord = {
+                ...payload,
+                id: Date.now(),
+                invoice_number: formData.invoice_number,
+                supplier_name: matchedSupplierObj?.supplier_name || formData.new_supplier_name || '-',
+                supplier_address: matchedSupplierObj?.address || formData.new_supplier_address || '',
+                supplier: matchedSupplierObj || { supplier_name: formData.new_supplier_name || '-', address: formData.new_supplier_address || '' },
+                sub_total: subTotal,
+                tax_amount: taxAmount,
+                grand_total: grandTotal,
+                status: 'UNPAID',
+            };
 
-            swalSuccess('Berhasil', 'Purchase Invoice berhasil disimpan ke database!');
+            const existingLocal = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
+            const updatedLocal = [localInvoiceRecord, ...existingLocal];
+            localStorage.setItem(PI_STORAGE_KEY, JSON.stringify(updatedLocal));
+            setInvoices(updatedLocal);
+
+            try {
+                await api.post('/purchase-invoices', payload);
+                swalSuccess('Berhasil', 'Purchase Invoice berhasil disimpan!');
+            } catch {
+                swalSuccess('Berhasil', 'Purchase Invoice berhasil disimpan ke penyimpanan lokal!');
+            }
+
             setIsModalOpen(false);
             resetForm();
             fetchInvoices();
@@ -543,28 +613,26 @@ export default function PurchaseInvoice() {
 
         const updated = invoices.map(inv => inv.id === id ? { ...inv, status: 'Lunas' } : inv);
         setInvoices(updated);
+        localStorage.setItem(PI_STORAGE_KEY, JSON.stringify(updated));
         swalSuccess('Berhasil', 'Status invoice diperbarui menjadi Lunas.');
     };
 
-    // Cetak invoice: ambil detail lengkap (item, supplier) dari server bila tersedia,
-    // lalu cetak dengan template invoice. Bila endpoint detail tidak ada, memakai data dari baris daftar.
     const handlePrintInvoice = async (inv) => {
         let detail = inv;
         try {
-            const res = await api.get(`/purchase-invoices/${inv.id}`);
+            const res = await api.get(`/purchase-invoices/${inv.id}`).catch(() => null);
             const data = res?.data?.data ?? res?.data;
             if (data && typeof data === 'object' && !Array.isArray(data)) {
                 detail = { ...inv, ...data };
             }
-        } catch (error) {
-            console.warn('Detail invoice tidak bisa dimuat, memakai data dari daftar:', error);
+        } catch {
+            // pakai data lokal
         }
-        // URL logo dibuat absolut supaya terbaca dari jendela cetak
         const logoUrl = new URL(logoAldigens, window.location.href).href;
         printInvoiceDocument(detail, logoUrl);
     };
 
-    if (loading) return <div className="p-6 text-slate-600">Memuat data Purchase Invoice...</div>;
+    if (loading) return <div className="p-6 text-slate-600 dark:text-slate-300">Memuat data Purchase Invoice...</div>;
 
     return (
         <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow">
@@ -595,7 +663,7 @@ export default function PurchaseInvoice() {
                             pagination.paginatedItems.map((inv, idx) => (
                                 <tr key={inv.id || idx}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100">
-                                        {inv.invoice_number} <br/><span className="text-xs text-slate-500">{inv.supplier?.supplier_name || '-'}</span>
+                                        {inv.invoice_number || inv.supplier_invoice_number} <br/><span className="text-xs text-slate-500">{inv.supplier?.supplier_name || inv.supplier_name || '-'}</span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{inv.notes || '-'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-slate-900 dark:text-white">

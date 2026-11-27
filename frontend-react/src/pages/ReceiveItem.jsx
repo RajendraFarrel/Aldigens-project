@@ -5,6 +5,8 @@ import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 import { swalSuccess, swalError } from '../utils/swal';
 
+const RI_STORAGE_KEY = 'aldigens_receive_items';
+
 const emptyItem = () => ({ part_number: '', description: '', qty: 1, unit: 'PCS' });
 
 export default function ReceiveItem() {
@@ -12,7 +14,15 @@ export default function ReceiveItem() {
   const [viewMode, setViewMode] = useState('list');
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingId, setEditingId] = useState(null);
-  const [receiveItems, setReceiveItems] = useState([]);
+
+  const [receiveItems, setReceiveItems] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(RI_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -32,21 +42,25 @@ export default function ReceiveItem() {
   }, []);
 
   const fetchReceiveItems = async () => {
+    if (receiveItems.length === 0) setLoading(true);
     try {
-      setLoading(true);
       const response = await api.get('/receive-items').catch(() => null);
       const apiData = response?.data?.data || response?.data;
+      const localData = JSON.parse(localStorage.getItem(RI_STORAGE_KEY) || '[]');
 
       if (Array.isArray(apiData) && apiData.length > 0) {
-        setReceiveItems(apiData);
+        const mergedMap = new Map();
+        localData.forEach((it) => mergedMap.set(it.receive_no || it.ri_number || it.document_number || it.id, it));
+        apiData.forEach((it) => mergedMap.set(it.receive_no || it.ri_number || it.document_number || it.id, it));
+        const merged = Array.from(mergedMap.values());
+        setReceiveItems(merged);
+        localStorage.setItem(RI_STORAGE_KEY, JSON.stringify(merged));
       } else {
-        const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-        setReceiveItems(localData);
+        setReceiveItems(Array.isArray(localData) ? localData : []);
       }
-    } catch (error) {
-      console.error('API Error, memuat data lokal...', error);
-      const localData = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-      setReceiveItems(localData);
+    } catch {
+      const localData = JSON.parse(localStorage.getItem(RI_STORAGE_KEY) || '[]');
+      setReceiveItems(Array.isArray(localData) ? localData : []);
     } finally {
       setLoading(false);
     }
@@ -115,7 +129,7 @@ export default function ReceiveItem() {
     const rawDate = item.date || item.receive_date || '';
     const cleanDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
 
-    const formattedItems = item.items && item.items.length > 0 
+    const formattedItems = item.items && item.items.length > 0
       ? item.items.map(i => ({
           part_number: i.part_number || '',
           description: i.description || '',
@@ -159,6 +173,13 @@ export default function ReceiveItem() {
     };
     const newRI = { ...payload, id: editingId || Date.now() };
 
+    const existingRIs = JSON.parse(localStorage.getItem(RI_STORAGE_KEY) || '[]');
+    const updatedLocal = editingId
+      ? existingRIs.map(i => (i.id === editingId ? newRI : i))
+      : [newRI, ...existingRIs];
+    localStorage.setItem(RI_STORAGE_KEY, JSON.stringify(updatedLocal));
+    setReceiveItems(updatedLocal);
+
     try {
       if (editingId) {
         await api.put(`/receive-items/${editingId}`, payload);
@@ -167,20 +188,12 @@ export default function ReceiveItem() {
         await api.post('/receive-items', payload);
         swalSuccess('Berhasil', 'Data Penerimaan Barang berhasil disimpan!');
       }
-    } catch (error) {
-      console.error('Gagal menyimpan penerimaan barang:', error);
-      const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
-      if (editingId) {
-        const updated = existingRIs.map(i => (i.id === editingId ? newRI : i));
-        localStorage.setItem('aldigens_receive_items', JSON.stringify(updated));
-      } else {
-        localStorage.setItem('aldigens_receive_items', JSON.stringify([newRI, ...existingRIs]));
-      }
-      swalSuccess('Berhasil (Offline)', 'Disimpan ke penyimpanan lokal.');
+    } catch {
+      swalSuccess('Berhasil', 'Data Penerimaan Barang berhasil disimpan ke penyimpanan lokal!');
     }
-    
-    await fetchReceiveItems();
+
     setViewMode('list');
+    fetchReceiveItems();
   };
 
   const handleDelete = async (id) => {
@@ -190,22 +203,21 @@ export default function ReceiveItem() {
 
     try {
       await api.delete(`/receive-items/${id}`);
-    } catch (error) {
-      console.log('Gagal menghapus dari server, menghapus dari lokal...');
+    } catch {
+      // lanjut hapus lokal
     }
 
-    const existingRIs = JSON.parse(localStorage.getItem('aldigens_receive_items') || '[]');
+    const existingRIs = JSON.parse(localStorage.getItem(RI_STORAGE_KEY) || '[]');
     const updatedRIs = existingRIs.filter((item) => item.id !== id && item.receive_no !== id && item.ri_number !== id);
-    localStorage.setItem('aldigens_receive_items', JSON.stringify(updatedRIs));
-
-    await fetchReceiveItems();
+    localStorage.setItem(RI_STORAGE_KEY, JSON.stringify(updatedRIs));
+    setReceiveItems(updatedRIs);
     setActiveMenuId(null);
   };
 
   const handlePrint = (item) => {
     setActiveMenuId(null);
     const receiveNo = item.receive_no || item.ri_number || item.document_number || '-';
-    
+
     let vendor = item.vendor_name || item.supplier_name || '-';
     let poRef = item.po_ref || item.po_reference || '-';
     if (vendor === '-' && item.notes && item.notes.includes('Vendor:')) {
@@ -298,7 +310,7 @@ export default function ReceiveItem() {
                   <Plus className="h-3.5 w-3.5" /> Tambah Baris
                 </button>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 border border-slate-200 dark:border-slate-700">
@@ -341,7 +353,7 @@ export default function ReceiveItem() {
                 </table>
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button type="button" onClick={() => setViewMode('list')} className="px-5 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg font-medium cursor-pointer">Batal</button>
               <button type="submit" className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium cursor-pointer"><Save className="h-4 w-4" /> Simpan Data</button>
@@ -382,7 +394,7 @@ export default function ReceiveItem() {
                 ) : (
                   pagination.paginatedItems.map((item, idx) => {
                     const receiveNo = item.receive_no || item.ri_number || item.document_number;
-                    
+
                     let vendor = item.vendor_name || item.supplier_name || '';
                     let poRef = item.po_ref || item.po_reference || '-';
                     if (!vendor && item.notes && item.notes.includes('Vendor:')) {

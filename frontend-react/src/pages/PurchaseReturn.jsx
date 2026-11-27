@@ -10,6 +10,7 @@ import logoPerusahaan from '../../LOGO ALDIGENS2.jpeg';
 import { swalSuccess, swalError } from '../utils/swal';
 
 const RETURN_STORAGE_KEY = 'aldigens_purchase_returns';
+const PI_STORAGE_KEY = 'aldigens_purchase_invoices';
 
 const PRINT_COMPANY = {
   name: 'PT. ALDIGENS PUTERA PERSADA',
@@ -145,9 +146,23 @@ function buildReturnHtml(item, { autoPrint = false, logoUrl = '' } = {}) {
 
 export default function PurchaseReturn() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [returns, setReturns] = useState([]);
-  const [purchaseInvoices, setPurchaseInvoices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [returns, setReturns] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(RETURN_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [purchaseInvoices, setPurchaseInvoices] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [viewMode, setViewMode] = useState('list');
@@ -165,11 +180,11 @@ export default function PurchaseReturn() {
     items: [emptyItem(0)],
   });
 
-  const fetchAllData = useCallback(async () => {
-    setLoading(true);
+  const fetchAllData = useCallback(async (isInitial = false) => {
+    if (!isInitial) setLoading(true);
     try {
       const [retRes, invRes] = await Promise.allSettled([
-        api.get('/purchase-returns'),
+        api.get('/purchase-returns', { timeout: 5000 }),
         getPurchaseInvoices(),
       ]);
 
@@ -179,23 +194,46 @@ export default function PurchaseReturn() {
         apiReturns = Array.isArray(raw) ? raw : [];
       }
       const localReturns = JSON.parse(localStorage.getItem(RETURN_STORAGE_KEY) || '[]');
-      const merged = [...apiReturns, ...localReturns];
-      const unique = Array.from(new Map(merged.map((r) => [r.return_number || r.id, r])).values());
-      setReturns(unique);
+      const mergedMap = new Map();
+      (Array.isArray(localReturns) ? localReturns : []).forEach((r) => {
+        if (r?.return_number || r?.id) mergedMap.set(r.return_number || r.id, r);
+      });
+      apiReturns.forEach((r) => {
+        if (r?.return_number || r?.id) mergedMap.set(r.return_number || r.id, r);
+      });
+      const uniqueReturns = Array.from(mergedMap.values());
+      setReturns(uniqueReturns);
+      localStorage.setItem(RETURN_STORAGE_KEY, JSON.stringify(uniqueReturns));
 
+      const localInv = JSON.parse(localStorage.getItem(PI_STORAGE_KEY) || '[]');
       if (invRes.status === 'fulfilled') {
         const rawInv = invRes.value?.data?.data ?? invRes.value?.data ?? invRes.value ?? [];
-        setPurchaseInvoices(Array.isArray(rawInv) ? rawInv : []);
+        const apiInvList = Array.isArray(rawInv) ? rawInv : [];
+        const mergedInvMap = new Map();
+        (Array.isArray(localInv) ? localInv : []).forEach((inv) => {
+          const key = inv.invoice_number || inv.supplier_invoice_number || inv.id;
+          if (key) mergedInvMap.set(key, inv);
+        });
+        apiInvList.forEach((inv) => {
+          const key = inv.invoice_number || inv.supplier_invoice_number || inv.id;
+          if (key) mergedInvMap.set(key, inv);
+        });
+        const uniqueInv = Array.from(mergedInvMap.values());
+        setPurchaseInvoices(uniqueInv);
+        localStorage.setItem(PI_STORAGE_KEY, JSON.stringify(uniqueInv));
+      } else {
+        setPurchaseInvoices(Array.isArray(localInv) ? localInv : []);
       }
-    } catch (e) {
-      console.error('Gagal memuat data Purchase Return:', e);
+    } catch {
+      const localReturns = JSON.parse(localStorage.getItem(RETURN_STORAGE_KEY) || '[]');
+      setReturns(Array.isArray(localReturns) ? localReturns : []);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchAllData();
+    fetchAllData(true);
   }, [fetchAllData]);
 
   const calcTotalReturn = (items = []) =>
@@ -228,18 +266,20 @@ export default function PurchaseReturn() {
     setViewMode('form');
   };
 
-  // Tarik otomatis supplier & daftar barang saat memilih Purchase Invoice
   const handleSelectReferenceInvoice = (invoiceNumber) => {
     if (!invoiceNumber) {
       setFormData((prev) => ({ ...prev, ref_document: '' }));
       return;
     }
 
-    const found = purchaseInvoices.find((inv) => inv.invoice_number === invoiceNumber);
+    const found = purchaseInvoices.find(
+      (inv) => (inv.invoice_number || inv.supplier_invoice_number) === invoiceNumber
+    );
     if (!found) return;
 
     const supplierName = found.supplier?.supplier_name || found.supplier_name || '';
     const invItems = Array.isArray(found.items) ? found.items : [];
+    const invNo = found.invoice_number || found.supplier_invoice_number;
 
     const mappedItems =
       invItems.length > 0
@@ -255,9 +295,9 @@ export default function PurchaseReturn() {
 
     setFormData((prev) => ({
       ...prev,
-      ref_document: found.invoice_number,
+      ref_document: invNo,
       supplier_name: supplierName || prev.supplier_name,
-      notes: `Retur barang dari faktur ${found.invoice_number}`,
+      notes: `Retur barang dari faktur ${invNo}`,
       items: mappedItems,
     }));
   };
@@ -306,9 +346,10 @@ export default function PurchaseReturn() {
       const existing = JSON.parse(localStorage.getItem(RETURN_STORAGE_KEY) || '[]');
       const updatedList = [payload, ...existing.filter((x) => x.return_number !== payload.return_number)];
       localStorage.setItem(RETURN_STORAGE_KEY, JSON.stringify(updatedList));
+      setReturns(updatedList);
 
       swalSuccess('Retur Tersimpan', `${payload.return_number} berhasil dicatat.`);
-      await fetchAllData();
+      fetchAllData(true);
       setViewMode('list');
     } catch {
       swalError('Gagal Menyimpan', 'Terjadi kesalahan saat menyimpan data retur.');
@@ -390,7 +431,7 @@ export default function PurchaseReturn() {
 
             <div className="flex items-center gap-2.5">
               <button
-                onClick={fetchAllData}
+                onClick={() => fetchAllData(false)}
                 className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition cursor-pointer"
                 title="Muat ulang"
               >
@@ -520,11 +561,14 @@ export default function PurchaseReturn() {
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
               >
                 <option value="">-- Pilih No. Purchase Invoice ({purchaseInvoices.length}) --</option>
-                {purchaseInvoices.map((inv, idx) => (
-                  <option key={inv.id || idx} value={inv.invoice_number}>
-                    {inv.invoice_number} - {inv.supplier?.supplier_name || inv.supplier_name || 'Supplier'}
-                  </option>
-                ))}
+                {purchaseInvoices.map((inv, idx) => {
+                  const invNo = inv.invoice_number || inv.supplier_invoice_number;
+                  return (
+                    <option key={inv.id || idx} value={invNo}>
+                      {invNo} - {inv.supplier?.supplier_name || inv.supplier_name || 'Supplier'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -812,7 +856,7 @@ export default function PurchaseReturn() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-sm">
-                {loading ? (
+                {loading && returns.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="text-center p-12 text-slate-400">
                       <RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data retur pembelian...

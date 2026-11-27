@@ -10,6 +10,7 @@ import Pagination from '../components/Pagination';
 import usePagination from '../hooks/usePagination';
 
 const RECEIPT_STORAGE_KEY = 'aldigens_sales_receipts';
+const INVOICE_STORAGE_KEY = 'aldigens_invoices';
 
 const PRINT_COMPANY = {
   name: 'PT. ALDIGENS PUTERA PERSADA',
@@ -116,8 +117,22 @@ function buildReceiptHtml(rec, { autoPrint = false, logoUrl = '' } = {}) {
 }
 
 export default function SalesReceipt() {
-  const [receipts, setReceipts] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  const [receipts, setReceipts] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(RECEIPT_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const [invoices, setInvoices] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -141,7 +156,7 @@ export default function SalesReceipt() {
   });
 
   const fetchAllData = useCallback(async () => {
-    setLoading(true);
+    if (receipts.length === 0) setLoading(true);
     try {
       const [recRes, invRes] = await Promise.allSettled([
         api.get('/sales-receipts'),
@@ -154,22 +169,39 @@ export default function SalesReceipt() {
         apiReceipts = Array.isArray(raw) ? raw : [];
       }
       const localReceipts = JSON.parse(localStorage.getItem(RECEIPT_STORAGE_KEY) || '[]');
-      const mergedReceipts = [...apiReceipts, ...localReceipts];
-      const uniqueReceipts = Array.from(
-        new Map(mergedReceipts.map((r) => [r.receipt_number || r.id, r])).values()
-      );
+      const recMap = new Map();
+      (Array.isArray(localReceipts) ? localReceipts : []).forEach((r) => {
+        if (r?.receipt_number || r?.id) recMap.set(r.receipt_number || r.id, r);
+      });
+      apiReceipts.forEach((r) => {
+        if (r?.receipt_number || r?.id) recMap.set(r.receipt_number || r.id, r);
+      });
+      const uniqueReceipts = Array.from(recMap.values());
       setReceipts(uniqueReceipts);
+      localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(uniqueReceipts));
 
+      let apiInvoices = [];
       if (invRes.status === 'fulfilled') {
         const rawInv = invRes.value.data?.data || invRes.value.data || [];
-        setInvoices(Array.isArray(rawInv) ? rawInv : []);
+        apiInvoices = Array.isArray(rawInv) ? rawInv : [];
       }
-    } catch (e) {
-      console.error('Gagal memuat Sales Receipt / Invoice:', e);
+      const localInvoices = JSON.parse(localStorage.getItem(INVOICE_STORAGE_KEY) || '[]');
+      const invMap = new Map();
+      (Array.isArray(localInvoices) ? localInvoices : []).forEach((inv) => {
+        if (inv?.invoice_number || inv?.id) invMap.set(inv.invoice_number || inv.id, inv);
+      });
+      apiInvoices.forEach((inv) => {
+        if (inv?.invoice_number || inv?.id) invMap.set(inv.invoice_number || inv.id, inv);
+      });
+      const uniqueInvoices = Array.from(invMap.values());
+      setInvoices(uniqueInvoices);
+      localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(uniqueInvoices));
+    } catch {
+      // pakai cache lokal
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [receipts.length]);
 
   useEffect(() => {
     fetchAllData();
@@ -286,26 +318,42 @@ export default function SalesReceipt() {
     };
 
     try {
-      // 1. Simpan Sales Receipt ke backend (dengan fallback localStorage jika endpoint belum ada)
+      // 1. Simpan Sales Receipt ke backend & sinkronkan localStorage
       try {
         const res = await api.post('/sales-receipts', newReceipt);
         if (res.data?.data) newReceipt.id = res.data.data.id;
       } catch {
-        const existingLocal = JSON.parse(localStorage.getItem(RECEIPT_STORAGE_KEY) || '[]');
-        localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify([newReceipt, ...existingLocal]));
+        // tetap simpan lokal
       }
+      const existingLocal = JSON.parse(localStorage.getItem(RECEIPT_STORAGE_KEY) || '[]').filter(
+        (r) => r.receipt_number !== newReceipt.receipt_number
+      );
+      const updatedReceipts = [newReceipt, ...existingLocal];
+      localStorage.setItem(RECEIPT_STORAGE_KEY, JSON.stringify(updatedReceipts));
+      setReceipts(updatedReceipts);
 
-      // 2. Perbarui status Invoice menjadi Paid atau Partial
-      if (formData.invoice_id) {
+      // 2. Perbarui status Invoice menjadi Paid atau Partial (backend + localStorage)
+      if (formData.invoice_number) {
         const newTotalPaid = Number(formData.already_paid || 0) + received;
         const nextStatus = newTotalPaid >= Number(formData.invoice_total || 0) ? 'Paid' : 'Partial';
-        try {
-          await api.put(`/invoices/${formData.invoice_id}`, {
-            status: nextStatus,
-            paid_amount: newTotalPaid,
-          });
-        } catch (invErr) {
-          console.warn('Gagal update status invoice otomatis:', invErr);
+
+        const updatedInvoices = invoices.map((inv) =>
+          inv.invoice_number === formData.invoice_number
+            ? { ...inv, status: nextStatus, paid_amount: newTotalPaid }
+            : inv
+        );
+        setInvoices(updatedInvoices);
+        localStorage.setItem(INVOICE_STORAGE_KEY, JSON.stringify(updatedInvoices));
+
+        if (formData.invoice_id) {
+          try {
+            await api.put(`/invoices/${formData.invoice_id}`, {
+              status: nextStatus,
+              paid_amount: newTotalPaid,
+            });
+          } catch {
+            // abaikan jika offline
+          }
         }
       }
 
@@ -329,7 +377,6 @@ export default function SalesReceipt() {
       resetForm();
       fetchAllData();
     } catch (err) {
-      console.error(err);
       swalError('Gagal Menyimpan', err.response?.data?.message || 'Terjadi kesalahan saat menyimpan Sales Receipt.');
     } finally {
       setSaving(false);
@@ -667,7 +714,7 @@ export default function SalesReceipt() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-sm">
-                {loading ? (
+                {loading && receipts.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="text-center p-12 text-slate-400">
                       <RefreshCw className="h-5 w-5 animate-spin inline mr-2" /> Memuat data...

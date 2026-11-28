@@ -162,14 +162,11 @@ const PAGE_TITLES = {
 
 export default function App() {
   const { isDark, toggleTheme } = useTheme();
-  // User berasal dari context (payload backend /me), dengan cache localStorage
-  // sebagai nilai awal agar refresh tidak menghilangkan hak akses secara keliru.
   const { user: permissionUser, refresh: refreshPermissions } = usePermissions();
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('auth_token');
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  // Menu aktif disimpan di localStorage agar tetap di halaman yang sama setelah reload.
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('aldigens_active_tab') || 'dashboard');
   const currentUser = permissionUser;
 
@@ -181,18 +178,15 @@ export default function App() {
     }
   }, [isAuthenticated, currentUser, allowedMenus.join('|'), activeTab]);
 
-  /* Simpan menu aktif setiap kali berubah supaya reload tidak kembali ke dashboard. */
   useEffect(() => {
     if (isAuthenticated) localStorage.setItem('aldigens_active_tab', activeTab);
   }, [activeTab, isAuthenticated]);
 
-  /* Judul tab browser mengikuti halaman aktif. */
   useEffect(() => {
     const page = PAGE_TITLES[activeTab];
     document.title = page ? `${page} | PT. Aldigens Putera Persada` : 'PT. Aldigens Putera Persada';
   }, [activeTab]);
 
-  /* Navigasi antar-halaman lewat event (dipakai modul Akuntansi). */
   useEffect(() => {
     const handleGoto = (e) => {
       if (e?.detail) setActiveTab(e.detail);
@@ -207,7 +201,6 @@ export default function App() {
       .then(response => console.log(response.data))
       .catch(error => console.error(error));
 
-    // Daftar user dipelihara PermissionProvider; App hanya menangani sesi login.
     const handleLogout = () => {
       setIsAuthenticated(false);
     };
@@ -220,6 +213,8 @@ export default function App() {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
+    window.dispatchEvent(new Event('auth:user-updated'));
+    refreshPermissions?.();
   };
 
   const handleLogout = () => {
@@ -228,8 +223,6 @@ export default function App() {
     localStorage.removeItem('aldigens_active_tab');
     setActiveTab('dashboard');
     setIsAuthenticated(false);
-    // Buang cache user dari PermissionProvider agar tidak ada sisa hak akses
-    // milik sesi sebelumnya saat login berikutnya.
     refreshPermissions?.();
   };
 

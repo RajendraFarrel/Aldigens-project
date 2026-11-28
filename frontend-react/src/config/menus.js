@@ -42,14 +42,15 @@ import {
  * Sumber tunggal daftar menu aplikasi.
  * Dipakai oleh Sidebar, kontrol akses admin (UserManagement), dan filter App.
  *
- * - `key`   : id menu yang juga digunakan sebagai `activeTab`.
- * - `label` : teks yang ditampilkan.
- * - `icon`  : komponen ikon (lucide-react).
- * - `admin` : true = hanya untuk role Administrator (tidak bisa dicabut).
+ * - `key`      : id menu yang juga digunakan sebagai `activeTab`.
+ * - `label`    : teks yang ditampilkan.
+ * - `icon`     : komponen ikon (lucide-react).
+ * - `admin`    : true = hanya untuk role Administrator (tidak bisa dicabut).
  * - `subItems` : array berisi sub-menu (dropdown).
  */
 
-export const MENU_GROUPS = [{
+export const MENU_GROUPS = [
+    {
         group: 'PO System',
         items: [
             { key: 'dashboard', label: 'Main Dashboard', icon: LayoutDashboard },
@@ -84,94 +85,105 @@ export const MENU_GROUPS = [{
     },
     {
         group: 'Manufacturing',
-        items: [{
-            key: 'manufactures-menu',
-            label: 'Manufacturing',
-            icon: Factory,
-            subItems: [
-                { key: 'bill-of-materials', label: 'Bill of Material', icon: ListTree },
-                { key: 'work-order', label: 'Work Order', icon: FileCog },
-                { key: 'material-release', label: 'Material Release', icon: ArrowUpRight },
-                { key: 'production', label: 'Production', icon: Factory },
-                { key: 'product-result', label: 'Product Result', icon: PackageCheck },
-            ],
-        }, ]
+        items: [
+            {
+                key: 'manufactures-menu',
+                label: 'Manufacturing',
+                icon: Factory,
+                subItems: [
+                    { key: 'bill-of-materials', label: 'Bill of Material', icon: ListTree },
+                    { key: 'work-order', label: 'Work Order', icon: FileCog },
+                    { key: 'material-release', label: 'Material Release', icon: ArrowUpRight },
+                    { key: 'production', label: 'Production', icon: Factory },
+                    { key: 'product-result', label: 'Product Result', icon: PackageCheck },
+                ],
+            },
+        ],
     },
     {
         group: 'Accounting',
-        items: [{
-            key: 'accounting-menu',
-            label: 'Accounting',
-            icon: BookMarked,
-            subItems: [
-                { key: 'accounting-coa', label: 'Chart of Accounts', icon: BookMarked },
-                { key: 'accounting-cash-bank', label: 'Kas & Bank', icon: Wallet },
-                { key: 'accounting-receivables-payables', label: 'Utang Piutang', icon: HandCoins },
-                { key: 'accounting-journal', label: 'General Journal', icon: NotebookPen },
-                { key: 'accounting-ledger', label: 'General Ledger', icon: BookOpen },
-                { key: 'accounting-trial-balance', label: 'Trial Balance', icon: Scale },
-                { key: 'accounting-adjustment', label: 'Adjusting Entries', icon: FileStack },
-                { key: 'accounting-reports', label: 'Financial Reports', icon: FileBarChart },
-            ],
-        }],
+        items: [
+            {
+                key: 'accounting-menu',
+                label: 'Accounting',
+                icon: BookMarked,
+                subItems: [
+                    { key: 'accounting-coa', label: 'Chart of Accounts', icon: BookMarked },
+                    { key: 'accounting-cash-bank', label: 'Kas & Bank', icon: Wallet },
+                    { key: 'accounting-receivables-payables', label: 'Utang Piutang', icon: HandCoins },
+                    { key: 'accounting-journal', label: 'General Journal', icon: NotebookPen },
+                    { key: 'accounting-ledger', label: 'General Ledger', icon: BookOpen },
+                    { key: 'accounting-trial-balance', label: 'Trial Balance', icon: Scale },
+                    { key: 'accounting-adjustment', label: 'Adjusting Entries', icon: FileStack },
+                    { key: 'accounting-reports', label: 'Financial Reports', icon: FileBarChart },
+                ],
+            },
+        ],
     },
     {
         group: 'Inventory',
-        items: [{
-            key: 'inventory-menu',
-            label: 'Inventory',
-            icon: Package,
-            subItems: [
-                { key: 'inventory-products', label: 'Part Number Data', icon: Package },
-                { key: 'inventory-warehouses', label: 'Warehouse', icon: Warehouse },
-                { key: 'inventory-receive', label: 'Goods Receipt', icon: PackagePlus },
-                { key: 'inventory-issue', label: 'Goods Issue', icon: PackageX },
-                { key: 'inventory-transfer', label: 'Location Transfer', icon: ArrowUpRight },
-                { key: 'inventory-opname', label: 'Stock Opname', icon: ClipboardList },
-                { key: 'inventory-scan', label: 'Barcode Scanner', icon: ScanLine },
-                { key: 'inventory-transactions', label: 'Transaction History', icon: History },
-                { key: 'inventory-reports', label: 'Stock Reports', icon: BarChart3 },
-            ],
-        }],
+        items: [
+            {
+                key: 'inventory-menu',
+                label: 'Inventory',
+                icon: Package,
+                subItems: [
+                    { key: 'inventory-products', label: 'Part Number Data', icon: Package },
+                    { key: 'inventory-warehouses', label: 'Warehouse', icon: Warehouse },
+                    { key: 'inventory-receive', label: 'Goods Receipt', icon: PackagePlus },
+                    { key: 'inventory-issue', label: 'Goods Issue', icon: PackageX },
+                    { key: 'inventory-transfer', label: 'Location Transfer', icon: ArrowUpRight },
+                    { key: 'inventory-opname', label: 'Stock Opname', icon: ClipboardList },
+                    { key: 'inventory-scan', label: 'Barcode Scanner', icon: ScanLine },
+                    { key: 'inventory-transactions', label: 'Transaction History', icon: History },
+                    { key: 'inventory-reports', label: 'Stock Reports', icon: BarChart3 },
+                ],
+            },
+        ],
     },
     {
         group: 'Master Data',
-        items: [{
-            key: 'master-data-menu',
-            label: 'Master Data',
-            icon: UsersRound,
-            subItems: [
-                { key: 'master-customers', label: 'Customers', icon: UsersRound },
-                { key: 'master-suppliers', label: 'Suppliers', icon: Truck },
-            ],
-        }],
+        items: [
+            {
+                key: 'master-data-menu',
+                label: 'Master Data',
+                icon: UsersRound,
+                subItems: [
+                    { key: 'master-customers', label: 'Customers', icon: UsersRound },
+                    { key: 'master-suppliers', label: 'Suppliers', icon: Truck },
+                ],
+            },
+        ],
     },
     {
         group: 'Operasional',
-        items: [{
-            key: 'operasional-menu',
-            label: 'Operasional',
-            icon: ClipboardList,
-            subItems: [
-                // Hanya sub-menu yang implementasinya sudah tersedia.
-                { key: 'spk', label: 'SPK', icon: FileText },
-                { key: 'scheduling', label: 'Penjadwalan', icon: CalendarDays },
-                { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare },
-            ],
-        }],
+        items: [
+            {
+                key: 'operasional-menu',
+                label: 'Operasional',
+                icon: ClipboardList,
+                subItems: [
+                    { key: 'spk', label: 'SPK', icon: FileText },
+                    { key: 'scheduling', label: 'Penjadwalan', icon: CalendarDays },
+                    { key: 'commissioning', label: 'Commissioning & BAST', icon: CheckSquare },
+                ],
+            },
+        ],
     },
     {
         group: 'Network & Security',
-        items: [{
-            key: 'network-security-menu',
-            label: 'Network & Security',
-            icon: Network,
-            subItems: [
-                { key: 'network-monitoring', label: 'Network Monitoring', icon: Network },
-                { key: 'security-status', label: 'Security Status', icon: ShieldCheck },
-                { key: 'activity-log', label: 'Activity Log', icon: ActivityLogIcon },
-            ],
-        }],
+        items: [
+            {
+                key: 'network-security-menu',
+                label: 'Network & Security',
+                icon: Network,
+                subItems: [
+                    { key: 'network-monitoring', label: 'Network Monitoring', icon: Network },
+                    { key: 'security-status', label: 'Security Status', icon: ShieldCheck },
+                    { key: 'activity-log', label: 'Activity Log', icon: ActivityLogIcon },
+                ],
+            },
+        ],
     },
     {
         group: 'Settings',
@@ -193,29 +205,31 @@ export const ALWAYS_ALLOWED = ['dashboard'];
 
 /**
  * Hitung daftar menu efektif untuk seorang user berdasarkan role & akses.
- * @param {object|null} user  Objek user { role, menu_access }.
+ * @param {object|null} user  Objek user { role, menu_access, is_admin }.
  * @returns {string[]} daftar key menu yang boleh diakses.
  */
 export function getAllowedMenus(user) {
     if (!user) return ['dashboard'];
 
-    const isAdmin = user.role === 'Administrator' || user.is_admin === true;
+    const roleStr = String(user.role || '').trim().toLowerCase();
+    const isAdmin =
+        user.is_admin === true ||
+        user.is_admin === 1 ||
+        roleStr === 'administrator' ||
+        roleStr === 'admin' ||
+        roleStr === 'super admin';
+
+    // Administrator selalu memiliki akses penuh ke seluruh menu.
+    if (isAdmin) return [...MENU_KEYS];
+
     const access = Array.isArray(user.menu_access) ? user.menu_access : null;
 
-    // Administrator tanpa pembatasan eksplisit -> akses semua.
-    if (isAdmin && access === null) return [...MENU_KEYS];
+    // Fallback ke menu default jika array menu_access dari backend masih kosong.
+    const base = access && access.length > 0 ? access : nonAdminDefault();
 
-    // menu_access kini dihitung BACKEND (sudah memperhitungkan permission),
-    // sehingga array kosong berarti benar-benar tidak ada menu. Default bawaan
-    // hanya dipakai bila backend tidak mengirimkan array sama sekali.
-    const base = access !== null ? access : (isAdmin ? MENU_KEYS : nonAdminDefault());
-
-    // Administrator selalu dapat mengakses menu pengaturan.
     const merged = new Set(base);
-    if (isAdmin) merged.add('users');
     ALWAYS_ALLOWED.forEach((k) => merged.add(k));
 
-    // Jaga agar hanya key yang valid.
     return MENU_KEYS.filter((k) => merged.has(k));
 }
 
